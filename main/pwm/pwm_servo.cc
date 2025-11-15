@@ -1,7 +1,8 @@
 #include "pwm_servo.h"
 #include "driver/ledc.h"
 #include <vector>
-#include <cstring> 
+#include <cstring>
+#include <esp_log.h>
 
 // // 硬件配置参数
 // #define PWM_GPIO_PIN      GPIO_NUM_18      // PWM输出引脚
@@ -15,28 +16,44 @@
 // 硬件PWM初始化
 void pwm_servo::Initialize()
 {
-    // 配置LED PWM定时器
+    if (initialized_) {
+        ESP_LOGW("PWM_SERVO", "pwm_servo already initialized, skipping");
+        return;
+    }
+
+    // 配置LED PWM定时器 - 使用高速模式以避免与低速LEDC冲突
     ledc_timer_config_t ledc_timer = {
-        .speed_mode = LEDC_LOW_SPEED_MODE,
+        .speed_mode = LEDC_LOW_SPEED_MODE,  // 改用高速模式
         .duty_resolution = LEDC_TIMER_10_BIT, // 10位分辨率
-        .timer_num = LEDC_TIMER_0,
+        .timer_num = LEDC_TIMER_2,  // 使用LEDC_TIMER_2
         .freq_hz = PWM_FREQUENCY,
+        .clk_cfg = LEDC_AUTO_CLK,
+        .deconfigure = false,
     };
-    ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
+    esp_err_t timer_err = ledc_timer_config(&ledc_timer);
+    if (timer_err != ESP_OK) {
+        ESP_LOGE("PWM_SERVO", "Failed to configure LEDC timer: %s", esp_err_to_name(timer_err));
+        return;
+    }
 
     // 配置LED PWM通道
     ledc_channel_config_t ledc_channel = {
         .gpio_num = PWM_GPIO_PIN, 
         .speed_mode = LEDC_LOW_SPEED_MODE,  
-
-        .channel = LEDC_CHANNEL_0,
-        .timer_sel = LEDC_TIMER_0,
+        .channel = LEDC_CHANNEL_3,  
+        .intr_type = LEDC_INTR_DISABLE,
+        .timer_sel = LEDC_TIMER_3,
         .duty = 0,
-        .hpoint = 0 ,
-
+        .hpoint = 0,
     };
-    ESP_ERROR_CHECK(ledc_channel_config(&ledc_channel));
-    //ESP_ERROR_CHECK(ledc_driver_install(LEDC_LOW_SPEED_MODE, 0, 0)); 
+    esp_err_t channel_err = ledc_channel_config(&ledc_channel);
+    if (channel_err != ESP_OK) {
+        ESP_LOGE("PWM_SERVO", "Failed to configure LEDC channel: %s", esp_err_to_name(channel_err));
+        return;
+    }
+
+    initialized_ = true;
+    ESP_LOGI("PWM_SERVO", "PWM servo initialized successfully on high-speed mode");
 }
 
 
@@ -44,17 +61,9 @@ void pwm_servo::Initialize()
 // 设置指定占空比
 void pwm_servo::SetDutyCycle(uint32_t duty)
 {
-    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty));
-    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0));
+    ESP_ERROR_CHECK(ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_3, duty));
+    ESP_ERROR_CHECK(ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_3));
     printf("PWM duty set to %0.1f%% (value: %lu)\n", (duty * 100.0) / 1023, duty);
-    // printf("PWM duty set to %0.1f%% (value: %lu)\n", (duty * 100.0) / 1023, duty);
-    // printf("PWM duty set to %0.1f%% (value: %lu)\n", (duty * 100.0) / 1023, duty);
-    // printf("PWM duty set to %0.1f%% (value: %lu)\n", (duty * 100.0) / 1023, duty);
-    // printf("PWM duty set to %0.1f%% (value: %lu)\n", (duty * 100.0) / 1023, duty);
-    // printf("PWM duty set to %0.1f%% (value: %lu)\n", (duty * 100.0) / 1023, duty);
-    // printf("PWM duty set to %0.1f%% (value: %lu)\n", (duty * 100.0) / 1023, duty);
-    // printf("PWM duty set to %0.1f%% (value: %lu)\n", (duty * 100.0) / 1023, duty);
-    // printf("PWM duty set to %0.1f%% (value: %lu)\n", (duty * 100.0) / 1023, duty);
 }
 
 void pwm_servo::emoact(const char* emotion)

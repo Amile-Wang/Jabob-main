@@ -47,6 +47,7 @@ GpioLed::GpioLed(gpio_num_t gpio, int output_invert, ledc_timer_t timer_num, led
     ledc_timer.speed_mode = LEDC_LS_MODE;           // timer mode
     ledc_timer.timer_num = timer_num;               // timer index
     ledc_timer.clk_cfg = LEDC_AUTO_CLK;              // Auto select the source clock
+    ledc_timer.deconfigure = false;                 // Do not deconfigure the timer
 
     ESP_ERROR_CHECK(ledc_timer_config(&ledc_timer));
 

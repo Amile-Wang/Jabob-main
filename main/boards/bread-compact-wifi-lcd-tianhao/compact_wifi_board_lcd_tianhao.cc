@@ -10,6 +10,7 @@
 #include "led/single_led.h"
 #include "pwm/pwm_servo.h"
 #include "power_save_timer.h"
+#include "adc_battery_monitor.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -77,6 +78,12 @@ private:
     Button volume_up_button_;
     Button volume_down_button_;
     std::unique_ptr<PowerSaveTimer> power_save_timer_; 
+    uint8_t saved_brightness_ = 100; // 添加用于保存亮度的变量
+#ifdef BATTERY_ADC_UNIT
+    std::unique_ptr<AdcBatteryMonitor> battery_monitor_;
+#endif
+
+
 
 
     static void InitializeButtonsTask(void* param) {
@@ -294,15 +301,35 @@ public:
         InitializeSpi();
         InitializeLcdDisplay();
 
+#ifdef BATTERY_ADC_UNIT
+        // 初始化电池监控器（需要在config.h中定义相关参数）
+        battery_monitor_ = std::make_unique<AdcBatteryMonitor>(
+            BATTERY_ADC_UNIT, 
+            BATTERY_ADC_CHANNEL, 
+            BATTERY_UPPER_RESISTOR, 
+            BATTERY_LOWER_RESISTOR, 
+            BATTERY_CHARGING_PIN
+        );
+#endif
+
         // 初始化电源管理定时器，20秒后进入节能模式
         power_save_timer_ = std::make_unique<PowerSaveTimer>(CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ, 20, -1);
         power_save_timer_->SetEnabled(true);
         ESP_LOGI(TAG, "Power save timer initialized and enabled");
 
         // 注册进入和退出睡眠模式的回调
-        power_save_timer_->OnEnterSleepMode([]() {
+        power_save_timer_->OnEnterSleepMode([this]() {
             ESP_LOGI(TAG, "Entering sleep mode");
             auto& board = Board::GetInstance();
+
+            // 保存当前亮度并在进入睡眠时将亮度设为0
+            auto backlight = board.GetBacklight();
+            if (backlight) {
+                saved_brightness_ = backlight->brightness();
+                backlight->SetBrightness(0);
+                ESP_LOGI(TAG, "Brightness saved (%d) and set to 0", saved_brightness_);
+            }
+
             // 使用Application的Schedule方法确保在主线程中执行UI更新
             Application::GetInstance().Schedule([&board]() {
                 auto& board = Board::GetInstance();
@@ -323,9 +350,16 @@ public:
             // 可以在这里添加进入睡眠模式时需要执行的操作
         });
 
-        power_save_timer_->OnExitSleepMode([]() {
+        power_save_timer_->OnExitSleepMode([this]() {
             ESP_LOGI(TAG, "Exiting sleep mode");
             auto& board = Board::GetInstance();
+
+             // 恢复之前的亮度
+            auto backlight = board.GetBacklight();
+            if (backlight) {
+                backlight->SetBrightness(saved_brightness_);
+                ESP_LOGI(TAG, "Brightness restored to %d", saved_brightness_);
+            }
             
             // 使用Application的Schedule方法确保在主线程中执行UI更新
             Application::GetInstance().Schedule([&board]() {
@@ -388,17 +422,39 @@ public:
         return nullptr;
     }
 
+    // virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+    // // 临时实现，返回模拟电池电量值，用于测试显示功能
+    // // 后续添加ADC分压电路检测时，需要修改此部分代码
+    // level = 0;          // 模拟电量0%
+    // charging = true;    // 在充电状态
+    // discharging = false;  
+    // return true;         // 返回true表示成功获取电池状态
+    // }
+
+    // virtual pwm_servo* GetPwmServo() override {
+    //     return pwm_servo_;
+    // }
     virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+    // 当ADC引脚定义时，使用真实的ADC读数；否则使用模拟值
+#ifdef BATTERY_ADC_UNIT
+    if (battery_monitor_) {
+        level = battery_monitor_->GetBatteryLevel();
+        charging = battery_monitor_->IsCharging();
+        discharging = battery_monitor_->IsDischarging();
+    } else {
+        // 如果电池监控器未初始化，则返回默认值
+        level = 60;
+        charging = false;
+        discharging = true;
+    }
+#else
     // 临时实现，返回模拟电池电量值，用于测试显示功能
     // 后续添加ADC分压电路检测时，需要修改此部分代码
-    level = 0;          // 模拟电量0%
+    level = 30;          // 模拟电量0%
     charging = true;    // 在充电状态
     discharging = false;  
+#endif
     return true;         // 返回true表示成功获取电池状态
-    }
-
-    virtual pwm_servo* GetPwmServo() override {
-        return pwm_servo_;
     }
 };
 

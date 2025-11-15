@@ -31,6 +31,7 @@ private:
     ~pwm_servo() = default;
 
     uint32_t current_duty_ = 0;
+    bool initialized_ = false;
 };
 
 
