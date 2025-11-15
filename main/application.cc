@@ -377,7 +377,7 @@ void Application::Start() {
     // 暂时禁用新版本检查
     // // Check for new firmware version or get the MQTT broker address
     Ota ota;
-    // CheckNewVersion(ota);
+    CheckNewVersion(ota);
 
     // 直接设置事件位，模拟检查完成
     xEventGroupSetBits(event_group_, MAIN_EVENT_CHECK_NEW_VERSION_DONE);
@@ -398,15 +398,15 @@ void Application::Start() {
     // }
 
     if (ota.HasWebsocketConfig()) {
-    protocol_ = std::make_unique<WebsocketProtocol>();
-    ESP_LOGW(TAG, "using WebSocket");
-} else if (ota.HasMqttConfig()) {
-    protocol_ = std::make_unique<MqttProtocol>();
-    ESP_LOGW(TAG, "Mqtt");
-} else {
-    ESP_LOGW(TAG, "No protocol specified in the OTA config, using WebSocket as default");
-    protocol_ = std::make_unique<WebsocketProtocol>();
-}
+        protocol_ = std::make_unique<WebsocketProtocol>();
+        ESP_LOGW(TAG, "using WebSocket");
+    } else if (ota.HasMqttConfig()) {
+        protocol_ = std::make_unique<MqttProtocol>();
+        ESP_LOGW(TAG, "Mqtt");
+    } else {
+        ESP_LOGW(TAG, "No protocol specified in the OTA config, using WebSocket as default");
+        protocol_ = std::make_unique<WebsocketProtocol>();
+    }
 
     protocol_->OnNetworkError([this](const std::string& message) {
         last_error_message_ = message;
@@ -886,17 +886,17 @@ void Application::Reboot() {
 
 bool Application::CanEnterSleepMode() {
     if (device_state_ != kDeviceStateIdle) {
-        ESP_LOGI(TAG, "can't enter sleep mode,1");
+        // ESP_LOGI(TAG, "can't enter sleep mode,1");
         return false;
     }
 
     if (protocol_ && protocol_->IsAudioChannelOpened()) {
-        ESP_LOGI(TAG, "can't enter sleep mode,2");
+        // ESP_LOGI(TAG, "can't enter sleep mode,2");
         return false;
     }
 
     if (!audio_service_.IsIdle()) {
-        ESP_LOGI(TAG, "can't enter sleep mode,3");
+        // ESP_LOGI(TAG, "can't enter sleep mode,3");
         return false;
     }
 
