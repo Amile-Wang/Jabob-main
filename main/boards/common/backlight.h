@@ -19,6 +19,7 @@ public:
 protected:
     void OnTransitionTimer();
     virtual void SetBrightnessImpl(uint8_t brightness) = 0;
+    void CheckGpio42Level();  // 添加检测GPIO42电平的函数
 
     esp_timer_handle_t transition_timer_ = nullptr;
     uint8_t brightness_ = 0;

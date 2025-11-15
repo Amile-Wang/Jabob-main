@@ -9,6 +9,7 @@
 #include "lamp_controller.h"
 #include "led/single_led.h"
 #include "pwm/pwm_servo.h"
+#include "power_save_timer.h"
 
 #include <wifi_station.h>
 #include <esp_log.h>
@@ -75,6 +76,7 @@ private:
     // Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
+    std::unique_ptr<PowerSaveTimer> power_save_timer_; 
 
 
     static void InitializeButtonsTask(void* param) {
@@ -82,10 +84,28 @@ private:
         
         // 添加延迟以避免与其他初始化过程竞争资源
         vTaskDelay(pdMS_TO_TICKS(1500));
+
+        // 注册设备状态变化监听器
+        DeviceStateEventManager::GetInstance().RegisterStateChangeCallback([board](DeviceState previous_state, DeviceState new_state) {
+            ESP_LOGI(TAG, "Device state changed from %d to %d", previous_state, new_state);
+            if (new_state == kDeviceStateIdle) {
+                // 设备进入空闲状态，启用电源管理定时器
+                if (board->power_save_timer_) {
+                    board->power_save_timer_->SetEnabled(true);
+                    ESP_LOGI(TAG, "Power save timer enabled due to entering idle state");
+                }
+            } else {
+                // 设备离开空闲状态，唤醒电源管理器
+                if (board->power_save_timer_) {
+                    board->power_save_timer_->WakeUp();
+                    ESP_LOGI(TAG, "Power save timer woken up due to leaving idle state");
+                }
+            }
+        });
         
         board->boot_button_.OnPressDown([board]() {
             ESP_LOGI(TAG, "Boot button pressed");
-            // board->GetDisplay()->ShowNotification("Boot button pressed");
+            board->GetDisplay()->ShowNotification("Boot button pressed");
             auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 board->ResetWifiConfiguration();
@@ -127,14 +147,14 @@ private:
             });
         // }
 
-    #if CONFIG_USE_DEVICE_AEC
-        board->boot_button_.OnDoubleClick([board]() {
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateIdle) {
-                app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
-            }
-        });
-    #endif
+    // #if CONFIG_USE_DEVICE_AEC
+    //     board->boot_button_.OnDoubleClick([board]() {
+    //         auto& app = Application::GetInstance();
+    //         if (app.GetDeviceState() == kDeviceStateIdle) {
+    //             app.SetAecMode(app.GetAecMode() == kAecOff ? kAecOnDeviceSide : kAecOff);
+    //         }
+    //     });
+    // #endif
 
         // 任务完成，删除自身
         vTaskDelete(NULL);
@@ -274,6 +294,57 @@ public:
         InitializeSpi();
         InitializeLcdDisplay();
 
+        // 初始化电源管理定时器，20秒后进入节能模式
+        power_save_timer_ = std::make_unique<PowerSaveTimer>(CONFIG_ESP_DEFAULT_CPU_FREQ_MHZ, 20, -1);
+        power_save_timer_->SetEnabled(true);
+        ESP_LOGI(TAG, "Power save timer initialized and enabled");
+
+        // 注册进入和退出睡眠模式的回调
+        power_save_timer_->OnEnterSleepMode([]() {
+            ESP_LOGI(TAG, "Entering sleep mode");
+            auto& board = Board::GetInstance();
+            // 使用Application的Schedule方法确保在主线程中执行UI更新
+            Application::GetInstance().Schedule([&board]() {
+                auto& board = Board::GetInstance();
+                auto display = board.GetDisplay();
+                
+                ESP_LOGI(TAG, "Updating sleep mode UI");
+                if (display) {
+                    ESP_LOGI(TAG, "Calling SetEmotion with 'relaxed'");
+                    display->SetEmotion("relaxed");
+                    ESP_LOGI(TAG, "Called SetEmotion with 'relaxed'");
+                    display->ShowNotification(Lang::Strings::SLEEPING);
+                    ESP_LOGI(TAG, "Sleep mode UI updated");
+                } else {
+                    ESP_LOGW(TAG, "Display is null");
+                }
+            });
+            
+            // 可以在这里添加进入睡眠模式时需要执行的操作
+        });
+
+        power_save_timer_->OnExitSleepMode([]() {
+            ESP_LOGI(TAG, "Exiting sleep mode");
+            auto& board = Board::GetInstance();
+            
+            // 使用Application的Schedule方法确保在主线程中执行UI更新
+            Application::GetInstance().Schedule([&board]() {
+                auto& board = Board::GetInstance();
+                auto display = board.GetDisplay();
+                
+                ESP_LOGI(TAG, "Updating exit sleep mode UI");
+                if (display) {
+                    ESP_LOGI(TAG, "Calling SetEmotion with 'neutral'");
+                    display->SetEmotion("neutral");
+                    ESP_LOGI(TAG, "Called SetEmotion with 'neutral'");
+                    ESP_LOGI(TAG, "Exit sleep mode UI updated");
+                } else {
+                    ESP_LOGW(TAG, "Display is null");
+                }
+            });
+            // 可以在这里添加退出睡眠模式时需要执行的操作
+        });
+
         // 在单独的任务中初始化按钮，避免阻塞主流程
         xTaskCreate(InitializeButtonsTask, "buttons_init", 4096, this, 5, NULL);
         
@@ -291,6 +362,8 @@ public:
     //     // static SingleLed led(BUILTIN_LED_GPIO);
     //     return &led;
     // }
+
+
 
     virtual AudioCodec* GetAudioCodec() override {
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
@@ -313,6 +386,15 @@ public:
             return &backlight;
         }
         return nullptr;
+    }
+
+    virtual bool GetBatteryLevel(int &level, bool& charging, bool& discharging) override {
+    // 临时实现，返回模拟电池电量值，用于测试显示功能
+    // 后续添加ADC分压电路检测时，需要修改此部分代码
+    level = 0;          // 模拟电量0%
+    charging = true;    // 在充电状态
+    discharging = false;  
+    return true;         // 返回true表示成功获取电池状态
     }
 
     virtual pwm_servo* GetPwmServo() override {

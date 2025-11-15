@@ -910,11 +910,11 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_left(status_bar_, 2, 0);
     lv_obj_set_style_pad_right(status_bar_, 2, 0);
     
-            // 添加左侧空白容器以实现整体右移
-    lv_obj_t* spacer = lv_obj_create(status_bar_);
-    lv_obj_set_size(spacer, 40, 1); // 宽度为 40px，高度忽略
-    lv_obj_set_style_bg_opa(spacer, LV_OPA_TRANSP, 0); // 透明背景
-    lv_obj_set_style_border_width(spacer, 0, 0);
+    // 添加左侧空白容器以实现整体右移
+    lv_obj_t* spacerL = lv_obj_create(status_bar_);
+    lv_obj_set_size(spacerL, 40, 1); // 宽度为 40px，高度忽略
+    lv_obj_set_style_bg_opa(spacerL, LV_OPA_TRANSP, 0); // 透明背景
+    lv_obj_set_style_border_width(spacerL, 0, 0);
 
     network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
@@ -945,6 +945,12 @@ void LcdDisplay::SetupUI() {
     lv_label_set_text(battery_label_, "");
     lv_obj_set_style_text_font(battery_label_, fonts_.icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
+    
+    // 添加右侧空白容器以实现整体左移
+    lv_obj_t* spacerR = lv_obj_create(status_bar_);
+    lv_obj_set_size(spacerR, 40, 1); // 宽度为 40px，高度忽略
+    lv_obj_set_style_bg_opa(spacerR, LV_OPA_TRANSP, 0); // 透明背景
+    lv_obj_set_style_border_width(spacerR, 0, 0);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);

@@ -62,6 +62,7 @@ void PowerSaveTimer::PowerSaveCheck() {
     ticks_++;
     if (seconds_to_sleep_ != -1 && ticks_ >= seconds_to_sleep_) {
         if (!in_sleep_mode_) {
+            ESP_LOGI(TAG, "Entering sleep mode after %d ticks", ticks_);
             in_sleep_mode_ = true;
             if (on_enter_sleep_mode_) {
                 on_enter_sleep_mode_();

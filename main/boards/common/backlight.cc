@@ -32,7 +32,7 @@ Backlight::~Backlight() {
 void Backlight::RestoreBrightness() {
     // Load brightness from settings
     Settings settings("display");  
-    int saved_brightness = settings.GetInt("brightness", 75);
+    int saved_brightness = settings.GetInt("brightness", 10);
     
     // 检查亮度值是否为0或过小，设置默认值
     if (saved_brightness <= 0) {
@@ -61,6 +61,8 @@ void Backlight::SetBrightness(uint8_t brightness, bool permanent) {
     step_ = (target_brightness_ > brightness_) ? 1 : -1;
 
     if (transition_timer_ != nullptr) {
+        // 先停止已有的定时器
+        esp_timer_stop(transition_timer_);
         // 启动定时器，每 5ms 更新一次
         esp_timer_start_periodic(transition_timer_, 5 * 1000);
     }
@@ -87,7 +89,7 @@ PwmBacklight::PwmBacklight(gpio_num_t pin, bool output_invert) : Backlight() {
         .speed_mode = LEDC_LOW_SPEED_MODE,
         .duty_resolution = LEDC_TIMER_10_BIT,
         .timer_num = LEDC_TIMER_0,
-        .freq_hz = 10000, //背光pwm频率需要高一点，防止电感啸叫
+        .freq_hz = 200, //背光pwm频率需要高一点，防止电感啸叫
         .clk_cfg = LEDC_AUTO_CLK,
         .deconfigure = false
     };
@@ -108,8 +110,8 @@ PwmBacklight::PwmBacklight(gpio_num_t pin, bool output_invert) : Backlight() {
     };
     ESP_ERROR_CHECK(ledc_channel_config(&backlight_channel));
 
-    // 设置初始亮度为50
-    SetBrightness(100);
+    brightness_ = 0;
+    target_brightness_ = 0;
 }
 
 PwmBacklight::~PwmBacklight() {
@@ -118,8 +120,9 @@ PwmBacklight::~PwmBacklight() {
 
 void PwmBacklight::SetBrightnessImpl(uint8_t brightness) {
     // LEDC resolution set to 10bits, thus: 100% = 1023
-    uint32_t duty_cycle = (1023 * brightness) / 100;
+    uint32_t duty_cycle = (1023 * (100-brightness)) / 100;
     ledc_set_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0, duty_cycle);
     ledc_update_duty(LEDC_LOW_SPEED_MODE, LEDC_CHANNEL_0);
+    ESP_LOGD(TAG, "Set duty cycle to %lu for brightness %d", duty_cycle, brightness);
 }
 

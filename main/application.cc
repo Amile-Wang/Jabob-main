@@ -886,14 +886,17 @@ void Application::Reboot() {
 
 bool Application::CanEnterSleepMode() {
     if (device_state_ != kDeviceStateIdle) {
+        ESP_LOGI(TAG, "can't enter sleep mode,1");
         return false;
     }
 
     if (protocol_ && protocol_->IsAudioChannelOpened()) {
+        ESP_LOGI(TAG, "can't enter sleep mode,2");
         return false;
     }
 
     if (!audio_service_.IsIdle()) {
+        ESP_LOGI(TAG, "can't enter sleep mode,3");
         return false;
     }
 

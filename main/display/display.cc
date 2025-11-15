@@ -196,6 +196,7 @@ void Display::UpdateStatusBar(bool update_all) {
 
 
 void Display::SetEmotion(const char* emotion) {
+    ESP_LOGI(TAG, "changed emotion");
     struct Emotion {
         const char* icon;
         const char* text;

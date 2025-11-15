@@ -162,7 +162,7 @@ bool WebsocketProtocol::OpenAudioChannel() {
             }
         } else {
             // Print the raw JSON data before parsing
-            ESP_LOGI(TAG, "Raw JSON data received: %s", data);
+            // ESP_LOGI(TAG, "Raw JSON data received: %s", data);
             // Parse JSON data
             auto root = cJSON_Parse(data);
             auto type = cJSON_GetObjectItem(root, "type");

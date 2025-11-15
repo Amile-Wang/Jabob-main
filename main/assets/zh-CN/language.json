@@ -53,6 +53,8 @@
         "MAX_VOLUME":"最大音量",
 
         "RTC_MODE_OFF":"AEC 关闭",
-        "RTC_MODE_ON":"AEC 开启"
+        "RTC_MODE_ON":"AEC 开启",
+
+        "SLEEPING": "休眠中"
     }
 }
