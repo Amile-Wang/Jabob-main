@@ -262,6 +262,7 @@ void Application::ToggleChatState() {
         });
     } else if (device_state_ == kDeviceStateSpeaking) {
         Schedule([this]() {
+            SetDeviceState(kDeviceStateIdle);
             AbortSpeaking(kAbortReasonNone);
         });
     } else if (device_state_ == kDeviceStateListening) {
@@ -459,7 +460,7 @@ void Application::Start() {
                             }
                             // ESPLOG_INFO("音频播放完毕.");
                         
-                        //  修改此处逻辑：无论何种模式都跳转到空闲状态
+                        
                         SetDeviceState(kDeviceStateListening);
 
                             // if (listening_mode_ == kListeningModeManualStop) {

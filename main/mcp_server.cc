@@ -46,13 +46,14 @@ void McpServer::AddCommonTools() {
         });
 
     AddTool("self.audio_speaker.set_volume", 
-        "Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.",
+        "Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.Tell",
         PropertyList({
             Property("volume", kPropertyTypeInteger, 0, 100)
         }), 
         [&board](const PropertyList& properties) -> ReturnValue {
             auto codec = board.GetAudioCodec();
             codec->SetOutputVolume(properties["volume"].value<int>());
+
             return true;
         });
     
