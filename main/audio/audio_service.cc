@@ -13,6 +13,8 @@
 #include "wake_words/esp_wake_word.h"
 #elif CONFIG_USE_CUSTOM_WAKE_WORD
 #include "wake_words/custom_wake_word.h"
+#elif CONFIG_USE_TFLM_WAKE_WORD
+#include "wake_words/tflm_wake_word.h"
 #endif
 
 #define TAG "AudioService"

@@ -30,6 +30,17 @@ set(SOURCES "audio/audio_codec.cc"
 
 set(INCLUDE_DIRS "." "display" "audio" "protocols")
 
+if(CONFIG_USE_AFE_WAKE_WORD)
+    list(APPEND SOURCES "audio/wake_words/afe_wake_word.cc")
+elseif(CONFIG_USE_ESP_WAKE_WORD)
+    list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
+elseif(CONFIG_USE_CUSTOM_WAKE_WORD)
+    list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+elseif(CONFIG_USE_TFLM_WAKE_WORD)
+    list(APPEND SOURCES "audio/wake_words/tflm_wake_word.cc")
+    list(APPEND SOURCES "audio/wake_words/micro_speech_quantized_model_data.c")
+endif()
+
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
 list(APPEND SOURCES ${BOARD_COMMON_SOURCES})
@@ -266,6 +277,8 @@ endif()
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
+                    REQUIRES esp-sr esp-nn
+                    PRIV_REQUIRES esp-tflite-micro
                     WHOLE_ARCHIVE
                     )
 

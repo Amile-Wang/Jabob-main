@@ -423,17 +423,24 @@ config USE_CUSTOM_WAKE_WORD
         
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
-    default "ni hao jie bao bao"
+    default "jie bao bao"
     depends on USE_CUSTOM_WAKE_WORD
     help
         自定义唤醒词，用汉语拼音表示
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
-    default "你好捷宝宝"
+    default "nihao"
     depends on USE_CUSTOM_WAKE_WORD
     help
         自定义唤醒词对应问候语 
+
+config USE_TFLM_WAKE_WORD
+    bool "Enable TFLM Wake Word Detection"
+    default n
+    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD) && (!USE_CUSTOM_WAKE_WORD)
+    help
+        需要 ESP32 S3 与 PSRAM 支持，使用 TensorFlow Lite for Microcontrollers 进行唤醒词检测
                
         
 config USE_AUDIO_PROCESSOR
