@@ -45,6 +45,31 @@ void McpServer::AddCommonTools() {
             return board.GetDeviceStatusJson();
         });
 
+    AddTool("self.get_battery_status",
+        "Provides the current battery status of the device, including battery level, charging status, and discharging status.\n"
+        "Use this tool when you need specific battery information.",
+        PropertyList(),
+        [&board](const PropertyList& properties) -> ReturnValue {
+            int level;
+            bool charging, discharging;
+            cJSON* root = cJSON_CreateObject();
+            
+            if (board.GetBatteryLevel(level, charging, discharging)) {
+                cJSON_AddNumberToObject(root, "level", level);
+                cJSON_AddBoolToObject(root, "charging", charging);
+                cJSON_AddBoolToObject(root, "discharging", discharging);
+            } else {
+                cJSON_AddStringToObject(root, "error", "Failed to get battery status");
+            }
+            
+            char* json_str = cJSON_PrintUnformatted(root);
+            std::string result(json_str);
+            cJSON_free(json_str);
+            cJSON_Delete(root);
+            
+            return result;
+        });
+
     AddTool("self.audio_speaker.set_volume", 
         "Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.Tell",
         PropertyList({
@@ -124,6 +149,7 @@ void McpServer::AddTool(const std::string& name, const std::string& description,
 }
 
 void McpServer::ParseMessage(const std::string& message) {
+    ESP_LOGI(TAG, "Parsing MCP message: %s", message.c_str());
     cJSON* json = cJSON_Parse(message.c_str());
     if (json == nullptr) {
         ESP_LOGE(TAG, "Failed to parse MCP message: %s", message.c_str());
@@ -134,6 +160,7 @@ void McpServer::ParseMessage(const std::string& message) {
 }
 
 void McpServer::ParseCapabilities(const cJSON* capabilities) {
+    ESP_LOGI(TAG, "Parsing capabilities");
     auto vision = cJSON_GetObjectItem(capabilities, "vision");
     if (cJSON_IsObject(vision)) {
         auto url = cJSON_GetObjectItem(vision, "url");
@@ -147,6 +174,7 @@ void McpServer::ParseCapabilities(const cJSON* capabilities) {
                     token_str = std::string(token->valuestring);
                 }
                 camera->SetExplainUrl(url_str, token_str);
+                ESP_LOGI(TAG, "Set camera explain URL: %s", url_str.c_str());
             }
         }
     }
@@ -168,7 +196,9 @@ void McpServer::ParseMessage(const cJSON* json) {
     }
     
     auto method_str = std::string(method->valuestring);
+    ESP_LOGI(TAG, "Processing method: %s", method_str.c_str());
     if (method_str.find("notifications") == 0) {
+        ESP_LOGI(TAG, "Skipping notification method: %s", method_str.c_str());
         return;
     }
     
@@ -187,6 +217,7 @@ void McpServer::ParseMessage(const cJSON* json) {
     auto id_int = id->valueint;
     
     if (method_str == "initialize") {
+        ESP_LOGI(TAG, "Handling initialize method");
         if (cJSON_IsObject(params)) {
             auto capabilities = cJSON_GetObjectItem(params, "capabilities");
             if (cJSON_IsObject(capabilities)) {
@@ -199,6 +230,7 @@ void McpServer::ParseMessage(const cJSON* json) {
         message += "\"}}";
         ReplyResult(id_int, message);
     } else if (method_str == "tools/list") {
+        ESP_LOGI(TAG, "Handling tools/list method");
         std::string cursor_str = "";
         if (params != nullptr) {
             auto cursor = cJSON_GetObjectItem(params, "cursor");
@@ -208,6 +240,7 @@ void McpServer::ParseMessage(const cJSON* json) {
         }
         GetToolsList(id_int, cursor_str);
     } else if (method_str == "tools/call") {
+        ESP_LOGI(TAG, "Handling tools/call method");
         if (!cJSON_IsObject(params)) {
             ESP_LOGE(TAG, "tools/call: Missing params");
             ReplyError(id_int, "Missing params");
@@ -239,6 +272,7 @@ void McpServer::ParseMessage(const cJSON* json) {
 }
 
 void McpServer::ReplyResult(int id, const std::string& result) {
+    ESP_LOGI(TAG, "Sending result for id %d", id);
     std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
     payload += std::to_string(id) + ",\"result\":";
     payload += result;
@@ -247,6 +281,7 @@ void McpServer::ReplyResult(int id, const std::string& result) {
 }
 
 void McpServer::ReplyError(int id, const std::string& message) {
+    ESP_LOGE(TAG, "Sending error for id %d: %s", id, message.c_str());
     std::string payload = "{\"jsonrpc\":\"2.0\",\"id\":";
     payload += std::to_string(id);
     payload += ",\"error\":{\"message\":\"";
@@ -256,6 +291,7 @@ void McpServer::ReplyError(int id, const std::string& message) {
 }
 
 void McpServer::GetToolsList(int id, const std::string& cursor) {
+    ESP_LOGI(TAG, "Getting tools list with cursor: %s", cursor.c_str());
     const int max_payload_size = 8000;
     std::string json = "{\"tools\":[";
     
@@ -303,10 +339,12 @@ void McpServer::GetToolsList(int id, const std::string& cursor) {
         json += "],\"nextCursor\":\"" + next_cursor + "\"}";
     }
     
+    ESP_LOGI(TAG, "Returning %d tools, next cursor: %s", tools_.size(), next_cursor.c_str());
     ReplyResult(id, json);
 }
 
 void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* tool_arguments, int stack_size) {
+    ESP_LOGI(TAG, "Executing tool call: %s with stack size %d", tool_name.c_str(), stack_size);
     auto tool_iter = std::find_if(tools_.begin(), tools_.end(), 
                                  [&tool_name](const McpTool* tool) { 
                                      return tool->name() == tool_name; 
@@ -327,12 +365,15 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
                 if (argument.type() == kPropertyTypeBoolean && cJSON_IsBool(value)) {
                     argument.set_value<bool>(value->valueint == 1);
                     found = true;
+                    ESP_LOGI(TAG, "Set boolean argument %s: %d", argument.name().c_str(), value->valueint == 1);
                 } else if (argument.type() == kPropertyTypeInteger && cJSON_IsNumber(value)) {
                     argument.set_value<int>(value->valueint);
                     found = true;
+                    ESP_LOGI(TAG, "Set integer argument %s: %d", argument.name().c_str(), value->valueint);
                 } else if (argument.type() == kPropertyTypeString && cJSON_IsString(value)) {
                     argument.set_value<std::string>(value->valuestring);
                     found = true;
+                    ESP_LOGI(TAG, "Set string argument %s: %s", argument.name().c_str(), value->valuestring);
                 }
             }
 
@@ -357,8 +398,11 @@ void McpServer::DoToolCall(int id, const std::string& tool_name, const cJSON* to
 
     // Use a thread to call the tool to avoid blocking the main thread
     tool_call_thread_ = std::thread([this, id, tool_iter, arguments = std::move(arguments)]() {
+        ESP_LOGI(TAG, "Tool call thread started for tool: %s", (*tool_iter)->name().c_str());
         try {
-            ReplyResult(id, (*tool_iter)->Call(arguments));
+            auto result = (*tool_iter)->Call(arguments);
+            ESP_LOGI(TAG, "Tool call completed successfully: %s", (*tool_iter)->name().c_str());
+            ReplyResult(id, result);
         } catch (const std::exception& e) {
             ESP_LOGE(TAG, "tools/call: %s", e.what());
             ReplyError(id, e.what());
