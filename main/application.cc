@@ -787,11 +787,13 @@ void Application::SetDeviceState(DeviceState state) {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
-                    // std::ref(Lang::Sounds::P3_1),
+                    std::ref(Lang::Sounds::P3_1),
                     std::ref(Lang::Sounds::P3_2),
                     std::ref(Lang::Sounds::P3_3),
                     std::ref(Lang::Sounds::P3_4),
-                    std::ref(Lang::Sounds::P3_5)
+                    std::ref(Lang::Sounds::P3_5),
+                    std::ref(Lang::Sounds::P3_6),
+                    std::ref(Lang::Sounds::P3_7)
                 };
                 
                 // 生成随机索引并播放随机音效
