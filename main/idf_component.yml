@@ -80,3 +80,4 @@ dependencies:
     version: '>=5.4.0'
   abobija/rc522: '*'
   espressif/esp-tflite-micro: '*'
+  78/esp-opus: '*'

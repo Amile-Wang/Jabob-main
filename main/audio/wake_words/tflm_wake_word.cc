@@ -5,9 +5,11 @@
 #include <esp_log.h>
 #include <model_path.h>
 #include <arpa/inet.h>
+#include "opus_encoder.h"
 
 #define DETECTION_RUNNING_EVENT 1
 #define TAG "TFLMWakeWord"
+#define OPUS_FRAME_DURATION_MS 20
 
 // TFLM includes
 #include "tensorflow/lite/micro/micro_interpreter.h"
@@ -15,11 +17,11 @@
 #include "tensorflow/lite/schema/schema_generated.h"
 
 namespace {
-    constexpr size_t kTensorArenaSize = 20000;  // 根据实际需求调整
-    alignas(16) static uint8_t tensor_arena[kTensorArenaSize];
+    constexpr size_t kTensorArenaSize = 16000;  // 根据实际需求调整
+    // alignas(16) static uint8_t tensor_arena[kTensorArenaSize];
     
     const tflite::Model* model = nullptr;
-    tflite::MicroInterpreter* interpreter = nullptr;
+    // tflite::MicroInterpreter* interpreter = nullptr;
     TfLiteTensor* input = nullptr;
     TfLiteTensor* output = nullptr;
     
@@ -29,11 +31,12 @@ namespace {
 
 TFLMWakeWord::TFLMWakeWord()
     : afe_data_(nullptr),
-      wake_word_pcm_(),
-      wake_word_opus_(),
+      tensor_arena_(nullptr),
       interpreter_(nullptr),
-      tensor_arena_(nullptr) {
+      wake_word_pcm_(),
+      wake_word_opus_() {
     event_group_ = xEventGroupCreate();
+    tensor_arena_ = new uint8_t[kTensorArenaSize];
 }
 
 TFLMWakeWord::~TFLMWakeWord() {
@@ -46,6 +49,8 @@ TFLMWakeWord::~TFLMWakeWord() {
     }
 
     vEventGroupDelete(event_group_);
+
+    delete[] tensor_arena_;
 }
 
 void TFLMWakeWord::Initialize(AudioCodec* codec) {
@@ -95,25 +100,25 @@ void TFLMWakeWord::Initialize(AudioCodec* codec) {
 
     // 创建解释器
     static tflite::MicroInterpreter static_interpreter(
-        model, op_resolver, tensor_arena, kTensorArenaSize);
-    interpreter = &static_interpreter;
+        model, op_resolver, tensor_arena_, kTensorArenaSize);
+    interpreter_ = &static_interpreter;
 
     // 分配张量
-    TfLiteStatus allocate_status = interpreter->AllocateTensors();
+    TfLiteStatus allocate_status = interpreter_->AllocateTensors();
     if (allocate_status != kTfLiteOk) {
         ESP_LOGE(TAG, "Failed to allocate tensors");
         return;
     }
 
     // 获取输入和输出张量
-    input = interpreter->input(0);
-    output = interpreter->output(0);
+    input = interpreter_->input(0);
+    output = interpreter_->output(0);
 
     xTaskCreate([](void* arg) {
         auto this_ = (TFLMWakeWord*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 16384, this, 3, nullptr);
+    }, "audio_detection", 8192, this, 3, nullptr);
 }
 
 void TFLMWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
@@ -185,7 +190,7 @@ void TFLMWakeWord::AudioDetectionTask() {
         }
         
         // 运行推理
-        TfLiteStatus invoke_status = interpreter->Invoke();
+        TfLiteStatus invoke_status = interpreter_->Invoke();
         if (invoke_status != kTfLiteOk) {
             ESP_LOGE(TAG, "TFLM inference failed");
             continue;
@@ -250,7 +255,9 @@ void TFLMWakeWord::EncodeWakeWordData() {
             auto encoder = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
             encoder->SetComplexity(0); // 0 is the fastest
             for (const auto& frame : this_->wake_word_pcm_) {
-                auto opus_data = encoder->Encode(frame);
+                std::vector<uint8_t> opus_data;
+                encoder->Encode(std::vector<int16_t>(frame), opus_data);
+                
                 if (opus_data.size() > 0) {
                     this_->wake_word_opus_.push_back(std::move(opus_data));
                 }
@@ -260,7 +267,7 @@ void TFLMWakeWord::EncodeWakeWordData() {
         }
         this_->wake_word_cv_.notify_one();
         vTaskDelete(NULL);
-    }, "wake_word_encode", 4096 * 8, this, 10, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
+    }, "wake_word_encode", 4096 * 8, this, 2, wake_word_encode_task_stack_, &wake_word_encode_task_buffer_);
 }
 
 bool TFLMWakeWord::GetWakeWordOpus(std::vector<uint8_t>& opus) {

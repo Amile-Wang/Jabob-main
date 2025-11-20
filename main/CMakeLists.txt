@@ -25,6 +25,7 @@ set(SOURCES "audio/audio_codec.cc"
             "device_state_event.cc"
             "main.cc"
             "pwm/pwm_servo.cc"
+            "audio/wake_words/micro_model_settings.cc"
             
             )
 
@@ -277,8 +278,8 @@ endif()
 idf_component_register(SRCS ${SOURCES}
                     EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
-                    REQUIRES esp-sr esp-nn
-                    PRIV_REQUIRES esp-tflite-micro
+                    REQUIRES esp-sr esp-nn esp_hw_support esp_system esp_app_format driver spi_flash
+                    PRIV_REQUIRES esp-tflite-micro app_update efuse
                     WHOLE_ARCHIVE
                     )
 

@@ -116,7 +116,8 @@ bool Ota::CheckVersion() {
     std::string data_response;
     int response_status = 0;
     
-    auto http_operation = [&]() {
+    // 使用显式作用域确保对象正确销毁
+    {
         auto http = SetupHttp();
         
         std::string data = board.GetJson();
@@ -125,6 +126,7 @@ bool Ota::CheckVersion() {
 
         if (!http->Open(method, url)) {
             ESP_LOGE(TAG, "Failed to open HTTP connection");
+            // http对象将在作用域结束时自动析构
             return false;
         }
 
@@ -132,23 +134,52 @@ bool Ota::CheckVersion() {
         if (response_status != 200) {
             ESP_LOGE(TAG, "Failed to check version, status code: %d", response_status);
             http->Close();
+            // http对象将在作用域结束时自动析构
             return false;
         }
 
         data_response = http->ReadAll();
         http->Close();
-        return true;
-    };
+        // http对象将在作用域结束时自动析构
+    } // <-- HttpClient对象在这里被销毁，而不是在后续代码中
     
-    success = http_operation();
-    
-    if (!success) {
-        return false;
-    }
-
     if (response_status != 200) {
         return false;
     }
+    
+    // auto http_operation = [&]() {
+    //     auto http = SetupHttp();
+        
+    //     std::string data = board.GetJson();
+    //     std::string method = data.length() > 0 ? "POST" : "GET";
+    //     http->SetContent(std::move(data));
+
+    //     if (!http->Open(method, url)) {
+    //         ESP_LOGE(TAG, "Failed to open HTTP connection");
+    //         return false;
+    //     }
+
+    //     response_status = http->GetStatusCode();
+    //     if (response_status != 200) {
+    //         ESP_LOGE(TAG, "Failed to check version, status code: %d", response_status);
+    //         http->Close();
+    //         return false;
+    //     }
+
+    //     data_response = http->ReadAll();
+    //     http->Close();
+    //     return true;
+    // };
+    
+    // success = http_operation();
+    
+    // if (!success) {
+    //     return false;
+    // }
+
+    // if (response_status != 200) {
+    //     return false;
+    // }
 
     
     

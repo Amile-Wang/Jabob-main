@@ -72,7 +72,7 @@ void CustomWakeWord::Initialize(AudioCodec* codec) {
         auto this_ = (CustomWakeWord*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 16384, this, 3, nullptr);
+    }, "audio_detection", 8192, this, 3, nullptr);
 }
 
 void CustomWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {

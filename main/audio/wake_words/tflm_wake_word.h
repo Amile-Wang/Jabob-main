@@ -51,6 +51,10 @@ private:
     AudioCodec* codec_ = nullptr;
     std::string last_detected_wake_word_;
 
+    // TFLM相关
+    uint8_t* tensor_arena_ = nullptr;
+    tflite::MicroInterpreter* interpreter_ = nullptr;
+    
     TaskHandle_t wake_word_encode_task_ = nullptr;
     StaticTask_t wake_word_encode_task_buffer_;
     StackType_t* wake_word_encode_task_stack_ = nullptr;
