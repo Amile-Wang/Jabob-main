@@ -689,9 +689,9 @@ void Application::OnWakeWordDetected() {
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
                     std::ref(Lang::Sounds::P3_0),
-                    std::ref(Lang::Sounds::P3_5),
-                    std::ref(Lang::Sounds::P3_6),
-                    std::ref(Lang::Sounds::P3_7),
+                    // std::ref(Lang::Sounds::P3_5),
+                    // std::ref(Lang::Sounds::P3_6),
+                    // std::ref(Lang::Sounds::P3_7),
 
                 };
                 
