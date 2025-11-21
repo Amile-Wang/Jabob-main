@@ -247,6 +247,25 @@ void Application::ToggleChatState() {
     }
 
     if (device_state_ == kDeviceStateIdle) {
+        // 播放提示音，表示设备即将开始聆听
+            {
+                // 定义可用的音效数组
+                static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
+                    std::ref(Lang::Sounds::P3_0)
+                };
+                
+                // 生成随机索引并播放随机音效
+                int random_index = esp_random() % sound_effects.size();
+                audio_service_.PlaySound(sound_effects[random_index]);
+            }
+
+            
+
+            Schedule([this]() {
+                vTaskDelay(pdMS_TO_TICKS(500));
+                // audio_service_.EncodeWakeWord();
+            });
+
         Schedule([this]() {
             if (!protocol_->IsAudioChannelOpened()) {
                 SetDeviceState(kDeviceStateConnecting);
@@ -261,13 +280,52 @@ void Application::ToggleChatState() {
             // SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
         });
     } else if (device_state_ == kDeviceStateSpeaking) {
+        AbortSpeaking(kAbortReasonNone);
         Schedule([this]() {
-            AbortSpeaking(kAbortReasonNone);
+            // 播放提示音，表示设备即将开始聆听
+            {
+                // 定义可用的音效数组
+                static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
+                    std::ref(Lang::Sounds::P3_0)
+                };
+                
+                // 生成随机索引并播放随机音效
+                int random_index = esp_random() % sound_effects.size();
+                audio_service_.PlaySound(sound_effects[random_index]);
+            }
+
+            
+
+            Schedule([this]() {
+                vTaskDelay(pdMS_TO_TICKS(1200));
+                SetListeningMode(kListeningModeAutoStop);
+                // audio_service_.EncodeWakeWord();
+            });
+            
         });
     } else if (device_state_ == kDeviceStateListening) {
         Schedule([this]() {
+            // 播放提示音，表示设备即将开始聆听
+            {
+                // 定义可用的音效数组
+                static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
+                    std::ref(Lang::Sounds::P3_0)
+                };
+                
+                // 生成随机索引并播放随机音效
+                int random_index = esp_random() % sound_effects.size();
+                audio_service_.PlaySound(sound_effects[random_index]);
+            }
+
+            
+
+            Schedule([this]() {
+                vTaskDelay(pdMS_TO_TICKS(500));
+                // audio_service_.EncodeWakeWord();
+            });
             protocol_->CloseAudioChannel();
         });
+        SetDeviceState(kDeviceStateIdle);
     }
 }
 
@@ -641,7 +699,7 @@ void Application::OnWakeWordDetected() {
             {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
-                    std::ref(Lang::Sounds::P3_SUCCESS)
+                    std::ref(Lang::Sounds::P3_0)
                 };
                 
                 // 生成随机索引并播放随机音效

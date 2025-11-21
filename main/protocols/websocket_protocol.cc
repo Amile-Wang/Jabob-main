@@ -81,8 +81,8 @@ void WebsocketProtocol::CloseAudioChannel() {
 
 bool WebsocketProtocol::OpenAudioChannel() {
     Settings settings("websocket", false);
-    // std::string url = settings.GetString("url");
-    std::string url = "ws://121.41.168.85:8000/xiaozhi/v1/";
+    std::string url = settings.GetString("url");
+    // std::string url = "ws://121.41.168.85:8000/xiaozhi/v1/";
     std::string token = settings.GetString("token");
     int version = settings.GetInt("version");
     if (version != 0) {
