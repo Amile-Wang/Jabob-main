@@ -35,7 +35,7 @@
 #define BATTERY_ADC_CHANNEL     ADC_CHANNEL_0
 #define BATTERY_UPPER_RESISTOR  5.1f // 上拉电阻值，单位为千欧(kΩ)
 #define BATTERY_LOWER_RESISTOR  15.0f // 下拉电阻值，单位为千欧(kΩ)
-#define BATTERY_CHARGING_PIN    GPIO_NUM_13
+#define BATTERY_CHARGING_PIN    GPIO_NUM_17
 
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_48

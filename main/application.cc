@@ -408,6 +408,8 @@ void Application::Start() {
 
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
+    codec->SetOutputVolume(20);  // 初始化音量为10%
+    // audio_service_.Initialize(codec);
     audio_service_.Initialize(codec);
     audio_service_.Start();
 

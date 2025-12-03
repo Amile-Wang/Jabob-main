@@ -726,12 +726,13 @@ void LcdDisplay::SetupUI() {
 
     /* Status bar */
     status_bar_ = lv_obj_create(container_);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, 40);  // 修改状态栏高度为固定40像素
+    lv_obj_set_size(status_bar_, LV_HOR_RES, 55);  // 修改状态栏高度为固定55像素
     lv_obj_set_style_radius(status_bar_, 0, 0);
     lv_obj_set_style_bg_color(status_bar_, current_theme_.background, 0);
     lv_obj_set_style_text_color(status_bar_, current_theme_.text, 0);
     lv_obj_set_style_bg_opa(status_bar_, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0); 
+    lv_obj_set_style_pad_top(status_bar_, 20, 0);
     
     /* Content */
     content_ = lv_obj_create(container_);
@@ -785,7 +786,7 @@ void LcdDisplay::SetupUI() {
 
     /* Status bar */
     lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_style_pad_all(status_bar_, 0, 0);
+    // lv_obj_set_style_pad_all(status_bar_, 0, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0);
     lv_obj_set_style_pad_column(status_bar_, 0, 0);
     lv_obj_set_style_pad_left(status_bar_, 2, 0);
