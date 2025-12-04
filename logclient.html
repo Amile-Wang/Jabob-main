@@ -157,9 +157,13 @@
             font-weight: bold;
             margin-bottom: 5px;
             font-size: 12px;
+            opacity: 1;
+            visibility: visible;
+            display: block;
+            color: inherit;
         }
         .user-message .message-prefix {
-            color: #0084ff;
+            color: #e3dede;
         }
         .assistant-message .message-prefix {
             color: #666;
@@ -216,6 +220,7 @@
         <div id="chatContainer" class="chat-container"></div>
     </div>
 
+    html
     <script>
         class LogClient {
             constructor() {
@@ -226,6 +231,7 @@
                 this.voiceFilterActive = false;
                 this.speechFilterActive = false;
                 this.isChatView = false; // 是否为对话视图
+                this.currentUser = "user"; // 当前用户名称，默认为"user"
                 
                 this.initializeElements();
                 this.attachEventListeners();
@@ -357,6 +363,15 @@
             }
             
             addLog(logEntry) {
+                // 检查是否是识别说话人的日志
+                if (logEntry.message && logEntry.message.includes("识别说话人:")) {
+                    // 提取说话人名称
+                    const speakerMatch = logEntry.message.match(/识别说话人:\s*(.*)/);
+                    if (speakerMatch && speakerMatch[1]) {
+                        this.currentUser = speakerMatch[1].trim();
+                    }
+                }
+                
                 this.logs.push(logEntry);
                 this.totalCount++;
                 this.renderLogs();
@@ -441,10 +456,13 @@
 
                     if (log.message.includes("识别文本:")) {
                         displayMessage = log.message.split("识别文本:")[1] || displayMessage;
-                        prefix = "user: "; // 为识别文本添加"user: "前缀
+                        prefix = this.currentUser + ": "; // 使用动态用户名称替换"user: "
                     } else if (log.message.includes("语音生成成功：")) {
                         displayMessage = log.message.split("语音生成成功：")[1] || displayMessage;
                         prefix = "jabob: "; // 为语音生成成功添加"jabob: "前缀
+                    } else if (log.message.includes("识别说话人:")) {
+                        displayMessage = log.message.split("识别说话人:")[1] || displayMessage;
+                        prefix = "说话人识别: "; // 为说话人识别添加特定前缀
                     }
                     
                     // 如果启用了特殊过滤器，只显示带前缀的消息内容本身，不显示时间戳、级别和标签
@@ -467,10 +485,12 @@
                     // 处理特殊前缀，只显示核心内容
                     let displayMessage = log.message;
                     let messageType = "";
+                    let speakerName = ""; // 记录当时说话人的名字
 
                     if (log.message.includes("识别文本:")) {
                         displayMessage = log.message.split("识别文本:")[1] || displayMessage;
                         messageType = "user";
+                        speakerName = this.getCurrentUserAtTime(log.time); // 获取当时说话人的名字
                     } else if (log.message.includes("语音生成成功：")) {
                         displayMessage = log.message.split("语音生成成功：")[1] || displayMessage;
                         messageType = "assistant";
@@ -486,7 +506,12 @@
                         
                         const prefixElement = document.createElement('div');
                         prefixElement.className = 'message-prefix';
-                        prefixElement.textContent = messageType === 'user' ? '用户' : 'Jabob';
+                        // 根据消息类型使用不同的前缀
+                        if (messageType === 'user') {
+                            prefixElement.textContent = speakerName || this.currentUser; // 使用记录的说话人或当前说话人
+                        } else {
+                            prefixElement.textContent = 'Jabob';
+                        }
                         
                         const textElement = document.createElement('div');
                         textElement.textContent = displayMessage;
@@ -502,6 +527,26 @@
                 this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
             }
             
+            getCurrentUserAtTime(time) {
+                // 查找在指定时间之前最近一次识别的说话人
+                let user = "user"; // 默认用户名
+                for (let i = 0; i < this.logs.length; i++) {
+                    const log = this.logs[i];
+                    // 如果找到了一条"识别说话人"的日志且它的时间早于或等于给定时间
+                    if (log.message && log.message.includes("识别说话人:") && log.time <= time) {
+                        const speakerMatch = log.message.match(/识别说话人:\s*(.*)/);
+                        if (speakerMatch && speakerMatch[1]) {
+                            user = speakerMatch[1].trim();
+                        }
+                    }
+                    // 如果日志时间已经超过目标时间，则停止查找
+                    if (log.time > time) {
+                        break;
+                    }
+                }
+                return user;
+            }
+            
             clearLogs() {
                 this.logs = [];
                 this.totalCount = 0;
@@ -514,5 +559,3 @@
             new LogClient();
         });
     </script>
-</body>
-</html>
