@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>服务器日志监控客户端</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        input, button, select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #disconnectBtn {
+            background-color: #dc3545;
+        }
+        #disconnectBtn:hover {
+            background-color: #c82333;
+        }
+        .log-container {
+            height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #000;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+        }
+        .log-level-ERROR, .log-level-CRITICAL {
+            color: #ff5555;
+        }
+        .log-level-WARNING {
+            color: #ffaa00;
+        }
+        .log-level-INFO {
+            color: #55ff55;
+        }
+        .log-level-DEBUG {
+            color: #5555ff;
+        }
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .search-box {
+            margin-bottom: 15px;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .special-filters {
+            margin-bottom: 15px;
+        }
+        .special-filter-btn {
+            background-color: #28a745;
+        }
+        .special-filter-btn.active {
+            background-color: #218838;
+        }
+        
+        /* 对话框样式 */
+        .chat-container {
+            height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            display: none;
+        }
+        .message {
+            margin: 10px 0;
+            display: flex;
+        }
+        .user-message {
+            justify-content: flex-end;
+        }
+        .assistant-message {
+            justify-content: flex-start;
+        }
+        .message-content {
+            max-width: 80%;
+            padding: 10px 15px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+        }
+        .user-message .message-content {
+            background-color: #0084ff;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .assistant-message .message-content {
+            background-color: #e5e5ea;
+            color: black;
+            border-bottom-left-radius: 4px;
+        }
+        .message-prefix {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 12px;
+        }
+        .user-message .message-prefix {
+            color: #0084ff;
+        }
+        .assistant-message .message-prefix {
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>服务器日志监控客户端</h1>
+        
+        <div class="controls">
+            <input type="text" id="serverUrl" placeholder="WebSocket服务器地址，例如: ws://localhost:8000/logs" value="ws://121.41.168.85:8000/logs">
+            <button id="connectBtn">连接</button>
+            <button id="disconnectBtn" disabled>断开</button>
+            <button id="clearBtn">清空日志</button>
+            <button id="toggleViewBtn">切换到对话视图</button>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索日志内容...">
+        </div>
+        
+        <div class="special-filters">
+            <button class="special-filter-btn" id="voiceFilterBtn">语音生成成功</button>
+            <button class="special-filter-btn" id="speechFilterBtn">识别文本</button>
+        </div>
+        
+        <div class="filters">
+            <div class="filter-checkbox">
+                <input type="checkbox" id="filterError" checked>
+                <label for="filterError">错误(ERROR)</label>
+            </div>
+            <div class="filter-checkbox">
+                <input type="checkbox" id="filterWarning" checked>
+                <label for="filterWarning">警告(WARNING)</label>
+            </div>
+            <div class="filter-checkbox">
+                <input type="checkbox" id="filterInfo" checked>
+                <label for="filterInfo">信息(INFO)</label>
+            </div>
+            <div class="filter-checkbox">
+                <input type="checkbox" id="filterDebug" checked>
+                <label for="filterDebug">调试(DEBUG)</label>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div>总日志数: <span id="totalCount">0</span></div>
+            <div>显示日志数: <span id="displayCount">0</span></div>
+            <div>连接状态: <span id="connectionStatus">未连接</span></div>
+        </div>
+        
+        <div id="logContainer" class="log-container"></div>
+        <div id="chatContainer" class="chat-container"></div>
+    </div>
+
+    <script>
+        class LogClient {
+            constructor() {
+                this.websocket = null;
+                this.logs = [];
+                this.totalCount = 0;
+                this.displayCount = 0;
+                this.voiceFilterActive = false;
+                this.speechFilterActive = false;
+                this.isChatView = false; // 是否为对话视图
+                
+                this.initializeElements();
+                this.attachEventListeners();
+            }
+            
+            initializeElements() {
+                this.serverUrlInput = document.getElementById('serverUrl');
+                this.connectBtn = document.getElementById('connectBtn');
+                this.disconnectBtn = document.getElementById('disconnectBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+                this.toggleViewBtn = document.getElementById('toggleViewBtn');
+                this.logContainer = document.getElementById('logContainer');
+                this.chatContainer = document.getElementById('chatContainer');
+                this.connectionStatus = document.getElementById('connectionStatus');
+                this.totalCountElement = document.getElementById('totalCount');
+                this.displayCountElement = document.getElementById('displayCount');
+                this.searchInput = document.getElementById('searchInput');
+                
+                // 特殊筛选按钮
+                this.voiceFilterBtn = document.getElementById('voiceFilterBtn');
+                this.speechFilterBtn = document.getElementById('speechFilterBtn');
+                
+                // 日志级别过滤器
+                this.filterError = document.getElementById('filterError');
+                this.filterWarning = document.getElementById('filterWarning');
+                this.filterInfo = document.getElementById('filterInfo');
+                this.filterDebug = document.getElementById('filterDebug');
+            }
+            
+            attachEventListeners() {
+                this.connectBtn.addEventListener('click', () => this.connect());
+                this.disconnectBtn.addEventListener('click', () => this.disconnect());
+                this.clearBtn.addEventListener('click', () => this.clearLogs());
+                this.toggleViewBtn.addEventListener('click', () => this.toggleView());
+                this.searchInput.addEventListener('input', () => this.renderLogs());
+                
+                // 特殊筛选按钮事件
+                this.voiceFilterBtn.addEventListener('click', () => {
+                    this.voiceFilterActive = !this.voiceFilterActive;
+                    this.voiceFilterBtn.classList.toggle('active', this.voiceFilterActive);
+                    this.renderLogs();
+                });
+                
+                this.speechFilterBtn.addEventListener('click', () => {
+                    this.speechFilterActive = !this.speechFilterActive;
+                    this.speechFilterBtn.classList.toggle('active', this.speechFilterActive);
+                    this.renderLogs();
+                });
+                
+                // 日志过滤器事件
+                this.filterError.addEventListener('change', () => this.renderLogs());
+                this.filterWarning.addEventListener('change', () => this.renderLogs());
+                this.filterInfo.addEventListener('change', () => this.renderLogs());
+                this.filterDebug.addEventListener('change', () => this.renderLogs());
+            }
+            
+            connect() {
+                const url = this.serverUrlInput.value.trim();
+                if (!url) {
+                    alert('请输入服务器地址');
+                    return;
+                }
+                
+                try {
+                    this.websocket = new WebSocket(url);
+                    this.websocket.onopen = () => this.onOpen();
+                    this.websocket.onmessage = (event) => this.onMessage(event);
+                    this.websocket.onclose = () => this.onClose();
+                    this.websocket.onerror = (error) => this.onError(error);
+                } catch (error) {
+                    console.error('连接错误:', error);
+                    alert('连接失败: ' + error.message);
+                }
+            }
+            
+            disconnect() {
+                if (this.websocket) {
+                    this.websocket.close();
+                }
+            }
+            
+            onOpen() {
+                console.log('连接成功');
+                this.connectBtn.disabled = true;
+                this.disconnectBtn.disabled = false;
+                this.connectionStatus.textContent = '已连接';
+                this.connectionStatus.style.color = 'green';
+            }
+            
+            onMessage(event) {
+                try {
+                    // 尝试解析为JSON
+                    const message = JSON.parse(event.data);
+                    
+                    if (message.type === 'log') {
+                        this.addLog(message);
+                    } else if (message.type === 'welcome') {
+                        console.log('服务器欢迎消息:', message.message);
+                    }
+                } catch (error) {
+                    // 如果解析失败，尝试作为纯文本处理
+                    console.log('收到非JSON消息:', event.data);
+                    
+                    // 可以选择将纯文本消息添加到日志中
+                    const textMessage = {
+                        type: 'text',
+                        message: event.data,
+                        time: new Date().toISOString(),
+                        level: 'INFO'
+                    };
+                    this.addLog(textMessage);
+                }
+            }
+
+            
+            onClose() {
+                console.log('连接已断开');
+                this.connectBtn.disabled = false;
+                this.disconnectBtn.disabled = true;
+                this.connectionStatus.textContent = '已断开';
+                this.connectionStatus.style.color = 'red';
+                this.websocket = null;
+            }
+            
+            onError(error) {
+                console.error('WebSocket错误:', error);
+                this.connectionStatus.textContent = '连接错误';
+                this.connectionStatus.style.color = 'red';
+            }
+            
+            addLog(logEntry) {
+                this.logs.push(logEntry);
+                this.totalCount++;
+                this.renderLogs();
+            }
+            
+            toggleView() {
+                this.isChatView = !this.isChatView;
+                if (this.isChatView) {
+                    this.logContainer.style.display = 'none';
+                    this.chatContainer.style.display = 'block';
+                    this.toggleViewBtn.textContent = '切换到日志视图';
+                } else {
+                    this.logContainer.style.display = 'block';
+                    this.chatContainer.style.display = 'none';
+                    this.toggleViewBtn.textContent = '切换到对话视图';
+                }
+                this.renderLogs();
+            }
+            
+            renderLogs() {
+                // 应用过滤器
+                const filteredLogs = this.logs.filter(log => {
+                    // 级别过滤
+                    if (log.level === 'ERROR' && !this.filterError.checked) return false;
+                    if (log.level === 'WARNING' && !this.filterWarning.checked) return false;
+                    if (log.level === 'INFO' && !this.filterInfo.checked) return false;
+                    if (log.level === 'DEBUG' && !this.filterDebug.checked) return false;
+                    
+                    // 搜索过滤
+                    const searchTerm = this.searchInput.value.toLowerCase();
+                    if (searchTerm && 
+                        !log.message.toLowerCase().includes(searchTerm) &&
+                        !log.tag.toLowerCase().includes(searchTerm)) {
+                        return false;
+                    }
+                    
+                    // 过滤无意义内容
+                    const meaninglessContent = [
+                        "上面个地铁好难受，每个人都是穿着格子衫，背着",
+                        "关一下那个"
+                    ];
+                    
+                    for (const content of meaninglessContent) {
+                        if (log.message.includes(content)) {
+                            return false;
+                        }
+                    }
+                    
+                    // 特殊内容筛选
+                    // 如果任何一个筛选器被激活，则只显示匹配的内容
+                    if (this.voiceFilterActive || this.speechFilterActive) {
+                        let matchesVoice = !this.voiceFilterActive || log.message.includes("语音生成成功：");
+                        let matchesSpeech = !this.speechFilterActive || log.message.includes("识别文本:");
+                        return matchesVoice || matchesSpeech;
+                    }
+                    
+                    return true;
+                });
+                
+                // 更新统计
+                this.totalCountElement.textContent = this.totalCount;
+                this.displayCountElement.textContent = filteredLogs.length;
+                
+                // 根据视图类型渲染
+                if (this.isChatView) {
+                    this.renderChatView(filteredLogs);
+                } else {
+                    this.renderLogView(filteredLogs);
+                }
+            }
+            
+            renderLogView(filteredLogs) {
+                // 渲染日志视图
+                this.logContainer.innerHTML = '';
+                filteredLogs.forEach(log => {
+                    const logElement = document.createElement('div');
+                    logElement.className = `log-entry log-level-${log.level}`;
+                    
+                    // 处理特殊前缀，只显示核心内容
+                    let displayMessage = log.message;
+                    let prefix = ""; // 默认无前缀
+
+                    if (log.message.includes("识别文本:")) {
+                        displayMessage = log.message.split("识别文本:")[1] || displayMessage;
+                        prefix = "user: "; // 为识别文本添加"user: "前缀
+                    } else if (log.message.includes("语音生成成功：")) {
+                        displayMessage = log.message.split("语音生成成功：")[1] || displayMessage;
+                        prefix = "jabob: "; // 为语音生成成功添加"jabob: "前缀
+                    }
+                    
+                    // 如果启用了特殊过滤器，只显示带前缀的消息内容本身，不显示时间戳、级别和标签
+                    if (this.voiceFilterActive || this.speechFilterActive) {
+                        logElement.innerHTML = `${prefix}${displayMessage}`;
+                    } else {
+                        logElement.innerHTML = `[${log.time}] [${log.level}] [${log.tag}] ${prefix}${displayMessage}`;
+                    }
+                    this.logContainer.appendChild(logElement);
+                });
+                
+                // 滚动到底部
+                this.logContainer.scrollTop = this.logContainer.scrollHeight;
+            }
+            
+            renderChatView(filteredLogs) {
+                // 渲染对话视图
+                this.chatContainer.innerHTML = '';
+                filteredLogs.forEach(log => {
+                    // 处理特殊前缀，只显示核心内容
+                    let displayMessage = log.message;
+                    let messageType = "";
+
+                    if (log.message.includes("识别文本:")) {
+                        displayMessage = log.message.split("识别文本:")[1] || displayMessage;
+                        messageType = "user";
+                    } else if (log.message.includes("语音生成成功：")) {
+                        displayMessage = log.message.split("语音生成成功：")[1] || displayMessage;
+                        messageType = "assistant";
+                    }
+                    
+                    // 只显示用户和助手的消息
+                    if (messageType) {
+                        const messageElement = document.createElement('div');
+                        messageElement.className = `message ${messageType}-message`;
+                        
+                        const contentElement = document.createElement('div');
+                        contentElement.className = 'message-content';
+                        
+                        const prefixElement = document.createElement('div');
+                        prefixElement.className = 'message-prefix';
+                        prefixElement.textContent = messageType === 'user' ? '用户' : 'Jabob';
+                        
+                        const textElement = document.createElement('div');
+                        textElement.textContent = displayMessage;
+                        
+                        contentElement.appendChild(prefixElement);
+                        contentElement.appendChild(textElement);
+                        messageElement.appendChild(contentElement);
+                        this.chatContainer.appendChild(messageElement);
+                    }
+                });
+                
+                // 滚动到底部
+                this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+            }
+            
+            clearLogs() {
+                this.logs = [];
+                this.totalCount = 0;
+                this.renderLogs();
+            }
+        }
+        
+        // 初始化客户端
+        document.addEventListener('DOMContentLoaded', () => {
+            new LogClient();
+        });
+    </script>
+</body>
+</html>

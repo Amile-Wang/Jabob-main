@@ -13,6 +13,7 @@
 #include "application.h"
 #include "display.h"
 #include "board.h"
+#include "boards/common/power_save_timer.h"
 
 #define TAG "MCP"
 
@@ -127,6 +128,46 @@ void McpServer::AddCommonTools() {
                 return camera->Explain(question);
             });
     }
+
+    // 添加一个专门用于处理"闭嘴"命令的工具
+    AddTool("self.silence_now",
+        "Immediately silence the device and enter standby mode with a 3-second sleep countdown. "
+        "Use this tool specifically when the user says \"shut up\" \"再见\" \"goodbye\" or equivalent phrases.",
+        PropertyList(),
+        [](const PropertyList& properties) -> ReturnValue {
+            auto& app = Application::GetInstance();
+
+            // 获取电源管理定时器并设置3秒后休眠
+            auto& board = Board::GetInstance();
+            PowerSaveTimer* timer = board.GetPowerSaveTimer();
+            
+            // 关闭音频通道以确保可以进入睡眠模式
+            app.SendMcpMessage("{\"method\":\"close_audio_channel\"}");
+
+            cJSON* root = cJSON_CreateObject();
+            if (timer) {
+                // 设置3秒后进入睡眠模式
+                timer->SetSleepDelay(3);
+                timer->WakeUp(); // 重置计时器
+                
+                cJSON_AddStringToObject(root, "status", "success");
+                cJSON_AddStringToObject(root, "message", "Device silenced and will enter sleep mode in 3 seconds");
+                
+                // 直接设置设备状态为待机，而不是通过异步任务
+                app.SetDeviceState(kDeviceStateIdle);
+            } else {
+                cJSON_AddStringToObject(root, "status", "error");
+                cJSON_AddStringToObject(root, "message", "Power save timer not available");
+            }
+            
+            char* json_str = cJSON_PrintUnformatted(root);
+            std::string result(json_str);
+            cJSON_free(json_str);
+            cJSON_Delete(root);
+            
+            return result;
+        });
+
 
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());

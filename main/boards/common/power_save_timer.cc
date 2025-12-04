@@ -102,3 +102,9 @@ void PowerSaveTimer::WakeUp() {
         }
     }
 }
+
+// 添加设置睡眠延迟的实现
+void PowerSaveTimer::SetSleepDelay(int seconds) {
+    seconds_to_sleep_ = seconds;
+    ticks_ = 0; // 重置计数器
+}

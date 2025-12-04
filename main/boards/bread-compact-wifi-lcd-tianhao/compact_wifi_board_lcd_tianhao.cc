@@ -83,7 +83,11 @@ private:
     std::unique_ptr<AdcBatteryMonitor> battery_monitor_;
 #endif
 
-
+public:
+    // 实现获取PowerSaveTimer的方法
+    PowerSaveTimer* GetPowerSaveTimer() override { 
+        return power_save_timer_.get(); 
+    }
 
 
     static void InitializeButtonsTask(void* param) {
@@ -353,7 +357,14 @@ public:
         power_save_timer_->OnExitSleepMode([this]() {
             ESP_LOGI(TAG, "Exiting sleep mode");
             auto& board = Board::GetInstance();
+            
+            // 重置睡眠倒计时为20秒，避免默认状态下的倒计时长度受到MCP影响
+            if (power_save_timer_) {
+                power_save_timer_->SetSleepDelay(20);
+                ESP_LOGI(TAG, "Reset sleep delay to 20 seconds");
+            }
 
+            
              // 恢复之前的亮度
             auto backlight = board.GetBacklight();
             if (backlight) {

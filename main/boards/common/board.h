@@ -16,6 +16,7 @@
 void* create_board();
 class AudioCodec;
 class Display;
+class PowerSaveTimer; // 添加前置声明
 class Board {
 private:
     Board(const Board&) = delete; // 禁用拷贝构造函数
@@ -52,6 +53,7 @@ public:
     virtual std::string GetBoardJson() = 0;
     virtual std::string GetDeviceStatusJson() = 0;
     virtual pwm_servo* GetPwmServo() { return nullptr; }
+    virtual PowerSaveTimer* GetPowerSaveTimer() { return nullptr; } // 添加获取PowerSaveTimer的方法
 };
 
 #define DECLARE_BOARD(BOARD_CLASS_NAME) \
