@@ -218,11 +218,112 @@
             border-radius: 4px;
             cursor: pointer;
         }
+        
+        /* 弹窗样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 8px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover,
+        .close:focus {
+            color: black;
+        }
+        
+        .speaker-list {
+            margin: 20px 0;
+        }
+        
+        .speaker-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .speaker-avatar-preview {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 15px;
+        }
+        
+        .speaker-info {
+            flex: 1;
+        }
+        
+        .speaker-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .speaker-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .add-speaker-btn, .delete-speaker-btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .add-speaker-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .delete-speaker-btn {
+            background-color: #dc3545;
+            color: white;
+        }
     </style>
 </head>
 <body>
     <div class="container">
         <h1>服务器日志监控客户端</h1>
+        
+        <!-- 弹窗 -->
+        <div id="speakersModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>说话人管理</h2>
+                <div class="speaker-list" id="speakerList">
+                    <!-- 说话人列表将在这里动态生成 -->
+                </div>
+                <button id="addSpeakerBtn" class="add-speaker-btn">添加说话人</button>
+            </div>
+        </div>
         
         <div class="customization-panel">
             <h3>聊天界面自定义</h3>
@@ -239,6 +340,7 @@
                     <div class="file-input-button">选择聊天背景</div>
                     <input type="file" id="chatBackgroundFile" accept="image/*">
                 </div>
+                <button id="manageSpeakersBtn">管理说话人</button>
                 <button id="resetCustomizations">重置为默认</button>
             </div>
         </div>
@@ -303,6 +405,7 @@
                 this.userAvatarData = null; // 用户头像数据
                 this.jabobAvatarData = null; // Jabob头像数据
                 this.chatBackgroundData = null; // 聊天背景数据
+                this.speakers = {}; // 说话人及其头像数据
                 
                 this.defaultUserAvatar = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NjY2NjYyI+PGNpcmNsZSBjeD0iMTIiIGN5PSI4IiByPSI0Ii8+PHBhdGggZD0iTTEyIDEycy02IDMtNiA4aDEyYzAtNS02LTgtNi04eiIvPjwvc3ZnPg==";
                 this.defaultJabobAvatar = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzAwODRmZiI+PHJlY3QgeD0iNiIgeT0iNCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjE2IiByeD0iMiIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTAiIHI9IjIiLz48cGF0aCBkPSJNOSAxNWg2IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=";
@@ -311,6 +414,7 @@
                 this.initializeElements();
                 this.attachEventListeners();
                 this.loadCustomizations(); // 加载保存的自定义设置
+                this.loadSpeakers(); // 加载说话人数据
             }
             
             initializeElements() {
@@ -331,6 +435,13 @@
                 this.jabobAvatarFile = document.getElementById('jabobAvatarFile');
                 this.chatBackgroundFile = document.getElementById('chatBackgroundFile');
                 this.resetCustomizationsBtn = document.getElementById('resetCustomizations');
+                this.manageSpeakersBtn = document.getElementById('manageSpeakersBtn'); // 新增按钮
+                
+                // 弹窗相关元素
+                this.speakersModal = document.getElementById('speakersModal');
+                this.speakerList = document.getElementById('speakerList');
+                this.addSpeakerBtn = document.getElementById('addSpeakerBtn');
+                this.closeModal = document.querySelector('.close');
                 
                 // 特殊筛选按钮
                 this.voiceFilterBtn = document.getElementById('voiceFilterBtn');
@@ -369,6 +480,25 @@
                     this.renderLogs();
                 });
                 
+                // 说话人管理事件
+                this.manageSpeakersBtn.addEventListener('click', () => {
+                    this.openSpeakersModal();
+                });
+                
+                this.addSpeakerBtn.addEventListener('click', () => {
+                    this.addSpeaker();
+                });
+                
+                this.closeModal.addEventListener('click', () => {
+                    this.speakersModal.style.display = 'none';
+                });
+                
+                window.addEventListener('click', (event) => {
+                    if (event.target == this.speakersModal) {
+                        this.speakersModal.style.display = 'none';
+                    }
+                });
+                
                 // 日志过滤器事件
                 this.filterError.addEventListener('change', () => this.renderLogs());
                 this.filterWarning.addEventListener('change', () => this.renderLogs());
@@ -400,6 +530,29 @@
                             break;
                     }
                     this.saveCustomizations();
+                    if (this.isChatView) {
+                        this.renderLogs();
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+            
+            // 处理说话人头像选择
+            handleSpeakerAvatarSelect(event, speakerName) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                if (!file.type.startsWith('image/')) {
+                    alert('请选择图像文件');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target.result;
+                    this.speakers[speakerName] = dataUrl;
+                    this.saveSpeakers();
+                    this.renderSpeakerList(); // 重新渲染说话人列表
                     if (this.isChatView) {
                         this.renderLogs();
                     }
@@ -447,6 +600,106 @@
                 } else {
                     localStorage.removeItem('chatBackgroundData');
                     this.applyChatBackground(null);
+                }
+            }
+            
+            // 加载说话人数据
+            loadSpeakers() {
+                const savedSpeakers = localStorage.getItem('speakersData');
+                if (savedSpeakers) {
+                    this.speakers = JSON.parse(savedSpeakers);
+                }
+            }
+            
+            // 保存说话人数据
+            saveSpeakers() {
+                localStorage.setItem('speakersData', JSON.stringify(this.speakers));
+            }
+            
+            // 打开说话人管理弹窗
+            openSpeakersModal() {
+                this.renderSpeakerList();
+                this.speakersModal.style.display = 'block';
+            }
+            
+            // 渲染说话人列表
+            renderSpeakerList() {
+                this.speakerList.innerHTML = '';
+                
+                // 遍历所有说话人并创建列表项
+                for (const [name, avatar] of Object.entries(this.speakers)) {
+                    const speakerItem = document.createElement('div');
+                    speakerItem.className = 'speaker-item';
+                    
+                    const avatarPreview = document.createElement('img');
+                    avatarPreview.className = 'speaker-avatar-preview';
+                    avatarPreview.src = avatar || this.defaultUserAvatar;
+                    avatarPreview.alt = name;
+                    
+                    const speakerInfo = document.createElement('div');
+                    speakerInfo.className = 'speaker-info';
+                    
+                    const speakerName = document.createElement('div');
+                    speakerName.className = 'speaker-name';
+                    speakerName.textContent = name;
+                    
+                    const fileInputWrapper = document.createElement('div');
+                    fileInputWrapper.className = 'file-input-wrapper';
+                    
+                    const fileInputButton = document.createElement('div');
+                    fileInputButton.className = 'file-input-button';
+                    fileInputButton.textContent = '更换头像';
+                    
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.accept = 'image/*';
+                    
+                    fileInput.addEventListener('change', (e) => {
+                        this.handleSpeakerAvatarSelect(e, name);
+                    });
+                    
+                    fileInputWrapper.appendChild(fileInputButton);
+                    fileInputWrapper.appendChild(fileInput);
+                    
+                    speakerInfo.appendChild(speakerName);
+                    speakerInfo.appendChild(fileInputWrapper);
+                    
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-speaker-btn';
+                    deleteBtn.textContent = '删除';
+                    deleteBtn.onclick = () => {
+                        this.deleteSpeaker(name);
+                    };
+                    
+                    speakerItem.appendChild(avatarPreview);
+                    speakerItem.appendChild(speakerInfo);
+                    speakerItem.appendChild(deleteBtn);
+                    
+                    this.speakerList.appendChild(speakerItem);
+                }
+            }
+            
+            // 添加新的说话人
+            addSpeaker() {
+                const speakerName = prompt('请输入说话人姓名:');
+                if (speakerName) {
+                    // 如果说话人不存在，则添加
+                    if (!this.speakers[speakerName]) {
+                        this.speakers[speakerName] = this.defaultUserAvatar;
+                        this.saveSpeakers();
+                        this.renderSpeakerList();
+                    } else {
+                        alert('说话人已存在!');
+                    }
+                }
+            }
+            
+            // 删除说话人
+            deleteSpeaker(speakerName) {
+                if (confirm(`确定要删除说话人 "${speakerName}" 吗?`)) {
+                    delete this.speakers[speakerName];
+                    this.saveSpeakers();
+                    this.renderSpeakerList();
                 }
             }
             
@@ -703,9 +956,17 @@
                         const avatarElement = document.createElement('img');
                         avatarElement.className = 'message-avatar';
                         if (messageType === 'user') {
-                            avatarElement.src = this.userAvatarData || this.defaultUserAvatar;
+                            // 使用说话人头像（如果存在）或者默认头像
+                            if (speakerName && this.speakers.hasOwnProperty(speakerName)) {
+                                // 使用为该说话人设置的头像
+                                avatarElement.src = this.speakers[speakerName];
+                            } else {
+                                // 对于未知说话人或未设置头像的说话人，使用默认头像
+                                avatarElement.src = this.defaultUserAvatar;
+                            }
                             avatarElement.alt = speakerName || this.currentUser;
                         } else {
+                            // Jabob消息使用Jabob头像
                             avatarElement.src = this.jabobAvatarData || this.defaultJabobAvatar;
                             avatarElement.alt = 'Jabob';
                         }
