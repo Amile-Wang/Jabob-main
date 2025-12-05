@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>服务器日志监控客户端</title>
+    <title>捷宝宝实时对话界面</title>
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -35,13 +35,13 @@
             font-size: 14px;
         }
         button {
-            background-color: #007bff;
-            color: white;
+            background-color: #f0e008;
+            color: rgb(0, 0, 0);
             cursor: pointer;
             border: none;
         }
         button:hover {
-            background-color: #0056b3;
+            background-color: #f0e008;
         }
         button:disabled {
             background-color: #ccc;
@@ -110,10 +110,10 @@
             margin-bottom: 15px;
         }
         .special-filter-btn {
-            background-color: #28a745;
+            background-color: #f0e008;
         }
         .special-filter-btn.active {
-            background-color: #218838;
+            background-color: #f0e008;
         }
         
         /* 对话框样式 */
@@ -152,12 +152,13 @@
             word-wrap: break-word;
         }
         .user-message .message-content {
-            background-color: #0084ff;
+            background-color: #5e5f5f;
             color: white;
             border-bottom-right-radius: 4px;
         }
         .assistant-message .message-content {
-            background-color: #e5e5ea;
+            background-color: #f0e008;
+            /* background-color: rgba(240, 224, 8, 0.5); */
             color: black;
             border-bottom-left-radius: 4px;
         }
@@ -174,7 +175,7 @@
             color: #ffffffcc;
         }
         .assistant-message .message-prefix {
-            color: #666;
+            color: #000000;
         }
         .customization-panel {
             margin-bottom: 15px;
@@ -311,7 +312,7 @@
 </head>
 <body>
     <div class="container">
-        <h1>服务器日志监控客户端</h1>
+        <h1>捷宝宝实时对话界面</h1>
         
         <!-- 弹窗 -->
         <div id="speakersModal" class="modal">

@@ -146,15 +146,16 @@ void McpServer::AddCommonTools() {
 
             cJSON* root = cJSON_CreateObject();
             if (timer) {
+                app.SetDeviceState(kDeviceStateIdle);
+                
                 // 设置3秒后进入睡眠模式
                 timer->SetSleepDelay(3);
-                timer->WakeUp(); // 重置计时器
-                
+                timer->SetEnabled(true); // 确保定制定时器已启用
+
                 cJSON_AddStringToObject(root, "status", "success");
                 cJSON_AddStringToObject(root, "message", "Device silenced and will enter sleep mode in 3 seconds");
-                
-                // 直接设置设备状态为待机，而不是通过异步任务
-                app.SetDeviceState(kDeviceStateIdle);
+                            
+                // app.SetDeviceState(kDeviceStateIdle);
             } else {
                 cJSON_AddStringToObject(root, "status", "error");
                 cJSON_AddStringToObject(root, "message", "Power save timer not available");

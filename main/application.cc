@@ -952,15 +952,15 @@ bool Application::CanEnterSleepMode() {
         return false;
     }
 
-    if (protocol_ && protocol_->IsAudioChannelOpened()) {
-        // ESP_LOGI(TAG, "can't enter sleep mode,2");
-        return false;
-    }
+    // if (protocol_ && protocol_->IsAudioChannelOpened()) {
+    //     // ESP_LOGI(TAG, "can't enter sleep mode,2");
+    //     return false;
+    // }
 
-    if (!audio_service_.IsIdle()) {
-        // ESP_LOGI(TAG, "can't enter sleep mode,3");
-        return false;
-    }
+    // if (!audio_service_.IsIdle()) {
+    //     // ESP_LOGI(TAG, "can't enter sleep mode,3");
+    //     return false;
+    // }
 
     // Now it is safe to enter sleep mode
     return true;
