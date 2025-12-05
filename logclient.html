@@ -333,8 +333,8 @@
                     <input type="file" id="userAvatarFile" accept="image/*">
                 </div>
                 <div class="file-input-wrapper">
-                    <div class="file-input-button">选择Jabob头像</div>
-                    <input type="file" id="jabobAvatarFile" accept="image/*">
+                    <div class="file-input-button">选择捷宝宝头像</div>
+                    <input type="file" id="捷宝宝AvatarFile" accept="image/*">
                 </div>
                 <div class="file-input-wrapper">
                     <div class="file-input-button">选择聊天背景</div>
@@ -403,12 +403,12 @@
                 this.isChatView = false; // 是否为对话视图
                 this.currentUser = "user"; // 当前用户名称，默认为"user"
                 this.userAvatarData = null; // 用户头像数据
-                this.jabobAvatarData = null; // Jabob头像数据
+                this.捷宝宝AvatarData = null; // 捷宝宝头像数据
                 this.chatBackgroundData = null; // 聊天背景数据
                 this.speakers = {}; // 说话人及其头像数据
                 
                 this.defaultUserAvatar = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NjY2NjYyI+PGNpcmNsZSBjeD0iMTIiIGN5PSI4IiByPSI0Ii8+PHBhdGggZD0iTTEyIDEycy02IDMtNiA4aDEyYzAtNS02LTgtNi04eiIvPjwvc3ZnPg==";
-                this.defaultJabobAvatar = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzAwODRmZiI+PHJlY3QgeD0iNiIgeT0iNCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjE2IiByeD0iMiIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTAiIHI9IjIiLz48cGF0aCBkPSJNOSAxNWg2IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=";
+                this.default捷宝宝Avatar = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzAwODRmZiI+PHJlY3QgeD0iNiIgeT0iNCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjE2IiByeD0iMiIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTAiIHI9IjIiLz48cGF0aCBkPSJNOSAxNWg2IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=";
                 this.defaultChatBackground = null;
                 
                 this.initializeElements();
@@ -432,7 +432,7 @@
                 
                 // 自定义元素
                 this.userAvatarFile = document.getElementById('userAvatarFile');
-                this.jabobAvatarFile = document.getElementById('jabobAvatarFile');
+                this.捷宝宝AvatarFile = document.getElementById('捷宝宝AvatarFile');
                 this.chatBackgroundFile = document.getElementById('chatBackgroundFile');
                 this.resetCustomizationsBtn = document.getElementById('resetCustomizations');
                 this.manageSpeakersBtn = document.getElementById('manageSpeakersBtn'); // 新增按钮
@@ -464,7 +464,7 @@
                 
                 // 文件选择事件
                 this.userAvatarFile.addEventListener('change', (e) => this.handleFileSelect(e, 'userAvatar'));
-                this.jabobAvatarFile.addEventListener('change', (e) => this.handleFileSelect(e, 'jabobAvatar'));
+                this.捷宝宝AvatarFile.addEventListener('change', (e) => this.handleFileSelect(e, '捷宝宝Avatar'));
                 this.chatBackgroundFile.addEventListener('change', (e) => this.handleFileSelect(e, 'chatBackground'));
                 
                 // 特殊筛选按钮事件
@@ -522,8 +522,8 @@
                         case 'userAvatar':
                             this.userAvatarData = dataUrl;
                             break;
-                        case 'jabobAvatar':
-                            this.jabobAvatarData = dataUrl;
+                        case '捷宝宝Avatar':
+                            this.捷宝宝AvatarData = dataUrl;
                             break;
                         case 'chatBackground':
                             this.chatBackgroundData = dataUrl;
@@ -563,15 +563,15 @@
             loadCustomizations() {
                 // 从localStorage加载自定义设置
                 const savedUserAvatar = localStorage.getItem('userAvatarData');
-                const savedJabobAvatar = localStorage.getItem('jabobAvatarData');
+                const saved捷宝宝Avatar = localStorage.getItem('捷宝宝AvatarData');
                 const savedChatBackground = localStorage.getItem('chatBackgroundData');
                 
                 if (savedUserAvatar) {
                     this.userAvatarData = savedUserAvatar;
                 }
                 
-                if (savedJabobAvatar) {
-                    this.jabobAvatarData = savedJabobAvatar;
+                if (saved捷宝宝Avatar) {
+                    this.捷宝宝AvatarData = saved捷宝宝Avatar;
                 }
                 
                 if (savedChatBackground) {
@@ -588,10 +588,10 @@
                     localStorage.removeItem('userAvatarData');
                 }
                 
-                if (this.jabobAvatarData) {
-                    localStorage.setItem('jabobAvatarData', this.jabobAvatarData);
+                if (this.捷宝宝AvatarData) {
+                    localStorage.setItem('捷宝宝AvatarData', this.捷宝宝AvatarData);
                 } else {
-                    localStorage.removeItem('jabobAvatarData');
+                    localStorage.removeItem('捷宝宝AvatarData');
                 }
                 
                 if (this.chatBackgroundData) {
@@ -706,17 +706,17 @@
             resetCustomizations() {
                 // 重置为默认设置
                 this.userAvatarData = null;
-                this.jabobAvatarData = null;
+                this.捷宝宝AvatarData = null;
                 this.chatBackgroundData = null;
                 
                 // 清除文件输入
                 this.userAvatarFile.value = '';
-                this.jabobAvatarFile.value = '';
+                this.捷宝宝AvatarFile.value = '';
                 this.chatBackgroundFile.value = '';
                 
                 // 移除localStorage中的设置
                 localStorage.removeItem('userAvatarData');
-                localStorage.removeItem('jabobAvatarData');
+                localStorage.removeItem('捷宝宝AvatarData');
                 localStorage.removeItem('chatBackgroundData');
                 
                 // 应用默认背景
@@ -910,7 +910,7 @@
                         prefix = this.currentUser + ": "; // 使用动态用户名称替换"user: "
                     } else if (log.message.includes("语音生成成功：")) {
                         displayMessage = log.message.split("语音生成成功：")[1] || displayMessage;
-                        prefix = "jabob: "; // 为语音生成成功添加"jabob: "前缀
+                        prefix = "捷宝宝: "; // 为语音生成成功添加"捷宝宝: "前缀
                     } else if (log.message.includes("识别说话人:")) {
                         displayMessage = log.message.split("识别说话人:")[1] || displayMessage;
                         prefix = "说话人识别: "; // 为说话人识别添加特定前缀
@@ -966,9 +966,9 @@
                             }
                             avatarElement.alt = speakerName || this.currentUser;
                         } else {
-                            // Jabob消息使用Jabob头像
-                            avatarElement.src = this.jabobAvatarData || this.defaultJabobAvatar;
-                            avatarElement.alt = 'Jabob';
+                            // 捷宝宝消息使用捷宝宝头像
+                            avatarElement.src = this.捷宝宝AvatarData || this.default捷宝宝Avatar;
+                            avatarElement.alt = '捷宝宝';
                         }
                         
                         const contentElement = document.createElement('div');
@@ -980,7 +980,7 @@
                         if (messageType === 'user') {
                             prefixElement.textContent = speakerName || this.currentUser; // 使用记录的说话人或当前说话人
                         } else {
-                            prefixElement.textContent = 'Jabob';
+                            prefixElement.textContent = '捷宝宝';
                         }
                         
                         const textElement = document.createElement('div');
