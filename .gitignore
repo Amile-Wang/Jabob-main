@@ -4,10 +4,6 @@ build/
 .vscode/
 .devcontainer/
 sdkconfig.old
-<<<<<<< HEAD
-
-=======
->>>>>>> 888b9cc0bf2ab0d0897bd53b3313a8b9389b23fa
 dependencies.lock
 .env
 releases/
