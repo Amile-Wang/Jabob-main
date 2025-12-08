@@ -1,0 +1,1042 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>捷宝宝实时对话界面</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            padding: 20px;
+        }
+        h1 {
+            color: #333;
+            text-align: center;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        input, button, select {
+            padding: 8px 12px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #f0e008;
+            color: rgb(0, 0, 0);
+            cursor: pointer;
+            border: none;
+        }
+        button:hover {
+            background-color: #f0e008;
+        }
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
+        #disconnectBtn {
+            background-color: #dc3545;
+        }
+        #disconnectBtn:hover {
+            background-color: #c82333;
+        }
+        .log-container {
+            height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #000;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin: 2px 0;
+            padding: 2px 0;
+            border-bottom: 1px solid #333;
+        }
+        .log-level-ERROR, .log-level-CRITICAL {
+            color: #ff5555;
+        }
+        .log-level-WARNING {
+            color: #ffaa00;
+        }
+        .log-level-INFO {
+            color: #55ff55;
+        }
+        .log-level-DEBUG {
+            color: #5555ff;
+        }
+        .filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+        }
+        .filter-checkbox {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+        .stats {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            font-weight: bold;
+        }
+        .search-box {
+            margin-bottom: 15px;
+        }
+        .search-box input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+        }
+        .special-filters {
+            margin-bottom: 15px;
+        }
+        .special-filter-btn {
+            background-color: #f0e008;
+        }
+        .special-filter-btn.active {
+            background-color: #f0e008;
+        }
+        
+        /* 对话框样式 */
+        .chat-container {
+            height: 600px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            background-color: #f9f9f9;
+            display: none;
+        }
+        .message {
+            margin: 15px 0;
+            display: flex;
+        }
+        .user-message {
+            justify-content: flex-end;
+        }
+        .assistant-message {
+            justify-content: flex-start;
+        }
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            object-fit: cover;
+            align-self: flex-end;
+            margin: 0 10px;
+        }
+        .message-content {
+            max-width: 70%;
+            padding: 12px 16px;
+            border-radius: 18px;
+            position: relative;
+            word-wrap: break-word;
+        }
+        .user-message .message-content {
+            background-color: #5e5f5f;
+            color: white;
+            border-bottom-right-radius: 4px;
+        }
+        .assistant-message .message-content {
+            background-color: #f0e008;
+            /* background-color: rgba(240, 224, 8, 0.5); */
+            color: black;
+            border-bottom-left-radius: 4px;
+        }
+        .message-prefix {
+            font-weight: bold;
+            margin-bottom: 5px;
+            font-size: 12px;
+            opacity: 1;
+            visibility: visible;
+            display: block;
+            color: inherit;
+        }
+        .user-message .message-prefix {
+            color: #ffffffcc;
+        }
+        .assistant-message .message-prefix {
+            color: #000000;
+        }
+        .customization-panel {
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            background-color: #f0f0f0;
+        }
+        .customization-panel h3 {
+            margin-top: 0;
+        }
+        .customization-controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            align-items: center;
+        }
+        .customization-controls input {
+            flex: 1;
+            min-width: 200px;
+        }
+        .file-input-wrapper {
+            position: relative;
+            overflow: hidden;
+            display: inline-block;
+        }
+        .file-input-wrapper input[type=file] {
+            position: absolute;
+            left: 0;
+            top: 0;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+        .file-input-button {
+            display: inline-block;
+            padding: 8px 12px;
+            background-color: #6c757d;
+            color: white;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        /* 弹窗样式 */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0,0,0,0.4);
+        }
+        
+        .modal-content {
+            background-color: #fefefe;
+            margin: 5% auto;
+            padding: 20px;
+            border: 1px solid #888;
+            width: 80%;
+            max-width: 600px;
+            border-radius: 8px;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+        
+        .close {
+            color: #aaa;
+            float: right;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        
+        .close:hover,
+        .close:focus {
+            color: black;
+        }
+        
+        .speaker-list {
+            margin: 20px 0;
+        }
+        
+        .speaker-item {
+            display: flex;
+            align-items: center;
+            margin-bottom: 15px;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        
+        .speaker-avatar-preview {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            margin-right: 15px;
+        }
+        
+        .speaker-info {
+            flex: 1;
+        }
+        
+        .speaker-name {
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+        
+        .speaker-actions {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .add-speaker-btn, .delete-speaker-btn {
+            padding: 5px 10px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        
+        .add-speaker-btn {
+            background-color: #28a745;
+            color: white;
+        }
+        
+        .delete-speaker-btn {
+            background-color: #dc3545;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>捷宝宝实时对话界面</h1>
+        
+        <!-- 弹窗 -->
+        <div id="speakersModal" class="modal">
+            <div class="modal-content">
+                <span class="close">&times;</span>
+                <h2>说话人管理</h2>
+                <div class="speaker-list" id="speakerList">
+                    <!-- 说话人列表将在这里动态生成 -->
+                </div>
+                <button id="addSpeakerBtn" class="add-speaker-btn">添加说话人</button>
+            </div>
+        </div>
+        
+        <div class="customization-panel">
+            <h3>聊天界面自定义</h3>
+            <div class="customization-controls">
+                <div class="file-input-wrapper">
+                    <div class="file-input-button">选择用户头像</div>
+                    <input type="file" id="userAvatarFile" accept="image/*">
+                </div>
+                <div class="file-input-wrapper">
+                    <div class="file-input-button">选择捷宝宝头像</div>
+                    <input type="file" id="捷宝宝AvatarFile" accept="image/*">
+                </div>
+                <div class="file-input-wrapper">
+                    <div class="file-input-button">选择聊天背景</div>
+                    <input type="file" id="chatBackgroundFile" accept="image/*">
+                </div>
+                <button id="manageSpeakersBtn">管理说话人</button>
+                <button id="resetCustomizations">重置为默认</button>
+            </div>
+        </div>
+        
+        <div class="controls">
+            <input type="text" id="serverUrl" placeholder="WebSocket服务器地址，例如: ws://localhost:8000/logs" value="ws://121.41.168.85:8000/logs">
+            <button id="connectBtn">连接</button>
+            <button id="disconnectBtn" disabled>断开</button>
+            <button id="clearBtn">清空日志</button>
+            <button id="toggleViewBtn">切换到对话视图</button>
+        </div>
+        
+        <div class="search-box">
+            <input type="text" id="searchInput" placeholder="搜索日志内容...">
+        </div>
+        
+        <div class="special-filters">
+            <button class="special-filter-btn" id="voiceFilterBtn">语音生成成功</button>
+            <button class="special-filter-btn" id="speechFilterBtn">识别文本</button>
+        </div>
+        
+        <div class="filters">
+            <div class="filter-checkbox">
+                <input type="checkbox" id="filterError" checked>
+                <label for="filterError">错误(ERROR)</label>
+            </div>
+            <div class="filter-checkbox">
+                <input type="checkbox" id="filterWarning" checked>
+                <label for="filterWarning">警告(WARNING)</label>
+            </div>
+            <div class="filter-checkbox">
+                <input type="checkbox" id="filterInfo" checked>
+                <label for="filterInfo">信息(INFO)</label>
+            </div>
+            <div class="filter-checkbox">
+                <input type="checkbox" id="filterDebug" checked>
+                <label for="filterDebug">调试(DEBUG)</label>
+            </div>
+        </div>
+        
+        <div class="stats">
+            <div>总日志数: <span id="totalCount">0</span></div>
+            <div>显示日志数: <span id="displayCount">0</span></div>
+            <div>连接状态: <span id="connectionStatus">未连接</span></div>
+        </div>
+        
+        <div id="logContainer" class="log-container"></div>
+        <div id="chatContainer" class="chat-container"></div>
+    </div>
+
+    <script>
+        class LogClient {
+            constructor() {
+                this.websocket = null;
+                this.logs = [];
+                this.totalCount = 0;
+                this.displayCount = 0;
+                this.voiceFilterActive = false;
+                this.speechFilterActive = false;
+                this.isChatView = false; // 是否为对话视图
+                this.currentUser = "user"; // 当前用户名称，默认为"user"
+                this.userAvatarData = null; // 用户头像数据
+                this.捷宝宝AvatarData = null; // 捷宝宝头像数据
+                this.chatBackgroundData = null; // 聊天背景数据
+                this.speakers = {}; // 说话人及其头像数据
+                
+                this.defaultUserAvatar = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI2NjY2NjYyI+PGNpcmNsZSBjeD0iMTIiIGN5PSI4IiByPSI0Ii8+PHBhdGggZD0iTTEyIDEycy02IDMtNiA4aDEyYzAtNS02LTgtNi04eiIvPjwvc3ZnPg==";
+                this.default捷宝宝Avatar = "data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzAwODRmZiI+PHJlY3QgeD0iNiIgeT0iNCIgd2lkdGg9IjEyIiBoZWlnaHQ9IjE2IiByeD0iMiIvPjxjaXJjbGUgY3g9IjEyIiBjeT0iMTAiIHI9IjIiLz48cGF0aCBkPSJNOSAxNWg2IiBzdHJva2U9IndoaXRlIiBzdHJva2Utd2lkdGg9IjIiLz48L3N2Zz4=";
+                this.defaultChatBackground = null;
+                
+                this.initializeElements();
+                this.attachEventListeners();
+                this.loadCustomizations(); // 加载保存的自定义设置
+                this.loadSpeakers(); // 加载说话人数据
+            }
+            
+            initializeElements() {
+                this.serverUrlInput = document.getElementById('serverUrl');
+                this.connectBtn = document.getElementById('connectBtn');
+                this.disconnectBtn = document.getElementById('disconnectBtn');
+                this.clearBtn = document.getElementById('clearBtn');
+                this.toggleViewBtn = document.getElementById('toggleViewBtn');
+                this.logContainer = document.getElementById('logContainer');
+                this.chatContainer = document.getElementById('chatContainer');
+                this.connectionStatus = document.getElementById('connectionStatus');
+                this.totalCountElement = document.getElementById('totalCount');
+                this.displayCountElement = document.getElementById('displayCount');
+                this.searchInput = document.getElementById('searchInput');
+                
+                // 自定义元素
+                this.userAvatarFile = document.getElementById('userAvatarFile');
+                this.捷宝宝AvatarFile = document.getElementById('捷宝宝AvatarFile');
+                this.chatBackgroundFile = document.getElementById('chatBackgroundFile');
+                this.resetCustomizationsBtn = document.getElementById('resetCustomizations');
+                this.manageSpeakersBtn = document.getElementById('manageSpeakersBtn'); // 新增按钮
+                
+                // 弹窗相关元素
+                this.speakersModal = document.getElementById('speakersModal');
+                this.speakerList = document.getElementById('speakerList');
+                this.addSpeakerBtn = document.getElementById('addSpeakerBtn');
+                this.closeModal = document.querySelector('.close');
+                
+                // 特殊筛选按钮
+                this.voiceFilterBtn = document.getElementById('voiceFilterBtn');
+                this.speechFilterBtn = document.getElementById('speechFilterBtn');
+                
+                // 日志级别过滤器
+                this.filterError = document.getElementById('filterError');
+                this.filterWarning = document.getElementById('filterWarning');
+                this.filterInfo = document.getElementById('filterInfo');
+                this.filterDebug = document.getElementById('filterDebug');
+            }
+            
+            attachEventListeners() {
+                this.connectBtn.addEventListener('click', () => this.connect());
+                this.disconnectBtn.addEventListener('click', () => this.disconnect());
+                this.clearBtn.addEventListener('click', () => this.clearLogs());
+                this.toggleViewBtn.addEventListener('click', () => this.toggleView());
+                this.searchInput.addEventListener('input', () => this.renderLogs());
+                this.resetCustomizationsBtn.addEventListener('click', () => this.resetCustomizations());
+                
+                // 文件选择事件
+                this.userAvatarFile.addEventListener('change', (e) => this.handleFileSelect(e, 'userAvatar'));
+                this.捷宝宝AvatarFile.addEventListener('change', (e) => this.handleFileSelect(e, '捷宝宝Avatar'));
+                this.chatBackgroundFile.addEventListener('change', (e) => this.handleFileSelect(e, 'chatBackground'));
+                
+                // 特殊筛选按钮事件
+                this.voiceFilterBtn.addEventListener('click', () => {
+                    this.voiceFilterActive = !this.voiceFilterActive;
+                    this.voiceFilterBtn.classList.toggle('active', this.voiceFilterActive);
+                    this.renderLogs();
+                });
+                
+                this.speechFilterBtn.addEventListener('click', () => {
+                    this.speechFilterActive = !this.speechFilterActive;
+                    this.speechFilterBtn.classList.toggle('active', this.speechFilterActive);
+                    this.renderLogs();
+                });
+                
+                // 说话人管理事件
+                this.manageSpeakersBtn.addEventListener('click', () => {
+                    this.openSpeakersModal();
+                });
+                
+                this.addSpeakerBtn.addEventListener('click', () => {
+                    this.addSpeaker();
+                });
+                
+                this.closeModal.addEventListener('click', () => {
+                    this.speakersModal.style.display = 'none';
+                });
+                
+                window.addEventListener('click', (event) => {
+                    if (event.target == this.speakersModal) {
+                        this.speakersModal.style.display = 'none';
+                    }
+                });
+                
+                // 日志过滤器事件
+                this.filterError.addEventListener('change', () => this.renderLogs());
+                this.filterWarning.addEventListener('change', () => this.renderLogs());
+                this.filterInfo.addEventListener('change', () => this.renderLogs());
+                this.filterDebug.addEventListener('change', () => this.renderLogs());
+            }
+            
+            handleFileSelect(event, type) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                if (!file.type.startsWith('image/')) {
+                    alert('请选择图像文件');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target.result;
+                    switch (type) {
+                        case 'userAvatar':
+                            this.userAvatarData = dataUrl;
+                            break;
+                        case '捷宝宝Avatar':
+                            this.捷宝宝AvatarData = dataUrl;
+                            break;
+                        case 'chatBackground':
+                            this.chatBackgroundData = dataUrl;
+                            break;
+                    }
+                    this.saveCustomizations();
+                    if (this.isChatView) {
+                        this.renderLogs();
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+            
+            // 处理说话人头像选择
+            handleSpeakerAvatarSelect(event, speakerName) {
+                const file = event.target.files[0];
+                if (!file) return;
+                
+                if (!file.type.startsWith('image/')) {
+                    alert('请选择图像文件');
+                    return;
+                }
+                
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const dataUrl = e.target.result;
+                    this.speakers[speakerName] = dataUrl;
+                    this.saveSpeakers();
+                    this.renderSpeakerList(); // 重新渲染说话人列表
+                    if (this.isChatView) {
+                        this.renderLogs();
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+            
+            loadCustomizations() {
+                // 从localStorage加载自定义设置
+                const savedUserAvatar = localStorage.getItem('userAvatarData');
+                const saved捷宝宝Avatar = localStorage.getItem('捷宝宝AvatarData');
+                const savedChatBackground = localStorage.getItem('chatBackgroundData');
+                
+                if (savedUserAvatar) {
+                    this.userAvatarData = savedUserAvatar;
+                }
+                
+                if (saved捷宝宝Avatar) {
+                    this.捷宝宝AvatarData = saved捷宝宝Avatar;
+                }
+                
+                if (savedChatBackground) {
+                    this.chatBackgroundData = savedChatBackground;
+                    this.applyChatBackground(savedChatBackground);
+                }
+            }
+            
+            saveCustomizations() {
+                // 保存到localStorage
+                if (this.userAvatarData) {
+                    localStorage.setItem('userAvatarData', this.userAvatarData);
+                } else {
+                    localStorage.removeItem('userAvatarData');
+                }
+                
+                if (this.捷宝宝AvatarData) {
+                    localStorage.setItem('捷宝宝AvatarData', this.捷宝宝AvatarData);
+                } else {
+                    localStorage.removeItem('捷宝宝AvatarData');
+                }
+                
+                if (this.chatBackgroundData) {
+                    localStorage.setItem('chatBackgroundData', this.chatBackgroundData);
+                    this.applyChatBackground(this.chatBackgroundData);
+                } else {
+                    localStorage.removeItem('chatBackgroundData');
+                    this.applyChatBackground(null);
+                }
+            }
+            
+            // 加载说话人数据
+            loadSpeakers() {
+                const savedSpeakers = localStorage.getItem('speakersData');
+                if (savedSpeakers) {
+                    this.speakers = JSON.parse(savedSpeakers);
+                }
+            }
+            
+            // 保存说话人数据
+            saveSpeakers() {
+                localStorage.setItem('speakersData', JSON.stringify(this.speakers));
+            }
+            
+            // 打开说话人管理弹窗
+            openSpeakersModal() {
+                this.renderSpeakerList();
+                this.speakersModal.style.display = 'block';
+            }
+            
+            // 渲染说话人列表
+            renderSpeakerList() {
+                this.speakerList.innerHTML = '';
+                
+                // 遍历所有说话人并创建列表项
+                for (const [name, avatar] of Object.entries(this.speakers)) {
+                    const speakerItem = document.createElement('div');
+                    speakerItem.className = 'speaker-item';
+                    
+                    const avatarPreview = document.createElement('img');
+                    avatarPreview.className = 'speaker-avatar-preview';
+                    avatarPreview.src = avatar || this.defaultUserAvatar;
+                    avatarPreview.alt = name;
+                    
+                    const speakerInfo = document.createElement('div');
+                    speakerInfo.className = 'speaker-info';
+                    
+                    const speakerName = document.createElement('div');
+                    speakerName.className = 'speaker-name';
+                    speakerName.textContent = name;
+                    
+                    const fileInputWrapper = document.createElement('div');
+                    fileInputWrapper.className = 'file-input-wrapper';
+                    
+                    const fileInputButton = document.createElement('div');
+                    fileInputButton.className = 'file-input-button';
+                    fileInputButton.textContent = '更换头像';
+                    
+                    const fileInput = document.createElement('input');
+                    fileInput.type = 'file';
+                    fileInput.accept = 'image/*';
+                    
+                    fileInput.addEventListener('change', (e) => {
+                        this.handleSpeakerAvatarSelect(e, name);
+                    });
+                    
+                    fileInputWrapper.appendChild(fileInputButton);
+                    fileInputWrapper.appendChild(fileInput);
+                    
+                    speakerInfo.appendChild(speakerName);
+                    speakerInfo.appendChild(fileInputWrapper);
+                    
+                    const deleteBtn = document.createElement('button');
+                    deleteBtn.className = 'delete-speaker-btn';
+                    deleteBtn.textContent = '删除';
+                    deleteBtn.onclick = () => {
+                        this.deleteSpeaker(name);
+                    };
+                    
+                    speakerItem.appendChild(avatarPreview);
+                    speakerItem.appendChild(speakerInfo);
+                    speakerItem.appendChild(deleteBtn);
+                    
+                    this.speakerList.appendChild(speakerItem);
+                }
+            }
+            
+            // 添加新的说话人
+            addSpeaker() {
+                const speakerName = prompt('请输入说话人姓名:');
+                if (speakerName) {
+                    // 如果说话人不存在，则添加
+                    if (!this.speakers[speakerName]) {
+                        this.speakers[speakerName] = this.defaultUserAvatar;
+                        this.saveSpeakers();
+                        this.renderSpeakerList();
+                    } else {
+                        alert('说话人已存在!');
+                    }
+                }
+            }
+            
+            // 删除说话人
+            deleteSpeaker(speakerName) {
+                if (confirm(`确定要删除说话人 "${speakerName}" 吗?`)) {
+                    delete this.speakers[speakerName];
+                    this.saveSpeakers();
+                    this.renderSpeakerList();
+                }
+            }
+            
+            resetCustomizations() {
+                // 重置为默认设置
+                this.userAvatarData = null;
+                this.捷宝宝AvatarData = null;
+                this.chatBackgroundData = null;
+                
+                // 清除文件输入
+                this.userAvatarFile.value = '';
+                this.捷宝宝AvatarFile.value = '';
+                this.chatBackgroundFile.value = '';
+                
+                // 移除localStorage中的设置
+                localStorage.removeItem('userAvatarData');
+                localStorage.removeItem('捷宝宝AvatarData');
+                localStorage.removeItem('chatBackgroundData');
+                
+                // 应用默认背景
+                this.applyChatBackground(null);
+                
+                // 重新渲染聊天视图
+                if (this.isChatView) {
+                    this.renderLogs();
+                }
+            }
+            
+            applyChatBackground(backgroundData) {
+                if (backgroundData) {
+                    this.chatContainer.style.backgroundImage = `url('${backgroundData}')`;
+                    this.chatContainer.style.backgroundSize = 'cover';
+                    this.chatContainer.style.backgroundPosition = 'center';
+                } else {
+                    this.chatContainer.style.backgroundImage = 'none';
+                    this.chatContainer.style.backgroundColor = '#f9f9f9';
+                }
+            }
+            
+            connect() {
+                const url = this.serverUrlInput.value.trim();
+                if (!url) {
+                    alert('请输入服务器地址');
+                    return;
+                }
+                
+                try {
+                    this.websocket = new WebSocket(url);
+                    this.websocket.onopen = () => this.onOpen();
+                    this.websocket.onmessage = (event) => this.onMessage(event);
+                    this.websocket.onclose = () => this.onClose();
+                    this.websocket.onerror = (error) => this.onError(error);
+                } catch (error) {
+                    console.error('连接错误:', error);
+                    alert('连接失败: ' + error.message);
+                }
+            }
+            
+            disconnect() {
+                if (this.websocket) {
+                    this.websocket.close();
+                }
+            }
+            
+            onOpen() {
+                console.log('连接成功');
+                this.connectBtn.disabled = true;
+                this.disconnectBtn.disabled = false;
+                this.connectionStatus.textContent = '已连接';
+                this.connectionStatus.style.color = 'green';
+            }
+            
+            onMessage(event) {
+                try {
+                    // 尝试解析为JSON
+                    const message = JSON.parse(event.data);
+                    
+                    if (message.type === 'log') {
+                        this.addLog(message);
+                    } else if (message.type === 'welcome') {
+                        console.log('服务器欢迎消息:', message.message);
+                    }
+                } catch (error) {
+                    // 如果解析失败，尝试作为纯文本处理
+                    console.log('收到非JSON消息:', event.data);
+                    
+                    // 可以选择将纯文本消息添加到日志中
+                    const textMessage = {
+                        type: 'text',
+                        message: event.data,
+                        time: new Date().toISOString(),
+                        level: 'INFO'
+                    };
+                    this.addLog(textMessage);
+                }
+            }
+
+            
+            onClose() {
+                console.log('连接已断开');
+                this.connectBtn.disabled = false;
+                this.disconnectBtn.disabled = true;
+                this.connectionStatus.textContent = '已断开';
+                this.connectionStatus.style.color = 'red';
+                this.websocket = null;
+            }
+            
+            onError(error) {
+                console.error('WebSocket错误:', error);
+                this.connectionStatus.textContent = '连接错误';
+                this.connectionStatus.style.color = 'red';
+            }
+            
+            addLog(logEntry) {
+                // 检查是否是识别说话人的日志
+                if (logEntry.message && logEntry.message.includes("识别说话人:")) {
+                    // 提取说话人名称
+                    const speakerMatch = logEntry.message.match(/识别说话人:\s*(.*)/);
+                    if (speakerMatch && speakerMatch[1]) {
+                        this.currentUser = speakerMatch[1].trim();
+                    }
+                }
+                
+                this.logs.push(logEntry);
+                this.totalCount++;
+                this.renderLogs();
+            }
+            
+            toggleView() {
+                this.isChatView = !this.isChatView;
+                if (this.isChatView) {
+                    this.logContainer.style.display = 'none';
+                    this.chatContainer.style.display = 'block';
+                    this.toggleViewBtn.textContent = '切换到日志视图';
+                } else {
+                    this.logContainer.style.display = 'block';
+                    this.chatContainer.style.display = 'none';
+                    this.toggleViewBtn.textContent = '切换到对话视图';
+                }
+                this.renderLogs();
+            }
+            
+            renderLogs() {
+                // 应用过滤器
+                const filteredLogs = this.logs.filter(log => {
+                    // 级别过滤
+                    if (log.level === 'ERROR' && !this.filterError.checked) return false;
+                    if (log.level === 'WARNING' && !this.filterWarning.checked) return false;
+                    if (log.level === 'INFO' && !this.filterInfo.checked) return false;
+                    if (log.level === 'DEBUG' && !this.filterDebug.checked) return false;
+                    
+                    // 搜索过滤
+                    const searchTerm = this.searchInput.value.toLowerCase();
+                    if (searchTerm && 
+                        !log.message.toLowerCase().includes(searchTerm) &&
+                        !log.tag.toLowerCase().includes(searchTerm)) {
+                        return false;
+                    }
+                    
+                    // 过滤无意义内容
+                    const meaninglessContent = [
+                        "上面个地铁好难受，每个人都是穿着格子衫，背着",
+                        "关一下那个"
+                    ];
+                    
+                    for (const content of meaninglessContent) {
+                        if (log.message.includes(content)) {
+                            return false;
+                        }
+                    }
+                    
+                    // 特殊内容筛选
+                    // 如果任何一个筛选器被激活，则只显示匹配的内容
+                    if (this.voiceFilterActive || this.speechFilterActive) {
+                        let matchesVoice = !this.voiceFilterActive || log.message.includes("语音生成成功：");
+                        let matchesSpeech = !this.speechFilterActive || log.message.includes("识别文本:");
+                        return matchesVoice || matchesSpeech;
+                    }
+                    
+                    return true;
+                });
+                
+                // 更新统计
+                this.totalCountElement.textContent = this.totalCount;
+                this.displayCountElement.textContent = filteredLogs.length;
+                
+                // 根据视图类型渲染
+                if (this.isChatView) {
+                    this.renderChatView(filteredLogs);
+                } else {
+                    this.renderLogView(filteredLogs);
+                }
+            }
+            
+            renderLogView(filteredLogs) {
+                // 渲染日志视图
+                this.logContainer.innerHTML = '';
+                filteredLogs.forEach(log => {
+                    const logElement = document.createElement('div');
+                    logElement.className = `log-entry log-level-${log.level}`;
+                    
+                    // 处理特殊前缀，只显示核心内容
+                    let displayMessage = log.message;
+                    let prefix = ""; // 默认无前缀
+
+                    if (log.message.includes("识别文本:")) {
+                        displayMessage = log.message.split("识别文本:")[1] || displayMessage;
+                        prefix = this.currentUser + ": "; // 使用动态用户名称替换"user: "
+                    } else if (log.message.includes("语音生成成功：")) {
+                        displayMessage = log.message.split("语音生成成功：")[1] || displayMessage;
+                        prefix = "捷宝宝: "; // 为语音生成成功添加"捷宝宝: "前缀
+                    } else if (log.message.includes("识别说话人:")) {
+                        displayMessage = log.message.split("识别说话人:")[1] || displayMessage;
+                        prefix = "说话人识别: "; // 为说话人识别添加特定前缀
+                    }
+                    
+                    // 如果启用了特殊过滤器，只显示带前缀的消息内容本身，不显示时间戳、级别和标签
+                    if (this.voiceFilterActive || this.speechFilterActive) {
+                        logElement.innerHTML = `${prefix}${displayMessage}`;
+                    } else {
+                        logElement.innerHTML = `[${log.time}] [${log.level}] [${log.tag}] ${prefix}${displayMessage}`;
+                    }
+                    this.logContainer.appendChild(logElement);
+                });
+                
+                // 滚动到底部
+                this.logContainer.scrollTop = this.logContainer.scrollHeight;
+            }
+            
+            renderChatView(filteredLogs) {
+                // 渲染对话视图
+                this.chatContainer.innerHTML = '';
+                filteredLogs.forEach(log => {
+                    // 处理特殊前缀，只显示核心内容
+                    let displayMessage = log.message;
+                    let messageType = "";
+                    let speakerName = ""; // 记录当时说话人的名字
+
+                    if (log.message.includes("识别文本:")) {
+                        displayMessage = log.message.split("识别文本:")[1] || displayMessage;
+                        messageType = "user";
+                        speakerName = this.getCurrentUserAtTime(log.time); // 获取当时说话人的名字
+                    } else if (log.message.includes("语音生成成功：")) {
+                        displayMessage = log.message.split("语音生成成功：")[1] || displayMessage;
+                        messageType = "assistant";
+                    }
+                    
+                    // 只显示用户和助手的消息
+                    if (messageType) {
+                        const messageElement = document.createElement('div');
+                        messageElement.className = `message ${messageType}-message`;
+                        
+                        // 创建头像元素
+                        const avatarElement = document.createElement('img');
+                        avatarElement.className = 'message-avatar';
+                        if (messageType === 'user') {
+                            // 使用说话人头像（如果存在）或者默认头像
+                            if (speakerName && this.speakers.hasOwnProperty(speakerName)) {
+                                // 使用为该说话人设置的头像
+                                avatarElement.src = this.speakers[speakerName];
+                            } else {
+                                // 对于未知说话人或未设置头像的说话人，使用默认头像
+                                avatarElement.src = this.defaultUserAvatar;
+                            }
+                            avatarElement.alt = speakerName || this.currentUser;
+                        } else {
+                            // 捷宝宝消息使用捷宝宝头像
+                            avatarElement.src = this.捷宝宝AvatarData || this.default捷宝宝Avatar;
+                            avatarElement.alt = '捷宝宝';
+                        }
+                        
+                        const contentElement = document.createElement('div');
+                        contentElement.className = 'message-content';
+                        
+                        const prefixElement = document.createElement('div');
+                        prefixElement.className = 'message-prefix';
+                        // 根据消息类型使用不同的前缀
+                        if (messageType === 'user') {
+                            prefixElement.textContent = speakerName || this.currentUser; // 使用记录的说话人或当前说话人
+                        } else {
+                            prefixElement.textContent = '捷宝宝';
+                        }
+                        
+                        const textElement = document.createElement('div');
+                        textElement.textContent = displayMessage;
+                        
+                        contentElement.appendChild(prefixElement);
+                        contentElement.appendChild(textElement);
+                        
+                        if (messageType === 'user') {
+                            messageElement.appendChild(contentElement);
+                            messageElement.appendChild(avatarElement);
+                        } else {
+                            messageElement.appendChild(avatarElement);
+                            messageElement.appendChild(contentElement);
+                        }
+                        
+                        this.chatContainer.appendChild(messageElement);
+                    }
+                });
+                
+                // 滚动到底部
+                this.chatContainer.scrollTop = this.chatContainer.scrollHeight;
+            }
+            
+            getCurrentUserAtTime(time) {
+                // 查找在指定时间之前最近一次识别的说话人
+                let user = "user"; // 默认用户名
+                for (let i = 0; i < this.logs.length; i++) {
+                    const log = this.logs[i];
+                    // 如果找到了一条"识别说话人"的日志且它的时间早于或等于给定时间
+                    if (log.message && log.message.includes("识别说话人:") && log.time <= time) {
+                        const speakerMatch = log.message.match(/识别说话人:\s*(.*)/);
+                        if (speakerMatch && speakerMatch[1]) {
+                            user = speakerMatch[1].trim();
+                        }
+                    }
+                    // 如果日志时间已经超过目标时间，则停止查找
+                    if (log.time > time) {
+                        break;
+                    }
+                }
+                return user;
+            }
+            
+            clearLogs() {
+                this.logs = [];
+                this.totalCount = 0;
+                this.renderLogs();
+            }
+        }
+        
+        // 初始化客户端
+        document.addEventListener('DOMContentLoaded', () => {
+            new LogClient();
+        });
+    </script>
+</body>
+</html>

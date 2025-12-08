@@ -15,6 +15,7 @@ public:
     void OnExitSleepMode(std::function<void()> callback);
     void OnShutdownRequest(std::function<void()> callback);
     void WakeUp();
+    void SetSleepDelay(int seconds); // 添加设置睡眠延迟的方法
 
 private:
     void PowerSaveCheck();

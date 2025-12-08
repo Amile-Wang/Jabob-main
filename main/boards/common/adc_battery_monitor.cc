@@ -1,4 +1,5 @@
 #include "adc_battery_monitor.h"
+#include <esp_log.h>
 
 AdcBatteryMonitor::AdcBatteryMonitor(adc_unit_t adc_unit, adc_channel_t adc_channel, float upper_resistor, float lower_resistor, gpio_num_t charging_pin)
     : charging_pin_(charging_pin) {
@@ -52,7 +53,10 @@ AdcBatteryMonitor::~AdcBatteryMonitor() {
 
 bool AdcBatteryMonitor::IsCharging() {
     bool is_charging = false;
-    ESP_ERROR_CHECK(adc_battery_estimation_get_charging_state(adc_battery_estimation_handle_, &is_charging));
+    esp_err_t err = adc_battery_estimation_get_charging_state(adc_battery_estimation_handle_, &is_charging);
+    if (err != ESP_OK) {
+        return false; // 默认返回未充电状态
+    }
     return is_charging;
 }
 
@@ -62,8 +66,20 @@ bool AdcBatteryMonitor::IsDischarging() {
 
 uint8_t AdcBatteryMonitor::GetBatteryLevel() {
     float capacity = 0;
-    ESP_ERROR_CHECK(adc_battery_estimation_get_capacity(adc_battery_estimation_handle_, &capacity));
-    return capacity;
+    esp_err_t err = adc_battery_estimation_get_capacity(adc_battery_estimation_handle_, &capacity);
+    if (err != ESP_OK) {
+        // 如果无法获取容量信息，默认返回一个合理的值而不是100
+        return 50; // 返回中间值50%，表示不确定状态
+    }
+    ESP_LOGI("ADC_BATTERY", "Raw battery capacity: %.2f%%", capacity);
+    // 确保返回的值在合理范围内
+    if (capacity < 0) {
+        capacity = 0;
+    } else if (capacity > 100) {
+        capacity = 100;
+    }
+    
+    return (uint8_t)capacity;
 }
 
 void AdcBatteryMonitor::OnChargingStatusChanged(std::function<void(bool)> callback) {

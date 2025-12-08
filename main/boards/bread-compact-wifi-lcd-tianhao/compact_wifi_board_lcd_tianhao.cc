@@ -83,7 +83,11 @@ private:
     std::unique_ptr<AdcBatteryMonitor> battery_monitor_;
 #endif
 
-
+public:
+    // 实现获取PowerSaveTimer的方法
+    PowerSaveTimer* GetPowerSaveTimer() override { 
+        return power_save_timer_.get(); 
+    }
 
 
     static void InitializeButtonsTask(void* param) {
@@ -353,7 +357,14 @@ public:
         power_save_timer_->OnExitSleepMode([this]() {
             ESP_LOGI(TAG, "Exiting sleep mode");
             auto& board = Board::GetInstance();
+            
+            // 重置睡眠倒计时为20秒，避免默认状态下的倒计时长度受到MCP影响
+            if (power_save_timer_) {
+                power_save_timer_->SetSleepDelay(20);
+                ESP_LOGI(TAG, "Reset sleep delay to 20 seconds");
+            }
 
+            
              // 恢复之前的亮度
             auto backlight = board.GetBacklight();
             if (backlight) {
@@ -381,6 +392,22 @@ public:
 
         // 在单独的任务中初始化按钮，避免阻塞主流程
         xTaskCreate(InitializeButtonsTask, "buttons_init", 4096, this, 5, NULL);
+        
+
+        // 初始化扬声器电源控制引脚，防止悬空导致扬声器电源被切断
+        if (SPK_GPIO_POWERSAVE != GPIO_NUM_NC) {
+            gpio_config_t spk_power_save_cfg = {};
+            spk_power_save_cfg.pin_bit_mask = BIT64(SPK_GPIO_POWERSAVE);
+            spk_power_save_cfg.mode = GPIO_MODE_OUTPUT;
+            spk_power_save_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
+            spk_power_save_cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
+            spk_power_save_cfg.intr_type = GPIO_INTR_DISABLE;
+            ESP_ERROR_CHECK(gpio_config(&spk_power_save_cfg));
+            
+            // 将引脚设置为高电平，确保扬声器电源正常供电
+            ESP_ERROR_CHECK(gpio_set_level(SPK_GPIO_POWERSAVE, 1));
+        }
+
         
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->RestoreBrightness();

@@ -32,6 +32,7 @@ void PowerSaveTimer::SetEnabled(bool enabled) {
         enabled_ = enabled;
         ESP_ERROR_CHECK(esp_timer_start_periodic(power_save_timer_, 1000000));
         ESP_LOGI(TAG, "Power save timer enabled");
+        ESP_LOGI(TAG, "Device will enter sleep mode after %d ticks", seconds_to_sleep_);
     } else if (!enabled && enabled_) {
         ESP_ERROR_CHECK(esp_timer_stop(power_save_timer_));
         enabled_ = enabled;
@@ -101,4 +102,10 @@ void PowerSaveTimer::WakeUp() {
             on_exit_sleep_mode_();
         }
     }
+}
+
+// 添加设置睡眠延迟的实现
+void PowerSaveTimer::SetSleepDelay(int seconds) {
+    seconds_to_sleep_ = seconds;
+    ticks_ = 0; // 重置计数器
 }

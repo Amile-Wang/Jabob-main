@@ -247,6 +247,25 @@ void Application::ToggleChatState() {
     }
 
     if (device_state_ == kDeviceStateIdle) {
+        // 播放提示音，表示设备即将开始聆听
+            {
+                // 定义可用的音效数组
+                static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
+                    std::ref(Lang::Sounds::P3_0)
+                };
+                
+                // 生成随机索引并播放随机音效
+                int random_index = esp_random() % sound_effects.size();
+                audio_service_.PlaySound(sound_effects[random_index]);
+            }
+
+            
+
+            Schedule([this]() {
+                vTaskDelay(pdMS_TO_TICKS(500));
+                // audio_service_.EncodeWakeWord();
+            });
+
         Schedule([this]() {
             if (!protocol_->IsAudioChannelOpened()) {
                 SetDeviceState(kDeviceStateConnecting);
@@ -261,13 +280,52 @@ void Application::ToggleChatState() {
             // SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);
         });
     } else if (device_state_ == kDeviceStateSpeaking) {
+        AbortSpeaking(kAbortReasonNone);
         Schedule([this]() {
-            AbortSpeaking(kAbortReasonNone);
+            // 播放提示音，表示设备即将开始聆听
+            {
+                // 定义可用的音效数组
+                static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
+                    std::ref(Lang::Sounds::P3_0)
+                };
+                
+                // 生成随机索引并播放随机音效
+                int random_index = esp_random() % sound_effects.size();
+                audio_service_.PlaySound(sound_effects[random_index]);
+            }
+
+            
+
+            Schedule([this]() {
+                vTaskDelay(pdMS_TO_TICKS(1200));
+                SetListeningMode(kListeningModeAutoStop);
+                // audio_service_.EncodeWakeWord();
+            });
+            
         });
     } else if (device_state_ == kDeviceStateListening) {
         Schedule([this]() {
+            // 播放提示音，表示设备即将开始聆听
+            {
+                // 定义可用的音效数组
+                static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
+                    std::ref(Lang::Sounds::P3_0)
+                };
+                
+                // 生成随机索引并播放随机音效
+                int random_index = esp_random() % sound_effects.size();
+                audio_service_.PlaySound(sound_effects[random_index]);
+            }
+
+            
+
+            Schedule([this]() {
+                vTaskDelay(pdMS_TO_TICKS(500));
+                // audio_service_.EncodeWakeWord();
+            });
             protocol_->CloseAudioChannel();
         });
+        SetDeviceState(kDeviceStateIdle);
     }
 }
 
@@ -350,6 +408,8 @@ void Application::Start() {
 
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
+    codec->SetOutputVolume(20);  // 初始化音量为10%
+    // audio_service_.Initialize(codec);
     audio_service_.Initialize(codec);
     audio_service_.Start();
 
@@ -641,7 +701,7 @@ void Application::OnWakeWordDetected() {
             {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
-                    std::ref(Lang::Sounds::P3_SUCCESS)
+                    std::ref(Lang::Sounds::P3_0)
                 };
                 
                 // 生成随机索引并播放随机音效
@@ -689,9 +749,9 @@ void Application::OnWakeWordDetected() {
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
                     std::ref(Lang::Sounds::P3_0),
-                    std::ref(Lang::Sounds::P3_5),
-                    std::ref(Lang::Sounds::P3_6),
-                    std::ref(Lang::Sounds::P3_7),
+                    // std::ref(Lang::Sounds::P3_5),
+                    // std::ref(Lang::Sounds::P3_6),
+                    // std::ref(Lang::Sounds::P3_7),
 
                 };
                 
@@ -787,11 +847,13 @@ void Application::SetDeviceState(DeviceState state) {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
-                    // std::ref(Lang::Sounds::P3_1),
+                    std::ref(Lang::Sounds::P3_1),
                     std::ref(Lang::Sounds::P3_2),
                     std::ref(Lang::Sounds::P3_3),
                     std::ref(Lang::Sounds::P3_4),
-                    std::ref(Lang::Sounds::P3_5)
+                    std::ref(Lang::Sounds::P3_5),
+                    std::ref(Lang::Sounds::P3_6),
+                    std::ref(Lang::Sounds::P3_7)
                 };
                 
                 // 生成随机索引并播放随机音效
@@ -890,15 +952,15 @@ bool Application::CanEnterSleepMode() {
         return false;
     }
 
-    if (protocol_ && protocol_->IsAudioChannelOpened()) {
-        // ESP_LOGI(TAG, "can't enter sleep mode,2");
-        return false;
-    }
+    // if (protocol_ && protocol_->IsAudioChannelOpened()) {
+    //     // ESP_LOGI(TAG, "can't enter sleep mode,2");
+    //     return false;
+    // }
 
-    if (!audio_service_.IsIdle()) {
-        // ESP_LOGI(TAG, "can't enter sleep mode,3");
-        return false;
-    }
+    // if (!audio_service_.IsIdle()) {
+    //     // ESP_LOGI(TAG, "can't enter sleep mode,3");
+    //     return false;
+    // }
 
     // Now it is safe to enter sleep mode
     return true;
