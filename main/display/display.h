@@ -52,10 +52,16 @@ protected:
     lv_obj_t* low_battery_popup_ = nullptr;
     lv_obj_t* low_battery_label_ = nullptr;
     
+    // 添加配对码标签指针
+    lv_obj_t* pairing_code_label_ = nullptr;
+
     const char* battery_icon_ = nullptr;
     const char* network_icon_ = nullptr;
     bool muted_ = false;
     std::string current_theme_name_;
+
+    // 添加配对码标签指针
+    
 
     std::chrono::system_clock::time_point last_status_update_time_;
     esp_timer_handle_t notification_timer_ = nullptr;

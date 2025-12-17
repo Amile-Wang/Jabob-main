@@ -14,6 +14,7 @@
 #include "board.h"
 
 #define TAG "LcdDisplay"
+// #define CONFIG_USE_GIF_EMOTIONS
 
 // Color definitions for dark theme
 #define DARK_BACKGROUND_COLOR       lv_color_hex(0x121212)     // Dark background
@@ -401,6 +402,14 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_color(battery_label_, current_theme_.text, 0);
     lv_obj_set_style_margin_left(battery_label_, 5, 0); // 添加左边距，与前面的元素分隔
 
+    // 添加配对码标签
+    pairing_code_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(pairing_code_label_, "");
+    lv_obj_set_style_text_font(pairing_code_label_, fonts_.text_font, 0);
+    lv_obj_set_style_text_color(pairing_code_label_, current_theme_.text, 0);
+    lv_obj_set_style_margin_left(pairing_code_label_, 5, 0);
+
+
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, fonts_.text_font->line_height * 2);
@@ -754,7 +763,13 @@ void LcdDisplay::SetupUI() {
     // lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     // lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
     // lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
-
+#ifdef CONFIG_USE_GIF_EMOTIONS
+    // 创建GIF对象替代emotion_label_
+    emotion_gif_ = lv_gif_create(side_bar_);
+    lv_obj_set_size(emotion_gif_, 32, 32);
+    lv_obj_set_style_pad_top(emotion_gif_, 4, 0);
+    lv_obj_add_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN); // 初始隐藏
+#else
     emotion_label_ = lv_label_create(screen); // 父对象为屏幕
     lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
     lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
@@ -764,7 +779,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_bg_color(emotion_label_, lv_color_hex(0xff0000), 0);
     lv_obj_set_style_border_width(emotion_label_, 0, 0);
    // lv_obj_set_style_bg_opa(emotion_label_, LV_OPA_TRANSP, 0); // 背景透明
-
+#endif
 
 
     preview_image_ = lv_image_create(content_);
@@ -972,6 +987,25 @@ void LcdDisplay::SetIcon(const char* icon) {
 #endif
 }
 
+// 添加设置配对码的函数
+void LcdDisplay::SetPairingCode(const char* pairing_code) {
+    DisplayLockGuard lock(this);
+    if (pairing_code_label_ == nullptr) {
+        return;
+    }
+    
+    // 显示配对码
+    lv_label_set_text(pairing_code_label_, pairing_code);
+    
+    // 如果配对码为空，则隐藏标签
+    if (strlen(pairing_code) == 0) {
+        lv_obj_add_flag(pairing_code_label_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_clear_flag(pairing_code_label_, LV_OBJ_FLAG_HIDDEN);
+    }
+}
+
+// ... existing code ...
 void LcdDisplay::SetTheme(const std::string& theme_name) {
     DisplayLockGuard lock(this);
     
@@ -1022,7 +1056,20 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
         if (emotion_label_ != nullptr) {
             lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
         }
+        // 更新配对码标签颜色
+        if (pairing_code_label_ != nullptr) {
+            lv_obj_set_style_text_color(pairing_code_label_, current_theme_.text, 0);
+        }
     }
+    
+    // Update content area colors
+    if (content_ != nullptr) {
+        lv_obj_set_style_bg_color(content_, current_theme_.chat_background, 0);
+        lv_obj_set_style_border_color(content_, current_theme_.border, 0);
+        
+        // If we have the chat message style, update all message bubbles
+#if CONFIG_USE_WECHAT_MESSAGE_STYLE
+// ... existing code ...
     
     // Update content area colors
     if (content_ != nullptr) {
