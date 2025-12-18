@@ -408,7 +408,7 @@ void Application::Start() {
 
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
-    codec->SetOutputVolume(20);  // 初始化音量为10%
+    codec->SetOutputVolume(50);  // 初始化音量为10%
     // audio_service_.Initialize(codec);
     audio_service_.Initialize(codec);
     audio_service_.Start();
@@ -849,11 +849,11 @@ void Application::SetDeviceState(DeviceState state) {
                     // std::ref(Lang::Sounds::P3_0),
                     std::ref(Lang::Sounds::P3_1),
                     std::ref(Lang::Sounds::P3_2),
-                    std::ref(Lang::Sounds::P3_3),
-                    std::ref(Lang::Sounds::P3_4),
-                    std::ref(Lang::Sounds::P3_5),
-                    std::ref(Lang::Sounds::P3_6),
-                    std::ref(Lang::Sounds::P3_7)
+                    // std::ref(Lang::Sounds::P3_3),
+                    // std::ref(Lang::Sounds::P3_4),
+                    // std::ref(Lang::Sounds::P3_5),
+                    // std::ref(Lang::Sounds::P3_6),
+                    // std::ref(Lang::Sounds::P3_7)
                 };
                 
                 // 生成随机索引并播放随机音效
