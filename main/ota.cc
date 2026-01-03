@@ -551,7 +551,8 @@ esp_err_t Ota::Activate() {
         ESP_LOGE(TAG, "Failed to activate, code: %d, body: %s", status_code, http->ReadAll().c_str());
         return ESP_FAIL;
     }
-
+    // 输出http的响应
+    ESP_LOGI(TAG, "Response: %s", http->ReadAll().c_str());
     ESP_LOGI(TAG, "Activation successful");
     return ESP_OK;
 }
