@@ -152,7 +152,7 @@ void Application::CheckNewVersion(Ota& ota) {
             break;
         }
 
-        display->SetStatus(Lang::Strings::ACTIVATION);
+        // display->SetStatus(Lang::Strings::ACTIVATION);
         // Activation code is shown to the user and waiting for the user to input
         if (ota.HasActivationCode()) {
             ShowActivationCode(ota.GetActivationCode(), ota.GetActivationMessage());
@@ -195,8 +195,12 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
         digit_sound{'9', Lang::Sounds::P3_9}
     }};
 
+    // 在状态栏显示激活码
+    auto display = Board::GetInstance().GetDisplay();
+    display->SetStatus(("激活码: " + code).c_str());
+
     // This sentence uses 9KB of SRAM, so we need to wait for it to finish
-    Alert(Lang::Strings::ACTIVATION, message.c_str(), "happy", Lang::Sounds::P3_ACTIVATION);
+    // Alert(Lang::Strings::ACTIVATION, message.c_str(), "happy", Lang::Sounds::P3_ACTIVATION);
 
     // for (const auto& digit : code) {
     //     auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
