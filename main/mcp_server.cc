@@ -96,18 +96,18 @@ void McpServer::AddCommonTools() {
             });
     }
 
-    auto display = board.GetDisplay();
-    if (display && !display->GetTheme().empty()) {
-        AddTool("self.screen.set_theme",
-            "Set the theme of the screen. The theme can be `light` or `dark`.",
-            PropertyList({
-                Property("theme", kPropertyTypeString)
-            }),
-            [display](const PropertyList& properties) -> ReturnValue {
-                display->SetTheme(properties["theme"].value<std::string>().c_str());
-                return true;
-            });
-    }
+    // auto display = board.GetDisplay();
+    // if (display && !display->GetTheme().empty()) {
+    //     AddTool("self.screen.set_theme",
+    //         "Set the theme of the screen. The theme can be `light` or `dark`.",
+    //         PropertyList({
+    //             Property("theme", kPropertyTypeString)
+    //         }),
+    //         [display](const PropertyList& properties) -> ReturnValue {
+    //             display->SetTheme(properties["theme"].value<std::string>().c_str());
+    //             return true;
+    //         });
+    // }
 
     auto camera = board.GetCamera();
     if (camera) {

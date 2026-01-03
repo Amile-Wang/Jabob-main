@@ -1,5 +1,5 @@
 #include "lvgl_image.h"
-#include <cbin_font.h>
+// #include <cbin_font.h>
 
 #include <esp_log.h>
 #include <stdexcept>
@@ -24,15 +24,15 @@ bool LvglRawImage::IsGif() const {
     return ptr[0] == 'G' && ptr[1] == 'I' && ptr[2] == 'F';
 }
 
-LvglCBinImage::LvglCBinImage(void* data) {
-    image_dsc_ = cbin_img_dsc_create(static_cast<uint8_t*>(data));
-}
+// LvglCBinImage::LvglCBinImage(void* data) {
+//     image_dsc_ = cbin_img_dsc_create(static_cast<uint8_t*>(data));
+// }
 
-LvglCBinImage::~LvglCBinImage() {
-    if (image_dsc_ != nullptr) {
-        cbin_img_dsc_delete(image_dsc_);
-    }
-}
+// LvglCBinImage::~LvglCBinImage() {
+//     if (image_dsc_ != nullptr) {
+//         cbin_img_dsc_delete(image_dsc_);
+//     }
+// }
 
 LvglAllocatedImage::LvglAllocatedImage(void* data, size_t size) {
     bzero(&image_dsc_, sizeof(image_dsc_));

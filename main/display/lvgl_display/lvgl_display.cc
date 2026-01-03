@@ -3,15 +3,15 @@
 #include <string>
 #include <cstdlib>
 #include <cstring>
-#include <font_awesome.h>
 
+#include "lvgl.h"
 #include "lvgl_display.h"
 #include "board.h"
 #include "application.h"
 #include "audio_codec.h"
 #include "settings.h"
 #include "assets/lang_config.h"
-#include "jpg/image_to_jpeg.h"
+// #include "jpg/image_to_jpeg.h"
 
 #define TAG "Display"
 
@@ -113,7 +113,7 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
         // Update icon if mute state changes
         if (codec->output_volume() == 0 && !muted_) {
             muted_ = true;
-            lv_label_set_text(mute_label_, FONT_AWESOME_VOLUME_XMARK);
+            lv_label_set_text(mute_label_, LV_SYMBOL_VOLUME_MAX);
         } else if (codec->output_volume() > 0 && muted_) {
             muted_ = false;
             lv_label_set_text(mute_label_, "");
@@ -144,15 +144,15 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
     const char* icon = nullptr;
     if (board.GetBatteryLevel(battery_level, charging, discharging)) {
         if (charging) {
-            icon = FONT_AWESOME_BATTERY_BOLT;
+            icon = LV_SYMBOL_BATTERY_EMPTY;
         } else {
             const char* levels[] = {
-                FONT_AWESOME_BATTERY_EMPTY, // 0-19%
-                FONT_AWESOME_BATTERY_QUARTER,    // 20-39%
-                FONT_AWESOME_BATTERY_HALF,    // 40-59%
-                FONT_AWESOME_BATTERY_THREE_QUARTERS,    // 60-79%
-                FONT_AWESOME_BATTERY_FULL, // 80-99%
-                FONT_AWESOME_BATTERY_FULL, // 100%
+                LV_SYMBOL_BATTERY_EMPTY, // 0-19%
+                LV_SYMBOL_BATTERY_1,    // 20-39%
+                LV_SYMBOL_BATTERY_2,    // 40-59%
+                LV_SYMBOL_BATTERY_3,    // 60-79%
+                LV_SYMBOL_BATTERY_FULL, // 80-99%
+                LV_SYMBOL_BATTERY_FULL, // 100%
             };
             icon = levels[battery_level / 20];
         }
@@ -163,10 +163,10 @@ void LvglDisplay::UpdateStatusBar(bool update_all) {
         }
 
         if (low_battery_popup_ != nullptr) {
-            if (strcmp(icon, FONT_AWESOME_BATTERY_EMPTY) == 0 && discharging) {
+            if (strcmp(icon, LV_SYMBOL_BATTERY_EMPTY) == 0 && discharging) {
                 if (lv_obj_has_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN)) { // Show if low battery popup is hidden
                     lv_obj_remove_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
-                    app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
+                    // app.PlaySound(Lang::Sounds::OGG_LOW_BATTERY);
                 }
             } else {
                 // Hide the low battery popup when the battery is not empty
@@ -215,44 +215,4 @@ void LvglDisplay::SetPowerSaveMode(bool on) {
     }
 }
 
-bool LvglDisplay::SnapshotToJpeg(std::string& jpeg_data, int quality) {
-#if CONFIG_LV_USE_SNAPSHOT
-    DisplayLockGuard lock(this);
 
-    lv_obj_t* screen = lv_screen_active();
-    lv_draw_buf_t* draw_buffer = lv_snapshot_take(screen, LV_COLOR_FORMAT_RGB565);
-    if (draw_buffer == nullptr) {
-        ESP_LOGE(TAG, "Failed to take snapshot, draw_buffer is nullptr");
-        return false;
-    }
-
-    // swap bytes
-    uint16_t* data = (uint16_t*)draw_buffer->data;
-    size_t pixel_count = draw_buffer->data_size / 2;
-    for (size_t i = 0; i < pixel_count; i++) {
-        data[i] = __builtin_bswap16(data[i]);
-    }
-
-    // Clear output string and use callback version to avoid pre-allocating large memory blocks
-    jpeg_data.clear();
-
-    // Use callback-based JPEG encoder to further save memory
-    bool ret = image_to_jpeg_cb((uint8_t*)draw_buffer->data, draw_buffer->data_size, draw_buffer->header.w, draw_buffer->header.h, V4L2_PIX_FMT_RGB565, quality,
-        [](void *arg, size_t index, const void *data, size_t len) -> size_t {
-        std::string* output = static_cast<std::string*>(arg);
-        if (data && len > 0) {
-            output->append(static_cast<const char*>(data), len);
-        }
-        return len;
-    }, &jpeg_data);
-    if (!ret) {
-        ESP_LOGE(TAG, "Failed to convert image to JPEG");
-    }
-
-    lv_draw_buf_destroy(draw_buffer);
-    return ret;
-#else
-    ESP_LOGE(TAG, "LV_USE_SNAPSHOT is not enabled");
-    return false;
-#endif
-}

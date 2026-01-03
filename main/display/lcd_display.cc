@@ -1,30 +1,36 @@
 #include "lcd_display.h"
-#include "gif/lvgl_gif.h"
+#include "lvgl_display/gif/lvgl_gif.h"
 #include "settings.h"
-#include "lvgl_theme.h"
+#include "lvgl_display/lvgl_theme.h"
 #include "assets/lang_config.h"
 
 #include <vector>
 #include <algorithm>
-#include <font_awesome.h>
+#include "lvgl.h"
 #include <esp_log.h>
 #include <esp_err.h>
 #include <esp_lvgl_port.h>
 #include <esp_psram.h>
 #include <cstring>
 
+
 #include "board.h"
 
 #define TAG "LcdDisplay"
 
+// 使用 LVGL 内置的 Montserrat 14 字体
+#define BUILTIN_TEXT_FONT lv_font_montserrat_14
+#define BUILTIN_ICON_FONT lv_font_montserrat_14
+
+
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
-LV_FONT_DECLARE(font_awesome_30_4);
+
 
 void LcdDisplay::InitializeLcdThemes() {
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
     auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
-    auto large_icon_font = std::make_shared<LvglBuiltInFont>(&font_awesome_30_4);
+    auto large_icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
 
     // light theme
     auto light_theme = new LvglTheme("light");
@@ -803,7 +809,7 @@ void LcdDisplay::SetupUI() {
     emoji_label_ = lv_label_create(emoji_box_);
     lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
     lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
-    lv_label_set_text(emoji_label_, FONT_AWESOME_MICROCHIP_AI);
+    // lv_label_set_text(emoji_label_, FONT_AWESOME_MICROCHIP_AI);
 
     emoji_image_ = lv_img_create(emoji_box_);
     lv_obj_center(emoji_image_);
@@ -985,13 +991,13 @@ void LcdDisplay::SetEmotion(const char* emotion) {
     auto emoji_collection = static_cast<LvglTheme*>(current_theme_)->emoji_collection();
     auto image = emoji_collection != nullptr ? emoji_collection->GetEmojiImage(emotion) : nullptr;
     if (image == nullptr) {
-        const char* utf8 = font_awesome_get_utf8(emotion);
-        if (utf8 != nullptr && emoji_label_ != nullptr) {
-            DisplayLockGuard lock(this);
-            lv_label_set_text(emoji_label_, utf8);
-            lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-        }
+        // const char* utf8 = font_awesome_get_utf8(emotion);
+        // if (utf8 != nullptr && emoji_label_ != nullptr) {
+        //     DisplayLockGuard lock(this);
+        //     lv_label_set_text(emoji_label_, utf8);
+        //     lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+        //     lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        // }
         return;
     }
 
