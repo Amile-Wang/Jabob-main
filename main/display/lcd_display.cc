@@ -1005,7 +1005,7 @@ void LcdDisplay::SetPairingCode(const char* pairing_code) {
     }
 }
 
-// ... existing code ...
+
 void LcdDisplay::SetTheme(const std::string& theme_name) {
     DisplayLockGuard lock(this);
     
@@ -1066,16 +1066,17 @@ void LcdDisplay::SetTheme(const std::string& theme_name) {
     if (content_ != nullptr) {
         lv_obj_set_style_bg_color(content_, current_theme_.chat_background, 0);
         lv_obj_set_style_border_color(content_, current_theme_.border, 0);
-        
+    
         // If we have the chat message style, update all message bubbles
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
-// ... existing code ...
+
     
     // Update content area colors
     if (content_ != nullptr) {
         lv_obj_set_style_bg_color(content_, current_theme_.chat_background, 0);
         lv_obj_set_style_border_color(content_, current_theme_.border, 0);
-        
+    }
+#endif
         // If we have the chat message style, update all message bubbles
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
         // Iterate through all children of content (message containers or bubbles)

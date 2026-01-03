@@ -64,6 +64,33 @@ std::unique_ptr<Http> Ota::SetupHttp() {
     http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
     http->SetHeader("Accept-Language", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
+    // Log all HTTP-related info (headers and potential body)
+    std::ostringstream headers_log;
+    headers_log << "HTTP headers: ";
+    headers_log << "Activation-Version=" << (has_serial_number_ ? "2" : "1") << ", ";
+    headers_log << "Device-Id=" << SystemInfo::GetMacAddress() << ", ";
+    headers_log << "Client-Id=" << board.GetUuid();
+    if (has_serial_number_) {
+        headers_log << ", Serial-Number=" << serial_number_;
+    }
+    headers_log << ", User-Agent=" << (std::string(BOARD_NAME "/") + app_desc->version);
+    headers_log << ", Accept-Language=" << Lang::CODE;
+    headers_log << ", Content-Type=application/json";
+    ESP_LOGI(TAG, "%s", headers_log.str().c_str());
+
+    // If there is a default JSON payload from board, log a preview
+    std::string preview = board.GetJson();
+    if (!preview.empty()) {
+        // limit preview length to avoid huge logs
+        const size_t max_preview = 4096;
+        if (preview.size() > max_preview) {
+            ESP_LOGI(TAG, "HTTP body (preview, %u bytes shown of %u): %s", (unsigned)max_preview, (unsigned)preview.size(), preview.substr(0, max_preview).c_str());
+        } else {
+            ESP_LOGI(TAG, "HTTP body: %s", preview.c_str());
+        }
+    } else {
+        ESP_LOGI(TAG, "HTTP body: (empty)");
+    }
 
     return http;
 }
@@ -136,6 +163,8 @@ bool Ota::CheckVersion() {
         }
 
         data_response = http->ReadAll();
+
+        ESP_LOGI(TAG, "Response: %s", data_response.c_str());
         http->Close();
         return true;
     };
