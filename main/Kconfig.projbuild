@@ -394,6 +394,29 @@ choice DISPLAY_ESP32S3_KORVO2_V3
         bool "ILI9341, 分辨率240*320"
 endchoice
 
+choice AUDIO_I2S_METHOD
+    prompt "Audio I2S Method"
+    default AUDIO_I2S_METHOD_SIMPLEX_I2S_PDM
+    help
+      Select the I2S method to use for audio processing
+
+config AUDIO_I2S_METHOD_SIMPLEX
+    bool "Simplex I2S Mode"
+    help
+      Select Simplex I2S Mode for audio
+
+config AUDIO_I2S_METHOD_SIMPLEX_PDM
+    bool "Simplex PDM Mode"
+    help
+      Select Simplex PDM Mode for audio
+
+config AUDIO_I2S_METHOD_SIMPLEX_I2S_PDM
+    bool "Simplex I2S with PDM Microphone"
+    help
+      Select Simplex I2S with PDM Microphone for audio
+
+endchoice
+
 config USE_WECHAT_MESSAGE_STYLE
     bool "Enable WeChat Message Style"
     default n
