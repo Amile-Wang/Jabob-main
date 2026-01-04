@@ -832,35 +832,23 @@ void LcdDisplay::SetupUI() {
     //lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
 
 
-    // emotion_label_ = lv_label_create(content_);
-    // lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
-    // lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
-    // lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+    
+    emotion_display_ = lv_obj_create(screen);
+    lv_obj_align(emotion_display_, LV_ALIGN_CENTER, 0, 0); // 居中对齐
 
-    // emotion_label_ = icon_manager_create_image(screen, ICON_BLUETOOTH_0, 0, 0);
-    emotion_label_ = gif_manager_create_gif(screen, GIF_1, 0, 0);
-    if (emotion_label_ != NULL) {
-        ESP_LOGI(TAG, "Bluetooth icon created successfully");
-
-        // 检查 GIF 是否成功初始化，再创建控制器
-        LvglGif* raw_gif_ptr = gif_manager_play_gif(emotion_label_, GIF_1);
+#ifdef CONFIG_USE_EMOTION_ICON
+    emotion_icon_ = icon_manager_create_image(emotion_display_, ICON_BLUETOOTH_0, 0, 0);
+    lv_obj_align(emotion_icon_, LV_ALIGN_CENTER, 0, 0); // 居中对齐
+#else
+    emotion_gif_ = gif_manager_create_gif(emotion_display_, GIF_1, 0, 0);
+    LvglGif* raw_gif_ptr = gif_manager_play_gif(emotion_gif_, GIF_1);
         if (raw_gif_ptr != nullptr) {
             emotion_gif_controller_ = std::unique_ptr<LvglGif>(raw_gif_ptr);
         } else {
             ESP_LOGE(TAG, "Failed to create GIF controller");
         }
-
-    } else {
-        ESP_LOGE(TAG, "Failed to create bluetooth icon");
-    }
-    
-    // emotion_label_ = lv_label_create(screen); // 父对象为屏幕
-    
-    lv_obj_align(emotion_label_, LV_ALIGN_CENTER, 0, 0); // 居中对齐
-    
-    
-    
-   // lv_obj_set_style_bg_opa(emotion_label_, LV_OPA_TRANSP, 0); // 背景透明
+#endif
+   
 
 
 
@@ -998,110 +986,106 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         gif_controller_.reset();
     }
     
-    if (emoji_image_ == nullptr) {
+    if (emotion_display_ == nullptr) {
         return;
     }
 
-    auto emoji_collection = static_cast<LvglTheme*>(current_theme_)->emoji_collection();
-    auto image = emoji_collection != nullptr ? emoji_collection->GetEmojiImage(emotion) : nullptr;
+  
     
     // 定义图标映射表 - 映射emoji名称和图标ID
     static const std::unordered_map<std::string, icon_id_t> emoji_icon_map = {
-        {"neutral", ICON_NEUTRAL},      // 假设需要添加新的icon ID
-        {"happy", ICON_HAPPY},          // 假设需要添加新的icon ID
-        {"laughing", ICON_LAUGHING},    // 假设需要添加新的icon ID
-        {"funny", ICON_FUNNY},          // 假设需要添加新的icon ID
-        {"sad", ICON_SAD},              // 假设需要添加新的icon ID
-        {"angry", ICON_ANGRY},          // 假设需要添加新的icon ID
-        {"crying", ICON_CRYING},        // 假设需要添加新的icon ID
-        {"loving", ICON_LOVING},        // 假设需要添加新的icon ID
-        {"embarrassed", ICON_EMBARRASSED}, // 假设需要添加新的icon ID
-        {"surprised", ICON_SURPRISED},  // 假设需要添加新的icon ID
-        {"shocked", ICON_SHOCKED},      // 假设需要添加新的icon ID
-        {"thinking", ICON_THINKING},    // 假设需要添加新的icon ID
-        {"winking", ICON_WINKING},      // 假设需要添加新的icon ID
-        {"cool", ICON_COOL},            // 假设需要添加新的icon ID
-        {"relaxed", ICON_RELAXED},      // 假设需要添加新的icon ID
-        {"delicious", ICON_DELICIOUS},  // 假设需要添加新的icon ID
-        {"kissy", ICON_KISSY},          // 假设需要添加新的icon ID
-        {"confident", ICON_CONFIDENT},  // 假设需要添加新的icon ID
-        {"sleepy", ICON_SLEEPY},        // 假设需要添加新的icon ID
-        {"silly", ICON_SILLY},          // 假设需要添加新的icon ID
-        {"confused", ICON_CONFUSED}     // 假设需要添加新的icon ID
+        // {"neutral", ICON_NEUTRAL},      // 假设需要添加新的icon ID
+        // {"happy", ICON_HAPPY},          // 假设需要添加新的icon ID
+        // {"laughing", ICON_LAUGHING},    // 假设需要添加新的icon ID
+        // {"funny", ICON_FUNNY},          // 假设需要添加新的icon ID
+        // {"sad", ICON_SAD},              // 假设需要添加新的icon ID
+        // {"angry", ICON_ANGRY},          // 假设需要添加新的icon ID
+        // {"crying", ICON_CRYING},        // 假设需要添加新的icon ID
+        // {"loving", ICON_LOVING},        // 假设需要添加新的icon ID
+        // {"embarrassed", ICON_EMBARRASSED}, // 假设需要添加新的icon ID
+        // {"surprised", ICON_SURPRISED},  // 假设需要添加新的icon ID
+        // {"shocked", ICON_SHOCKED},      // 假设需要添加新的icon ID
+        // {"thinking", ICON_THINKING},    // 假设需要添加新的icon ID
+        // {"winking", ICON_WINKING},      // 假设需要添加新的icon ID
+        // {"cool", ICON_COOL},            // 假设需要添加新的icon ID
+        // {"relaxed", ICON_RELAXED},      // 假设需要添加新的icon ID
+        // {"delicious", ICON_DELICIOUS},  // 假设需要添加新的icon ID
+        // {"kissy", ICON_KISSY},          // 假设需要添加新的icon ID
+        // {"confident", ICON_CONFIDENT},  // 假设需要添加新的icon ID
+        // {"sleepy", ICON_SLEEPY},        // 假设需要添加新的icon ID
+        // {"silly", ICON_SILLY},          // 假设需要添加新的icon ID
+        // {"confused", ICON_CONFUSED}     // 假设需要添加新的icon ID
     };
     
     // 定义图标映射表 - 映射emoji名称和图标ID
     static const std::unordered_map<std::string, gif_id_t> emoji_gif_map = {
-        {"neutral", GIF_NEUTRAL},      // 假设需要添加新的gif ID
-        {"happy", GIF_HAPPY},          // 假设需要添加新的gif ID
-        {"laughing", GIF_LAUGHING},    // 假设需要添加新的gif ID
-        {"funny", GIF_FUNNY},          // 假设需要添加新的gif ID
-        {"sad", GIF_SAD},              // 假设需要添加新的gif ID
-        {"angry", GIF_ANGRY},          // 假设需要添加新的gif ID
-        {"crying", GIF_CRYING},        // 假设需要添加新的gif ID
-        {"loving", GIF_LOVING},        // 假设需要添加新的gif ID
-        {"embarrassed", GIF_EMBARRASSED}, // 假设需要添加新的gif ID
-        {"surprised", GIF_SURPRISED},  // 假设需要添加新的gif ID
-        {"shocked", GIF_SHOCKED},      // 假设需要添加新的gif ID
-        {"thinking", GIF_THINKING},    // 假设需要添加新的gif ID
-        {"winking", GIF_WINKING},      // 假设需要添加新的gif ID
-        {"cool", GIF_COOL},            // 假设需要添加新的gif ID
-        {"relaxed", GIF_RELAXED},      // 假设需要添加新的gif ID
-        {"delicious", GIF_DELICIOUS},  // 假设需要添加新的gif ID
-        {"kissy", GIF_KISSY},          // 假设需要添加新的gif ID
-        {"confident", GIF_CONFIDENT},  // 假设需要添加新的gif ID
-        {"sleepy", GIF_SLEEPY},        // 假设需要添加新的gif ID
-        {"silly", GIF_SILLY},          // 假设需要添加新的gif ID
-        {"confused", GIF_CONFUSED}     // 假设需要添加新的gif ID
+        // {"neutral", GIF_NEUTRAL},      // 假设需要添加新的gif ID
+        // {"happy", GIF_HAPPY},          // 假设需要添加新的gif ID
+        // {"laughing", GIF_LAUGHING},    // 假设需要添加新的gif ID
+        // {"funny", GIF_FUNNY},          // 假设需要添加新的gif ID
+        // {"sad", GIF_SAD},              // 假设需要添加新的gif ID
+        // {"angry", GIF_ANGRY},          // 假设需要添加新的gif ID
+        // {"crying", GIF_CRYING},        // 假设需要添加新的gif ID
+        // {"loving", GIF_LOVING},        // 假设需要添加新的gif ID
+        // {"embarrassed", GIF_EMBARRASSED}, // 假设需要添加新的gif ID
+        // {"surprised", GIF_SURPRISED},  // 假设需要添加新的gif ID
+        // {"shocked", GIF_SHOCKED},      // 假设需要添加新的gif ID
+        // {"thinking", GIF_THINKING},    // 假设需要添加新的gif ID
+        // {"winking", GIF_WINKING},      // 假设需要添加新的gif ID
+        // {"cool", GIF_COOL},            // 假设需要添加新的gif ID
+        // {"relaxed", GIF_RELAXED},      // 假设需要添加新的gif ID
+        // {"delicious", GIF_DELICIOUS},  // 假设需要添加新的gif ID
+        // {"kissy", GIF_KISSY},          // 假设需要添加新的gif ID
+        // {"confident", GIF_CONFIDENT},  // 假设需要添加新的gif ID
+        // {"sleepy", GIF_SLEEPY},        // 假设需要添加新的gif ID
+        // {"silly", GIF_SILLY},          // 假设需要添加新的gif ID
+        // {"confused", GIF_CONFUSED}     // 假设需要添加新的gif ID
+        {"neutral", GIF_JINGLE},      
+        {"happy", GIF_1},          
+        {"laughing", GIF_1},    
+        {"funny", GIF_1},          
+        {"sad", GIF_JINGXING},              
+        {"angry", GIF_JINGXIA},          
+        {"crying", GIF_QINGXING},        
+        {"loving", GIF_1},        
+        {"embarrassed", GIF_QINGXING}, 
+        {"surprised", GIF_1},  
+        {"shocked", GIF_YAOTU},      
+        {"thinking", GIF_MINGBAI},    
+        {"winking", GIF_MINGBAI},      
+        {"cool", GIF_1},            
+        {"relaxed", GIF_MINGBAILE},      
+        {"delicious", GIF_1},  
+        {"kissy", GIF_1},          
+        {"confident", GIF_1},  
+        {"sleepy", GIF_MINGBAILE},        
+        {"silly", GIF_MINGBAILE},          
+        {"confused", GIF_SHENMA}     
     };
-
-    // 更新emotion_label_显示的内容
-    if (emotion_label_ != nullptr) {
-        auto icon_it = emoji_icon_map.find(emotion);
-        if (icon_it != emoji_icon_map.end()) {
-            DisplayLockGuard lock(this);
-            lv_label_set_text(emotion_label_, icon_it->second.c_str());
-        }
-    }
-
-    if (image == nullptr) {
-        // const char* utf8 = font_awesome_get_utf8(emotion);
-        // if (utf8 != nullptr && emoji_label_ != nullptr) {
-        //     DisplayLockGuard lock(this);
-        //     lv_label_set_text(emoji_label_, utf8);
-        //     lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-        //     lv_obj_remove_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-        // }
-        return;
-    }
+    
 
     DisplayLockGuard lock(this);
-    if (image->IsGif()) {
-        // Create new GIF controller
-        gif_controller_ = std::make_unique<LvglGif>(image->image_dsc());
-        
-        if (gif_controller_->IsLoaded()) {
-            // Set up frame update callback
-            gif_controller_->SetFrameCallback([this]() {
-                lv_image_set_src(emoji_image_, gif_controller_->image_dsc());
-            });
-            
-            // Set initial frame and start animation
-            lv_image_set_src(emoji_image_, gif_controller_->image_dsc());
-            gif_controller_->Start();
-            
-            // Show GIF, hide others
-            lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-            lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            ESP_LOGE(TAG, "Failed to load GIF for emotion: %s", emotion);
-            gif_controller_.reset();
-        }
-    } else {
-        lv_image_set_src(emoji_image_, image->image_dsc());
-        lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_remove_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+#ifdef CONFIG_USE_EMOJI_ICON  // 使用图标显示表情
+    if (emotion_display_ != nullptr) {
+            auto icon_it = emoji_icon_map.find(emotion);
+            if (icon_it != emoji_icon_map.end()) {
+            icon_manager_update_image(emotion_icon_, icon_it->second)
+            }
     }
+#else  // 使用GIF或图像显示表情
+    // 尝试从GIF管理器获取GIF
+    auto gif_it = emoji_gif_map.find(emotion);
+    if (gif_it != emoji_gif_map.end()) {
+        gif_manager_update_gif(emotion_gif_, gif_it->second)
+        LvglGif* raw_gif_ptr = gif_manager_play_gif(emotion_gif_, gif_it->second);
+        if (raw_gif_ptr != nullptr) {
+            emotion_gif_controller_ = std::unique_ptr<LvglGif>(raw_gif_ptr);
+        } else {
+            ESP_LOGE(TAG, "Failed to create GIF controller");
+        }
+    }
+
+#endif
 
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
     // In WeChat message style, if emotion is neutral, don't display it
@@ -1114,7 +1098,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         }
         
         lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(emoji_label_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_add_flag(emotion_display_, LV_OBJ_FLAG_HIDDEN);
     }
 #endif
 }
