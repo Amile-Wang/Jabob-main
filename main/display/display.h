@@ -1,7 +1,7 @@
 #ifndef DISPLAY_H
 #define DISPLAY_H
 
-#include "lvgl_display/emoji_collection.h"
+#include "emoji_collection.h"
 
 
 #define HAVE_LVGL 1

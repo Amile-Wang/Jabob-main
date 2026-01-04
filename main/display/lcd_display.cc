@@ -1,7 +1,7 @@
 #include "lcd_display.h"
-#include "lvgl_display/gif/lvgl_gif.h"
+#include "gif/lvgl_gif.h"
 #include "settings.h"
-#include "lvgl_display/lvgl_theme.h"
+#include "lvgl_theme.h"
 #include "assets/lang_config.h"
 
 #include <vector>
@@ -15,6 +15,8 @@
 
 
 #include "board.h"
+#include "icon_manager.h"  // 添加图标管理器头文件
+#include "gif_manager.h"  // 添加GIF管理器头文件
 
 #define TAG "LcdDisplay"
 
@@ -78,6 +80,7 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
     // Load theme from settings
     Settings settings("display", false);
     std::string theme_name = settings.GetString("theme", "light");
+    // std::string theme_name = settings.GetString("theme", "dark");
     current_theme_ = LvglThemeManager::GetInstance().GetTheme(theme_name);
 
     // Create a timer to hide the preview image
@@ -174,7 +177,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
-
+    icon_manager_init();
     SetupUI();
 }
 
@@ -779,7 +782,8 @@ void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
 #else
 void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
-    LvglTheme* lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+
+    auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
     auto text_font = lvgl_theme->text_font()->font();
     auto icon_font = lvgl_theme->icon_font()->font();
     auto large_icon_font = lvgl_theme->large_icon_font()->font();
@@ -787,149 +791,152 @@ void LcdDisplay::SetupUI() {
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
     lv_obj_set_style_text_color(screen, lvgl_theme->text_color(), 0);
-    lv_obj_set_style_bg_color(screen, lvgl_theme->background_color(), 0);
+    // lv_obj_set_style_bg_color(screen, current_theme_.background, 0);
 
-    /* Container - used as background */
+    /* Container */
     container_ = lv_obj_create(screen);
     lv_obj_set_size(container_, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_style_radius(container_, 0, 0);
+    lv_obj_set_flex_flow(container_, LV_FLEX_FLOW_COLUMN);
     lv_obj_set_style_pad_all(container_, 0, 0);
     lv_obj_set_style_border_width(container_, 0, 0);
-    lv_obj_set_style_bg_color(container_, lvgl_theme->background_color(), 0);
-    lv_obj_set_style_border_color(container_, lvgl_theme->border_color(), 0);
+    lv_obj_set_style_pad_row(container_, 0, 0);
+    // lv_obj_set_style_bg_color(container_, current_theme_.background, 0);
+    // lv_obj_set_style_border_color(container_, current_theme_.border, 0); 
+    lv_obj_set_style_bg_opa(container_, LV_OPA_TRANSP, 0);
 
-    /* Bottom layer: emoji_box_ - centered display */
-    emoji_box_ = lv_obj_create(screen);
-    lv_obj_set_size(emoji_box_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(emoji_box_, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_pad_all(emoji_box_, 0, 0);
-    lv_obj_set_style_border_width(emoji_box_, 0, 0);
-    lv_obj_align(emoji_box_, LV_ALIGN_CENTER, 0, 0);
 
-    emoji_label_ = lv_label_create(emoji_box_);
-    lv_obj_set_style_text_font(emoji_label_, large_icon_font, 0);
-    lv_obj_set_style_text_color(emoji_label_, lvgl_theme->text_color(), 0);
-    // lv_label_set_text(emoji_label_, FONT_AWESOME_MICROCHIP_AI);
+    /* Status bar */
+    status_bar_ = lv_obj_create(container_);
+    lv_obj_set_size(status_bar_, LV_HOR_RES, 55);  // 修改状态栏高度为固定55像素
+    lv_obj_set_style_radius(status_bar_, 0, 0);
+    lv_obj_set_style_bg_color(status_bar_, lvgl_theme->background_color(), 0);
+    lv_obj_set_style_text_color(status_bar_, lvgl_theme->text_color(), 0);
+    lv_obj_set_style_bg_opa(status_bar_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(status_bar_, 0, 0); 
+    lv_obj_set_style_pad_top(status_bar_, 20, 0);
+    
+    /* Content */
+    content_ = lv_obj_create(container_);
+    lv_obj_set_scrollbar_mode(content_, LV_SCROLLBAR_MODE_OFF);
+    lv_obj_set_style_radius(content_, 0, 0);
+    lv_obj_set_width(content_, LV_HOR_RES);
+    lv_obj_set_flex_grow(content_, 1);
+    lv_obj_set_style_pad_all(content_, 5, 0);
+    //lv_obj_set_style_bg_color(content_, current_theme_.chat_background, 0);
+    lv_obj_set_style_border_color(content_, lvgl_theme->border_color(), 0); // Border color for content
+    lv_obj_set_style_bg_opa(content_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_border_width(content_, 0, 0);
 
-    emoji_image_ = lv_img_create(emoji_box_);
-    lv_obj_center(emoji_image_);
-    lv_obj_add_flag(emoji_image_, LV_OBJ_FLAG_HIDDEN);
+    //lv_obj_set_flex_flow(content_, LV_FLEX_FLOW_COLUMN); // 垂直布局（从上到下）
+    //lv_obj_set_flex_align(content_, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_SPACE_EVENLY); // 子对象居中对齐，等距分布
 
-    /* Middle layer: preview_image_ - centered display */
-    preview_image_ = lv_image_create(screen);
-    lv_obj_set_size(preview_image_, width_ / 2, height_ / 2);
+
+    // emotion_label_ = lv_label_create(content_);
+    // lv_obj_set_style_text_font(emotion_label_, &font_awesome_30_4, 0);
+    // lv_obj_set_style_text_color(emotion_label_, current_theme_.text, 0);
+    // lv_label_set_text(emotion_label_, FONT_AWESOME_AI_CHIP);
+
+    // emotion_label_ = icon_manager_create_image(screen, ICON_BLUETOOTH_0, 0, 0);
+    emotion_label_ = gif_manager_create_gif(screen, GIF_1, 0, 0);
+    if (emotion_label_ != NULL) {
+        ESP_LOGI(TAG, "Bluetooth icon created successfully");
+
+        emotion_gif_controller_ = gif_manager_play_gif(emotion_label_, GIF_1);
+
+    } else {
+        ESP_LOGE(TAG, "Failed to create bluetooth icon");
+    }
+    
+    // emotion_label_ = lv_label_create(screen); // 父对象为屏幕
+    
+    lv_obj_align(emotion_label_, LV_ALIGN_CENTER, 0, 0); // 居中对齐
+    
+    
+    
+   // lv_obj_set_style_bg_opa(emotion_label_, LV_OPA_TRANSP, 0); // 背景透明
+
+
+
+    preview_image_ = lv_image_create(content_);
+    lv_obj_set_size(preview_image_, width_ * 0.5, height_ * 0.5);
     lv_obj_align(preview_image_, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(preview_image_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_set_style_border_width(preview_image_, 0, 0);
 
-    /* Layer 1: Top bar - for status icons */
-    top_bar_ = lv_obj_create(screen);
-    lv_obj_set_size(top_bar_, LV_HOR_RES, LV_SIZE_CONTENT);
-    lv_obj_set_style_radius(top_bar_, 0, 0);
-    lv_obj_set_style_bg_opa(top_bar_, LV_OPA_50, 0);  // 50% opacity background
-    lv_obj_set_style_bg_color(top_bar_, lvgl_theme->background_color(), 0);
-    lv_obj_set_style_border_width(top_bar_, 0, 0);
-    lv_obj_set_style_pad_all(top_bar_, 0, 0);
-    lv_obj_set_style_pad_top(top_bar_, lvgl_theme->spacing(2), 0);
-    lv_obj_set_style_pad_bottom(top_bar_, lvgl_theme->spacing(2), 0);
-    lv_obj_set_style_pad_left(top_bar_, lvgl_theme->spacing(4), 0);
-    lv_obj_set_style_pad_right(top_bar_, lvgl_theme->spacing(4), 0);
-    lv_obj_set_flex_flow(top_bar_, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(top_bar_, LV_FLEX_ALIGN_SPACE_BETWEEN, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-    lv_obj_set_scrollbar_mode(top_bar_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_align(top_bar_, LV_ALIGN_TOP_MID, 0, 0);
+    // chat_message_label_ = lv_label_create(content_);
+    // lv_label_set_text(chat_message_label_, "");
+    // // lv_obj_set_width(chat_message_label_, LV_HOR_RES * 0.01); // 限制宽度为屏幕宽度的 90%
+    // lv_obj_set_size(preview_image_, width_ * 0.01, height_ * 0.01);
+    // lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // 设置为自动换行模式
+    // lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // 设置文本居中对齐
+    // lv_obj_set_style_text_color(chat_message_label_, current_theme_.text, 0);
+    // lv_obj_align(chat_message_label_, LV_ALIGN_BOTTOM_MID, 0,0);
+    // lv_obj_set_style_bg_opa(chat_message_label_, LV_OPA_TRANSP, 0);
+    // lv_obj_set_style_border_width(chat_message_label_, 0, 0);    
 
-    // Left icon
-    network_label_ = lv_label_create(top_bar_);
+    /* Status bar */
+    lv_obj_set_flex_flow(status_bar_, LV_FLEX_FLOW_ROW);
+    // lv_obj_set_style_pad_all(status_bar_, 0, 0);
+    lv_obj_set_style_border_width(status_bar_, 0, 0);
+    lv_obj_set_style_pad_column(status_bar_, 0, 0);
+    lv_obj_set_style_pad_left(status_bar_, 2, 0);
+    lv_obj_set_style_pad_right(status_bar_, 2, 0);
+    
+    // 添加左侧空白容器以实现整体右移
+    lv_obj_t* spacerL = lv_obj_create(status_bar_);
+    lv_obj_set_size(spacerL, 40, 1); // 宽度为 40px，高度忽略
+    lv_obj_set_style_bg_opa(spacerL, LV_OPA_TRANSP, 0); // 透明背景
+    lv_obj_set_style_border_width(spacerL, 0, 0);
+
+    network_label_ = lv_label_create(status_bar_);
     lv_label_set_text(network_label_, "");
     lv_obj_set_style_text_font(network_label_, icon_font, 0);
     lv_obj_set_style_text_color(network_label_, lvgl_theme->text_color(), 0);
 
-    // Right icons container
-    lv_obj_t* right_icons = lv_obj_create(top_bar_);
-    lv_obj_set_size(right_icons, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
-    lv_obj_set_style_bg_opa(right_icons, LV_OPA_TRANSP, 0);
-    lv_obj_set_style_border_width(right_icons, 0, 0);
-    lv_obj_set_style_pad_all(right_icons, 0, 0);
-    lv_obj_set_flex_flow(right_icons, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(right_icons, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
-
-    mute_label_ = lv_label_create(right_icons);
-    lv_label_set_text(mute_label_, "");
-    lv_obj_set_style_text_font(mute_label_, icon_font, 0);
-    lv_obj_set_style_text_color(mute_label_, lvgl_theme->text_color(), 0);
-
-    battery_label_ = lv_label_create(right_icons);
-    lv_label_set_text(battery_label_, "");
-    lv_obj_set_style_text_font(battery_label_, icon_font, 0);
-    lv_obj_set_style_text_color(battery_label_, lvgl_theme->text_color(), 0);
-    lv_obj_set_style_margin_left(battery_label_, lvgl_theme->spacing(2), 0);
-
-    /* Layer 2: Status bar - for center text labels */
-    status_bar_ = lv_obj_create(screen);
-    lv_obj_set_size(status_bar_, LV_HOR_RES, LV_SIZE_CONTENT);
-    lv_obj_set_style_radius(status_bar_, 0, 0);
-    lv_obj_set_style_bg_opa(status_bar_, LV_OPA_TRANSP, 0);  // Transparent background
-    lv_obj_set_style_border_width(status_bar_, 0, 0);
-    lv_obj_set_style_pad_all(status_bar_, 0, 0);
-    lv_obj_set_style_pad_top(status_bar_, lvgl_theme->spacing(2), 0);
-    lv_obj_set_style_pad_bottom(status_bar_, lvgl_theme->spacing(2), 0);
-    lv_obj_set_scrollbar_mode(status_bar_, LV_SCROLLBAR_MODE_OFF);
-    lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);  // Use absolute positioning
-    lv_obj_align(status_bar_, LV_ALIGN_TOP_MID, 0, 0);  // Overlap with top_bar_
-
     notification_label_ = lv_label_create(status_bar_);
-    lv_obj_set_width(notification_label_, LV_HOR_RES * 0.75);
+    lv_obj_set_flex_grow(notification_label_, 1);
     lv_obj_set_style_text_align(notification_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(notification_label_, lvgl_theme->text_color(), 0);
     lv_label_set_text(notification_label_, "");
-    lv_obj_align(notification_label_, LV_ALIGN_CENTER, 0, 0);
     lv_obj_add_flag(notification_label_, LV_OBJ_FLAG_HIDDEN);
 
     status_label_ = lv_label_create(status_bar_);
-    lv_obj_set_width(status_label_, LV_HOR_RES * 0.75);
+    lv_obj_set_flex_grow(status_label_, 1);
     lv_label_set_long_mode(status_label_, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_style_text_align(status_label_, LV_TEXT_ALIGN_CENTER, 0);
     lv_obj_set_style_text_color(status_label_, lvgl_theme->text_color(), 0);
     lv_label_set_text(status_label_, Lang::Strings::INITIALIZING);
-    lv_obj_align(status_label_, LV_ALIGN_CENTER, 0, 0);
+    
+    mute_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(mute_label_, "");
+    lv_obj_set_style_text_font(mute_label_, icon_font, 0);
+    lv_obj_set_style_text_color(mute_label_, lvgl_theme->text_color(), 0);
 
-    /* Top layer: Bottom bar - fixed at bottom, minimum height 48, height can be adaptive */
-    bottom_bar_ = lv_obj_create(screen);
-    lv_obj_set_width(bottom_bar_, LV_HOR_RES);
-    lv_obj_set_height(bottom_bar_, LV_SIZE_CONTENT);
-    lv_obj_set_style_min_height(bottom_bar_, 48, 0); // Set minimum height 48
-    lv_obj_set_style_radius(bottom_bar_, 0, 0);
-    lv_obj_set_style_bg_color(bottom_bar_, lvgl_theme->background_color(), 0);
-    lv_obj_set_style_text_color(bottom_bar_, lvgl_theme->text_color(), 0);
-    lv_obj_set_style_pad_top(bottom_bar_, lvgl_theme->spacing(2), 0);
-    lv_obj_set_style_pad_bottom(bottom_bar_, lvgl_theme->spacing(2), 0);
-    lv_obj_set_style_pad_left(bottom_bar_, lvgl_theme->spacing(4), 0);
-    lv_obj_set_style_pad_right(bottom_bar_, lvgl_theme->spacing(4), 0);
-    lv_obj_set_style_border_width(bottom_bar_, 0, 0);
-    lv_obj_align(bottom_bar_, LV_ALIGN_BOTTOM_MID, 0, 0);
 
-    /* chat_message_label_ placed in bottom_bar_ and vertically centered */
-    chat_message_label_ = lv_label_create(bottom_bar_);
-    lv_label_set_text(chat_message_label_, "");
-    lv_obj_set_width(chat_message_label_, LV_HOR_RES - lvgl_theme->spacing(8)); // Subtract left and right padding
-    lv_label_set_long_mode(chat_message_label_, LV_LABEL_LONG_WRAP); // Auto wrap mode
-    lv_obj_set_style_text_align(chat_message_label_, LV_TEXT_ALIGN_CENTER, 0); // Center text alignment
-    lv_obj_set_style_text_color(chat_message_label_, lvgl_theme->text_color(), 0);
-    lv_obj_align(chat_message_label_, LV_ALIGN_CENTER, 0, 0); // Vertically and horizontally centered in bottom_bar_
+    battery_label_ = lv_label_create(status_bar_);
+    lv_label_set_text(battery_label_, "");
+    lv_obj_set_style_text_font(battery_label_, icon_font, 0);
+    lv_obj_set_style_text_color(battery_label_, lvgl_theme->text_color(), 0);
+    
+    // 添加右侧空白容器以实现整体左移
+    lv_obj_t* spacerR = lv_obj_create(status_bar_);
+    lv_obj_set_size(spacerR, 40, 1); // 宽度为 40px，高度忽略
+    lv_obj_set_style_bg_opa(spacerR, LV_OPA_TRANSP, 0); // 透明背景
+    lv_obj_set_style_border_width(spacerR, 0, 0);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_size(low_battery_popup_, LV_HOR_RES * 0.9, text_font->line_height * 2);
-    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, -lvgl_theme->spacing(4));
+    lv_obj_align(low_battery_popup_, LV_ALIGN_BOTTOM_MID, 0, 0);
     lv_obj_set_style_bg_color(low_battery_popup_, lvgl_theme->low_battery_color(), 0);
-    lv_obj_set_style_radius(low_battery_popup_, lvgl_theme->spacing(4), 0);
-    
+    lv_obj_set_style_radius(low_battery_popup_, 10, 0);
     low_battery_label_ = lv_label_create(low_battery_popup_);
     lv_label_set_text(low_battery_label_, Lang::Strings::BATTERY_NEED_CHARGE);
     lv_obj_set_style_text_color(low_battery_label_, lv_color_white(), 0);
     lv_obj_center(low_battery_label_);
     lv_obj_add_flag(low_battery_popup_, LV_OBJ_FLAG_HIDDEN);
 }
+// ... existing code ...
 
 void LcdDisplay::SetPreviewImage(std::unique_ptr<LvglImage> image) {
     DisplayLockGuard lock(this);
