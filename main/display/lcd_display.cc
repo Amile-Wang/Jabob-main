@@ -51,7 +51,7 @@ void LcdDisplay::InitializeLcdThemes() {
 
     // dark theme
     auto dark_theme = new LvglTheme("dark");
-    dark_theme->set_background_color(lv_color_hex(0x000000));
+    dark_theme->set_background_color(lv_color_hex(0x040404));
     dark_theme->set_text_color(lv_color_hex(0xFFFFFF));
     dark_theme->set_chat_background_color(lv_color_hex(0x1F1F1F));
     dark_theme->set_user_bubble_color(lv_color_hex(0x00FF00));
@@ -79,8 +79,8 @@ LcdDisplay::LcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_handle_
 
     // Load theme from settings
     Settings settings("display", false);
-    std::string theme_name = settings.GetString("theme", "light");
-    // std::string theme_name = settings.GetString("theme", "dark");
+    // std::string theme_name = settings.GetString("theme", "light");
+    std::string theme_name = settings.GetString("theme", "dark");
     current_theme_ = LvglThemeManager::GetInstance().GetTheme(theme_name);
 
     // Create a timer to hide the preview image
@@ -177,6 +177,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
+    gif_manager_init();
     icon_manager_init();
     SetupUI();
 }
@@ -791,7 +792,7 @@ void LcdDisplay::SetupUI() {
     auto screen = lv_screen_active();
     lv_obj_set_style_text_font(screen, text_font, 0);
     lv_obj_set_style_text_color(screen, lvgl_theme->text_color(), 0);
-    // lv_obj_set_style_bg_color(screen, current_theme_.background, 0);
+    lv_obj_set_style_bg_color(screen, lvgl_theme->background_color(), 0); // 确保屏幕背景应用主题颜色
 
     /* Container */
     container_ = lv_obj_create(screen);
@@ -841,7 +842,13 @@ void LcdDisplay::SetupUI() {
     if (emotion_label_ != NULL) {
         ESP_LOGI(TAG, "Bluetooth icon created successfully");
 
-        emotion_gif_controller_ = gif_manager_play_gif(emotion_label_, GIF_1);
+        // 检查 GIF 是否成功初始化，再创建控制器
+        LvglGif* raw_gif_ptr = gif_manager_play_gif(emotion_label_, GIF_1);
+        if (raw_gif_ptr != nullptr) {
+            emotion_gif_controller_ = std::unique_ptr<LvglGif>(raw_gif_ptr);
+        } else {
+            ESP_LOGE(TAG, "Failed to create GIF controller");
+        }
 
     } else {
         ESP_LOGE(TAG, "Failed to create bluetooth icon");
@@ -997,6 +1004,66 @@ void LcdDisplay::SetEmotion(const char* emotion) {
 
     auto emoji_collection = static_cast<LvglTheme*>(current_theme_)->emoji_collection();
     auto image = emoji_collection != nullptr ? emoji_collection->GetEmojiImage(emotion) : nullptr;
+    
+    // 定义图标映射表 - 映射emoji名称和图标ID
+    static const std::unordered_map<std::string, icon_id_t> emoji_icon_map = {
+        {"neutral", ICON_NEUTRAL},      // 假设需要添加新的icon ID
+        {"happy", ICON_HAPPY},          // 假设需要添加新的icon ID
+        {"laughing", ICON_LAUGHING},    // 假设需要添加新的icon ID
+        {"funny", ICON_FUNNY},          // 假设需要添加新的icon ID
+        {"sad", ICON_SAD},              // 假设需要添加新的icon ID
+        {"angry", ICON_ANGRY},          // 假设需要添加新的icon ID
+        {"crying", ICON_CRYING},        // 假设需要添加新的icon ID
+        {"loving", ICON_LOVING},        // 假设需要添加新的icon ID
+        {"embarrassed", ICON_EMBARRASSED}, // 假设需要添加新的icon ID
+        {"surprised", ICON_SURPRISED},  // 假设需要添加新的icon ID
+        {"shocked", ICON_SHOCKED},      // 假设需要添加新的icon ID
+        {"thinking", ICON_THINKING},    // 假设需要添加新的icon ID
+        {"winking", ICON_WINKING},      // 假设需要添加新的icon ID
+        {"cool", ICON_COOL},            // 假设需要添加新的icon ID
+        {"relaxed", ICON_RELAXED},      // 假设需要添加新的icon ID
+        {"delicious", ICON_DELICIOUS},  // 假设需要添加新的icon ID
+        {"kissy", ICON_KISSY},          // 假设需要添加新的icon ID
+        {"confident", ICON_CONFIDENT},  // 假设需要添加新的icon ID
+        {"sleepy", ICON_SLEEPY},        // 假设需要添加新的icon ID
+        {"silly", ICON_SILLY},          // 假设需要添加新的icon ID
+        {"confused", ICON_CONFUSED}     // 假设需要添加新的icon ID
+    };
+    
+    // 定义图标映射表 - 映射emoji名称和图标ID
+    static const std::unordered_map<std::string, gif_id_t> emoji_gif_map = {
+        {"neutral", GIF_NEUTRAL},      // 假设需要添加新的gif ID
+        {"happy", GIF_HAPPY},          // 假设需要添加新的gif ID
+        {"laughing", GIF_LAUGHING},    // 假设需要添加新的gif ID
+        {"funny", GIF_FUNNY},          // 假设需要添加新的gif ID
+        {"sad", GIF_SAD},              // 假设需要添加新的gif ID
+        {"angry", GIF_ANGRY},          // 假设需要添加新的gif ID
+        {"crying", GIF_CRYING},        // 假设需要添加新的gif ID
+        {"loving", GIF_LOVING},        // 假设需要添加新的gif ID
+        {"embarrassed", GIF_EMBARRASSED}, // 假设需要添加新的gif ID
+        {"surprised", GIF_SURPRISED},  // 假设需要添加新的gif ID
+        {"shocked", GIF_SHOCKED},      // 假设需要添加新的gif ID
+        {"thinking", GIF_THINKING},    // 假设需要添加新的gif ID
+        {"winking", GIF_WINKING},      // 假设需要添加新的gif ID
+        {"cool", GIF_COOL},            // 假设需要添加新的gif ID
+        {"relaxed", GIF_RELAXED},      // 假设需要添加新的gif ID
+        {"delicious", GIF_DELICIOUS},  // 假设需要添加新的gif ID
+        {"kissy", GIF_KISSY},          // 假设需要添加新的gif ID
+        {"confident", GIF_CONFIDENT},  // 假设需要添加新的gif ID
+        {"sleepy", GIF_SLEEPY},        // 假设需要添加新的gif ID
+        {"silly", GIF_SILLY},          // 假设需要添加新的gif ID
+        {"confused", GIF_CONFUSED}     // 假设需要添加新的gif ID
+    };
+
+    // 更新emotion_label_显示的内容
+    if (emotion_label_ != nullptr) {
+        auto icon_it = emoji_icon_map.find(emotion);
+        if (icon_it != emoji_icon_map.end()) {
+            DisplayLockGuard lock(this);
+            lv_label_set_text(emotion_label_, icon_it->second.c_str());
+        }
+    }
+
     if (image == nullptr) {
         // const char* utf8 = font_awesome_get_utf8(emotion);
         // if (utf8 != nullptr && emoji_label_ != nullptr) {

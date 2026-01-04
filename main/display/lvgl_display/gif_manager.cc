@@ -1,7 +1,8 @@
-NEW_FILE_CODE
+
 #include "gif_manager.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "lvgl.h"
 #include <cstring>
 
 // 嵌入的GIF图像数据 - 从assets/gif目录
@@ -40,10 +41,17 @@ typedef struct {
 
 // GIF信息数组
 static gif_info_t gifs[GIF_MAX] = {
-    {battery_anim_gif_start, battery_anim_gif_end, NULL, false},      // GIF_BATTERY_ANIM
-    {bluetooth_anim_gif_start, bluetooth_anim_gif_end, NULL, false},  // GIF_BLUETOOTH_ANIM
-    {wifi_anim_gif_start, wifi_anim_gif_end, NULL, false},            // GIF_WIFI_ANIM
-    {loading_anim_gif_start, loading_anim_gif_end, NULL, false}       // GIF_LOADING_ANIM
+    {_1_gif_start, _1_gif_end, NULL, false},           // GIF_1
+    {jingle_gif_start, jingle_gif_end, NULL, false},   // GIF_JINGLE
+    {jingxia_gif_start, jingxia_gif_end, NULL, false}, // GIF_JINGXIA
+    {jingxing_gif_start, jingxing_gif_end, NULL, false}, // GIF_JINGXING
+    {mengle_gif_start, mengle_gif_end, NULL, false},   // GIF_MENGLE
+    {mingbai_gif_start, mingbai_gif_end, NULL, false}, // GIF_MINGBAI
+    {mingbaile_gif_start, mingbaile_gif_end, NULL, false}, // GIF_MINGBAILE
+    {qingxing_gif_start, qingxing_gif_end, NULL, false}, // GIF_QINGXING
+    {shenma_gif_start, shenma_gif_end, NULL, false},   // GIF_SHENMA
+    {yaotu_gif_start, yaotu_gif_end, NULL, false},     // GIF_YAOTU
+    {yunle_gif_start, yunle_gif_end, NULL, false}      // GIF_YUNLE
 };
 
 void gif_manager_init(void)
@@ -63,47 +71,42 @@ const lv_img_dsc_t* gif_manager_get_gif(gif_id_t gif_id)
     if (!gifs[gif_id].loaded) {
         ESP_LOGD(TAG, "Loading GIF %d into PSRAM", gif_id);
         
-        // 获取图像数据大小
-        size_t data_size = gifs[gif_id].data_end - gifs[gif_id].data_start;
+        // 获取GIF数据大小
+        size_t gif_data_size = gifs[gif_id].data_end - gifs[gif_id].data_start;
         
-        // 在PSRAM中分配内存来存储图像数据副本
-        uint8_t *img_data_copy = (uint8_t*)heap_caps_malloc(data_size, MALLOC_CAP_SPIRAM);
-        if (img_data_copy == NULL) {
-            ESP_LOGE(TAG, "Failed to allocate PSRAM for GIF data copy %d", gif_id);
+        // 复制GIF数据到PSRAM
+        uint8_t *gif_data_copy = (uint8_t *)heap_caps_malloc(gif_data_size, MALLOC_CAP_SPIRAM);
+        if (!gif_data_copy) {
+            ESP_LOGE(TAG, "Failed to allocate memory for GIF %d data", gif_id);
             return NULL;
         }
+        memcpy(gif_data_copy, gifs[gif_id].data_start, gif_data_size);
         
-        // 复制图像数据到PSRAM
-        std::memcpy(img_data_copy, gifs[gif_id].data_start, data_size);
-        
-        // 在PSRAM中分配内存来存储图像描述符
-        lv_img_dsc_t *img_dsc = (lv_img_dsc_t*)heap_caps_malloc(sizeof(lv_img_dsc_t), MALLOC_CAP_SPIRAM);
-        if (img_dsc == NULL) {
-            ESP_LOGE(TAG, "Failed to allocate PSRAM for image descriptor %d", gif_id);
-            free(img_data_copy);
+        // 为图像描述符分配内存
+        lv_img_dsc_t *img_dsc = (lv_img_dsc_t *)heap_caps_malloc(sizeof(lv_img_dsc_t), MALLOC_CAP_SPIRAM);
+        if (!img_dsc) {
+            ESP_LOGE(TAG, "Failed to allocate memory for image descriptor");
+            free(gif_data_copy);
             return NULL;
         }
-        
-        // 获取图像信息
-        lv_img_header_t header;
-        lv_result_t result = lv_img_decoder_get_info(img_data_copy, &header);
-        if (result != LV_RESULT_OK) {
-            ESP_LOGE(TAG, "Failed to get image info for GIF %d", gif_id);
-            free(img_data_copy);
-            free(img_dsc);
-            return NULL;
-        }
-        
-        // 设置图像描述符
+
+        // 设置图像描述符 - 由于是GIF数据，使用RAW格式
+        lv_image_header_t header;
+        header.magic = LV_IMAGE_HEADER_MAGIC;
+        header.flags = LV_IMAGE_FLAGS_MODIFIABLE;
+        header.cf = LV_COLOR_FORMAT_RAW; // GIF数据使用RAW格式
+        header.w = 0; // 宽高将在使用时由LVGL解码器解析
+        header.h = 0;
+        header.stride = 0;
         img_dsc->header = header;
-        img_dsc->data = img_data_copy;
-        img_dsc->data_size = data_size;
+        img_dsc->data = gif_data_copy;
+        img_dsc->data_size = gif_data_size;
         
         // 保存到GIF信息结构中
         gifs[gif_id].img_dsc = img_dsc;
         gifs[gif_id].loaded = true;
         
-        ESP_LOGD(TAG, "GIF %d loaded successfully into PSRAM (size: %d bytes)", gif_id, (int)data_size);
+        ESP_LOGD(TAG, "GIF %d loaded successfully into PSRAM (size: %d bytes)", gif_id, (int)gif_data_size);
     }
 
     return gifs[gif_id].img_dsc;
@@ -152,7 +155,7 @@ void gif_manager_update_gif(lv_obj_t* img, gif_id_t gif_id)
     ESP_LOGD(TAG, "GIF updated successfully");
 }
 
-std::unique_ptr<LvglGif> gif_manager_play_gif(lv_obj_t* gif_obj, gif_id_t gif_id)
+LvglGif* gif_manager_play_gif(lv_obj_t* gif_obj, gif_id_t gif_id)
 {
     ESP_LOGD(TAG, "Playing GIF animation for GIF ID %d", gif_id);
     
@@ -167,16 +170,17 @@ std::unique_ptr<LvglGif> gif_manager_play_gif(lv_obj_t* gif_obj, gif_id_t gif_id
         return nullptr;
     }
     
-    // 创建GIF控制器
-    auto gif_controller = std::make_unique<LvglGif>(img_dsc);
+    // 创建GIF控制器，使用原始指针而不是unique_ptr
+    LvglGif* gif_controller = new LvglGif(img_dsc);
     
     if (!gif_controller->IsLoaded()) {
         ESP_LOGE(TAG, "Failed to load GIF animation for GIF %d", gif_id);
+        delete gif_controller;
         return nullptr;
     }
     
     // 设置帧更新回调
-    gif_controller->SetFrameCallback([gif_obj, gif_controller_ptr = gif_controller.get()]() {
+    gif_controller->SetFrameCallback([gif_obj, gif_controller_ptr = gif_controller]() {
         lv_img_set_src(gif_obj, gif_controller_ptr->image_dsc());
     });
     
@@ -189,11 +193,12 @@ std::unique_ptr<LvglGif> gif_manager_play_gif(lv_obj_t* gif_obj, gif_id_t gif_id
     return gif_controller;
 }
 
-void gif_manager_stop_gif(std::unique_ptr<LvglGif>& gif_controller)
+void gif_manager_stop_gif(LvglGif* gif_controller)
 {
     if (gif_controller) {
         gif_controller->Stop();
-        gif_controller.reset();
+        delete gif_controller;
+        gif_controller = nullptr;
         ESP_LOGD(TAG, "GIF animation stopped and cleaned up");
     }
 }

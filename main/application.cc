@@ -553,6 +553,7 @@ void Application::Start() {
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
+            ESP_LOGI(TAG, "Emotion: %s", emotion->valuestring);
             if (cJSON_IsString(emotion)) {
                 Schedule([this, display, pwm_servo, emotion_str = std::string(emotion->valuestring)]() {
                     display->SetEmotion(emotion_str.c_str());

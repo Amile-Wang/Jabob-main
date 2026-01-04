@@ -1,10 +1,10 @@
-
 #ifndef GIF_MANAGER_H
 #define GIF_MANAGER_H
 
 #include "lvgl.h"
 #include "lvgl_display/gif/lvgl_gif.h"
-#include <memory>
+// 移除std::memory相关包含，使用C风格指针
+#include "lvgl_display/gif/lvgl_gif.h"
 
 // GIF ID枚举
 typedef enum {
@@ -61,13 +61,13 @@ void gif_manager_update_gif(lv_obj_t* img, gif_id_t gif_id);
  * @param gif_id GIF ID
  * @return LvglGif* 返回GIF控制器指针，用于控制动画
  */
-std::unique_ptr<LvglGif> gif_manager_play_gif(lv_obj_t* gif_obj, gif_id_t gif_id);
+LvglGif* gif_manager_play_gif(lv_obj_t* gif_obj, gif_id_t gif_id);
 
 /**
  * @brief 停止GIF动画
  * 
  * @param gif_controller GIF控制器指针
  */
-void gif_manager_stop_gif(std::unique_ptr<LvglGif>& gif_controller);
+void gif_manager_stop_gif(LvglGif* gif_controller);
 
 #endif /* GIF_MANAGER_H */
