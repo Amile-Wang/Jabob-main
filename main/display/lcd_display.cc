@@ -19,8 +19,8 @@
 #define TAG "LcdDisplay"
 
 // 使用 LVGL 内置的 Montserrat 14 字体
-#define BUILTIN_TEXT_FONT lv_font_montserrat_14
-#define BUILTIN_ICON_FONT lv_font_montserrat_14
+#define BUILTIN_TEXT_FONT lv_font_source_han_sans_sc_16_cjk
+#define BUILTIN_ICON_FONT lv_font_source_han_sans_sc_16_cjk
 
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
@@ -30,7 +30,7 @@ LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 void LcdDisplay::InitializeLcdThemes() {
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
     auto icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
-    auto large_icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
+    auto large_icon_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_ICON_FONT);
 
     // light theme
     auto light_theme = new LvglTheme("light");
