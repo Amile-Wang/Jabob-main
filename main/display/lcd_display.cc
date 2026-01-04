@@ -19,8 +19,8 @@
 #define TAG "LcdDisplay"
 
 // 使用 LVGL 内置的 Montserrat 14 字体
-#define BUILTIN_TEXT_FONT lv_font_source_han_sans_sc_16_cjk
-#define BUILTIN_ICON_FONT lv_font_source_han_sans_sc_16_cjk
+#define BUILTIN_TEXT_FONT font_puhui_16_4
+#define BUILTIN_ICON_FONT font_puhui_16_4
 
 
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
