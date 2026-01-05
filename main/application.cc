@@ -847,12 +847,12 @@ void Application::SetDeviceState(DeviceState state) {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
-                    std::ref(Lang::Sounds::P3_1),
-                    std::ref(Lang::Sounds::P3_2),
-                    // std::ref(Lang::Sounds::P3_3),
-                    // std::ref(Lang::Sounds::P3_4),
-                    // std::ref(Lang::Sounds::P3_5),
-                    // std::ref(Lang::Sounds::P3_6),
+                    // std::ref(Lang::Sounds::P3_1),//等等哦
+                    // std::ref(Lang::Sounds::P3_2), //在呢在呢
+                    std::ref(Lang::Sounds::P3_3), //嗯嗯
+                    // std::ref(Lang::Sounds::P3_4),//让我想想
+                    // std::ref(Lang::Sounds::P3_5),稍等哈
+                    // std::ref(Lang::Sounds::P3_6),//我听着呢
                     // std::ref(Lang::Sounds::P3_7)
                 };
                 
@@ -970,6 +970,14 @@ void Application::SendMcpMessage(const std::string& payload) {
     Schedule([this, payload]() {
         if (protocol_) {
             protocol_->SendMcpMessage(payload);
+        }
+    });
+}
+
+void Application::CloseAudioChannel() {
+    Schedule([this]() {
+        if (protocol_ && protocol_->IsAudioChannelOpened()) {
+            protocol_->CloseAudioChannel();
         }
     });
 }

@@ -72,7 +72,7 @@ void McpServer::AddCommonTools() {
         });
 
     AddTool("self.audio_speaker.set_volume", 
-        "Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.",
+        "Set the volume of the audio speaker. The volume range is from 0 to 100.",
         PropertyList({
             Property("volume", kPropertyTypeInteger, 0, 100)
         }), 
@@ -140,6 +140,13 @@ void McpServer::AddCommonTools() {
             // 获取电源管理定时器并设置3秒后休眠
             auto& board = Board::GetInstance();
             PowerSaveTimer* timer = board.GetPowerSaveTimer();
+
+            // 关闭所有WebSocket连接以确保可以进入睡眠模式
+
+            if (app.GetDeviceState() != kDeviceStateIdle) {
+                app.CloseAudioChannel();
+            }
+            
             
             // 关闭音频通道以确保可以进入睡眠模式
             app.SendMcpMessage("{\"method\":\"close_audio_channel\"}");

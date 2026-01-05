@@ -1,0 +1,426 @@
+Jabob项目服务器交互
+项目概述
+Jabob是一个智能语音助手项目，通过WebSocket或MQTT协议与服务器通信。该项目支持音频流传输、MCP（Model Context Protocol）协议以及各种设备控制功能。
+
+通信数据分类
+设备身份识别机制
+服务器通过以下方式识别设备身份：
+
+1. MAC地址 (Device-Id)
+获取方式: 从ESP32的网络接口获取设备的MAC地址
+用途: 作为设备的硬件唯一标识
+发送时机: 建立连接时通过HTTP头部发送
+格式: 以冒号分隔的十六进制字符串 (例如: "12:34:56:78:90:AB")
+cpp
+// 在WebSocket连接中设置
+websocket_->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+
+// 在HTTP请求中设置
+http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
+2. 设备UUID (Client-Id)
+生成方式: 软件生成的UUID v4 (随机UUID)
+存储位置: 保存在设备的配置中，首次启动时生成并持久化存储
+用途: 作为设备的软件唯一标识
+发送时机: 建立连接时通过HTTP头部发送
+格式: 标准UUID格式 (例如: "12345678-1234-1234-1234-123456789012")
+cpp
+// UUID生成和存储
+Board::Board() {
+    Settings settings("board", true);
+    uuid_ = settings.GetString("uuid");
+    if (uuid_.empty()) {
+        uuid_ = GenerateUuid();  // 生成UUID v4
+        settings.SetString("uuid", uuid_);
+    }
+}
+
+// 在连接中使用
+websocket_->SetHeader("Client-Id", Board::GetInstance().GetUuid().c_str());
+3. 序列号 (可选)
+来源: 从ESP32的eFuse中读取的序列号
+用途: 提供硬件级别的设备标识
+发送时机: HTTP请求中通过特定头部发送
+cpp
+if (has_serial_number_) {
+    http->SetHeader("Serial-Number", serial_number_.c_str());
+}
+4. 认证令牌
+来源: 从设备配置中读取的认证令牌
+用途: 设备与服务器之间的身份验证
+发送时机: 通过Authorization头部发送
+cpp
+if (!token.empty()) {
+    // If token not has a space, add "Bearer " prefix
+    if (token.find(" ") == std::string::npos) {
+        token = "Bearer " + token;
+    }
+    websocket_->SetHeader("Authorization", token.c_str());
+}
+5. 会话ID
+来源: 服务器在握手响应中分配
+用途: 标识当前会话
+使用范围: 在单次会话中标识设备
+json
+{
+  "type": "hello",
+  "transport": "websocket" | "udp",
+  "session_id": "session_id_string",  // 服务器分配的会话ID
+  "audio_params": { ... }
+}
+身份识别流程
+WebSocket连接身份识别
+连接建立: 设备连接到WebSocket服务器
+头部设置: 发送以下头部信息
+Authorization: Bearer <token> - 认证令牌
+Protocol-Version: <version> - 协议版本
+Device-Id: <mac_address> - 设备MAC地址
+Client-Id: <uuid> - 设备UUID
+握手消息: 发送hello消息，包含设备信息
+服务器响应: 服务器返回hello响应，分配session_id
+HTTP请求身份识别
+头部设置: 在HTTP请求中设置身份识别头部
+Device-Id: <mac_address> - 设备MAC地址
+Client-Id: <uuid> - 设备UUID
+Serial-Number: <serial_number> - (可选)设备序列号
+认证: 通过Authorization头部进行身份验证
+设备信息JSON
+设备还会定期发送包含完整设备信息的JSON数据：
+
+json
+{
+  "version": 2,
+  "flash_size": 4194304,
+  "psram_size": 0,
+  "minimum_free_heap_size": 123456,
+  "mac_address": "00:00:00:00:00:00",
+  "uuid": "00000000-0000-0000-0000-000000000000",
+  "chip_model_name": "esp32s3",
+  "chip_info": { ... },
+  "application": { ... },
+  "partition_table": [ ... ],
+  "ota": { ... },
+  "board": { ... }
+}
+服务器实现要求
+1. 设备身份验证
+验证Device-Id头部中的MAC地址
+验证Client-Id头部中的UUID
+验证Authorization头部中的认证令牌
+2. 设备管理
+使用MAC地址作为设备的硬件唯一标识
+使用UUID作为设备的软件唯一标识
+为每个连接分配唯一的session_id
+维护设备会话状态
+3. 安全措施
+验证认证令牌的有效性
+实施适当的访问控制
+记录设备连接日志
+这种多层身份识别机制确保了服务器能够准确识别和验证每个连接的设备，同时提供了安全的身份验证功能。
+
+设备向服务器发送 (OUTBOUND)
+1. 连接握手消息 (hello)
+发送时机: 建立连接时
+
+json
+{
+  "type": "hello",
+  "version": 3,
+  "transport": "websocket" | "udp",
+  "features": {
+    "aec": true,
+    "mcp": true
+  },
+  "audio_params": {
+    "format": "opus",
+    "sample_rate": 16000,
+    "channels": 1,
+    "frame_duration": 60
+  }
+}
+2. 唤醒词检测消息 (listen - detect)
+发送时机: 检测到唤醒词时
+
+json
+{
+  "session_id": "session_id_string",
+  "type": "listen",
+  "state": "detect",
+  "text": "wake_word_text"
+}
+3. 开始监听消息 (listen - start)
+发送时机: 开始语音输入时
+
+json
+{
+  "session_id": "session_id_string",
+  "type": "listen",
+  "state": "start",
+  "mode": "realtime" | "auto" | "manual"
+}
+4. 停止监听消息 (listen - stop)
+发送时机: 停止语音输入时
+
+json
+{
+  "session_id": "session_id_string",
+  "type": "listen",
+  "state": "stop"
+}
+5. 中断说话消息 (abort)
+发送时机: 被唤醒词打断说话时
+
+json
+{
+  "session_id": "session_id_string",
+  "type": "abort",
+  "reason": "wake_word_detected"
+}
+6. MCP消息 (mcp)
+发送时机: 设备需要执行MCP工具时
+
+json
+{
+  "session_id": "session_id_string",
+  "type": "mcp",
+  "payload": { /* MCP协议内容 */ }
+}
+7. 音频数据
+发送时机: 实时语音输入
+
+格式: Opus编码音频数据
+采样率: 16000 Hz
+声道数: 1
+帧时长: 60ms
+协议: 二进制协议版本2或3
+8. 会话结束消息 (goodbye)
+发送时机: 关闭音频通道时 (仅MQTT)
+
+json
+{
+  "session_id": "session_id_string",
+  "type": "goodbye"
+}
+9. MCP初始化消息
+发送时机: MCP协议初始化
+
+json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "initialize",
+  "params": {
+    "capabilities": {
+      "vision": {
+        "url": "vision_api_url",
+        "token": "access_token"
+      }
+    }
+  }
+}
+10. MCP工具列表请求
+发送时机: 请求可用工具列表
+
+json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/list",
+  "params": {
+    "cursor": "optional_cursor"
+  }
+}
+11. MCP工具调用请求
+发送时机: 调用特定工具
+
+json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "method": "tools/call",
+  "params": {
+    "name": "tool_name",
+    "arguments": {
+      "arg1": "value1",
+      "arg2": 100
+    },
+    "stackSize": 6144
+  }
+}
+服务器向设备发送 (INBOUND)
+1. 握手响应消息 (hello)
+接收时机: 连接建立后服务器响应
+
+json
+{
+  "type": "hello",
+  "transport": "websocket" | "udp",
+  "session_id": "session_id_string",
+  "audio_params": {
+    "sample_rate": 16000,
+    "frame_duration": 60
+  },
+  "udp": {
+    "server": "udp_server_address",
+    "port": 12345,
+    "key": "encryption_key_hex",
+    "nonce": "nonce_hex"
+  }
+}
+2. 音频数据
+接收时机: 服务器TTS生成音频时
+
+格式: Opus编码音频数据
+协议: 二进制协议版本2或3
+3. TTS开始消息 (tts - start)
+接收时机: 服务器开始发送TTS音频时 作用: 指示设备切换到说话状态
+
+json
+{
+  "type": "tts",
+  "state": "start"
+}
+4. TTS停止消息 (tts - stop)
+接收时机: 服务器完成TTS音频发送时 作用: 指示设备从说话状态切换到空闲或聆听状态
+
+json
+{
+  "type": "tts",
+  "state": "stop"
+}
+5. STT识别结果 (stt)
+接收时机: 语音识别完成后
+
+json
+{
+  "type": "stt",
+  "text": "recognized_speech_text"
+}
+6. LLM响应 (llm)
+接收时机: 语言模型生成回复时
+
+json
+{
+  "type": "llm",
+  "emotion": "emotion_type"
+}
+7. 服务器到句子开始 (sentence_start)
+接收时机: 服务器开始发送句子时
+
+json
+{
+  "type": "sentence_start",
+  "text": "sentence_text"
+}
+8. 系统命令 (system)
+接收时机: 服务器发送系统命令时 作用: 可能指示设备状态转换
+
+json
+{
+  "type": "system",
+  "command": "reboot"
+}
+9. MCP响应消息
+接收时机: MCP工具执行完成
+
+json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "result": {
+    "content": [
+      {
+        "type": "text",
+        "text": "response_text"
+      }
+    ],
+    "isError": false
+  }
+}
+10. MCP错误响应
+接收时机: MCP工具执行失败
+
+json
+{
+  "jsonrpc": "2.0",
+  "id": 3,
+  "error": {
+    "message": "error_message"
+  }
+}
+11. 会话结束消息 (goodbye)
+接收时机: 服务器主动结束会话
+
+json
+{
+  "type": "goodbye",
+  "session_id": "session_id_string"
+}
+12. 警报消息 (alert)
+接收时机: 服务器发送警报时 作用: 可能指示设备状态转换
+
+json
+{
+  "type": "alert",
+  "status": "status_text",
+  "message": "message_text",
+  "emotion": "emotion_text"
+}
+13. 自定义消息 (custom)
+接收时机: 服务器发送自定义消息时
+
+json
+{
+  "type": "custom",
+  "payload": { /* custom data */ }
+}
+服务器状态转换指令
+根据代码分析，服务器可以通过以下消息触发设备状态转换：
+
+1. TTS状态消息
+tts.start: 服务器开始发送TTS音频时，设备会切换到说话状态(kDeviceStateSpeaking)
+tts.stop: 服务器停止发送TTS音频时，设备会从说话状态切换到聆听状态(kDeviceStateListening)
+2. 系统命令
+system.reboot: 设备执行重启操作
+3. 会话控制
+goodbye: 服务器结束会话时，设备会切换到空闲状态(kDeviceStateIdle)
+4. 音频通道控制
+音频通道关闭: 当服务器关闭音频通道时，设备会切换到空闲状态(kDeviceStateIdle)
+通信协议详情
+WebSocket协议
+音频传输: 二进制协议版本1、2、3
+控制消息: JSON格式文本消息
+认证: HTTP头 Authorization: Bearer token
+协议版本: HTTP头 Protocol-Version
+设备标识: HTTP头 Device-Id 和 Client-Id
+MQTT协议
+控制消息: 通过MQTT主题发送JSON消息
+音频传输: 通过UDP加密传输
+会话管理: 通过MQTT主题和UDP端口管理
+MCP协议 (Model Context Protocol)
+协议: JSON-RPC 2.0
+用途: 设备工具调用和控制
+功能: 获取设备状态、控制设备功能、执行设备操作
+服务器实现要求
+1. WebSocket服务器
+实现握手协议，分配session_id
+接收Opus音频流并进行语音识别
+发送TTS音频流和文本响应
+支持不同协议版本
+发送状态转换指令以控制设备状态
+2. MQTT服务器
+处理MQTT连接和认证
+接收JSON控制消息
+提供UDP音频接收端点
+3. MCP协议处理
+实现完整的JSON-RPC 2.0协议
+处理工具注册、发现和调用
+执行设备控制命令并返回结果
+4. 音频处理
+接收Opus编码的音频流
+实现语音识别功能
+实现TTS文本转语音功能
+发送Opus编码的音频响应
+5. 状态管理
+通过TTS消息控制设备状态转换
+发送系统命令进行设备控制
+发送会话管理消息控制设备连接状态
