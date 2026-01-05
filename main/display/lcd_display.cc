@@ -899,6 +899,7 @@ void LcdDisplay::SetupUI() {
     
     lv_obj_set_style_text_font(network_label_, icon_font, 0);
     lv_obj_set_style_text_color(network_label_, lvgl_theme->text_color(), 0);
+    lv_obj_add_flag(network_label_, LV_OBJ_FLAG_HIDDEN);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_flex_grow(notification_label_, 1);
@@ -918,12 +919,14 @@ void LcdDisplay::SetupUI() {
     lv_label_set_text(mute_label_, "");
     lv_obj_set_style_text_font(mute_label_, icon_font, 0);
     lv_obj_set_style_text_color(mute_label_, lvgl_theme->text_color(), 0);
+    lv_obj_add_flag(mute_label_, LV_OBJ_FLAG_HIDDEN);
 
 
     battery_label_ = lv_label_create(status_bar_);
     
     lv_obj_set_style_text_font(battery_label_, icon_font, 0);
     lv_obj_set_style_text_color(battery_label_, lvgl_theme->text_color(), 0);
+    lv_obj_add_flag(battery_label_, LV_OBJ_FLAG_HIDDEN);
     
     // 添加右侧空白容器以实现整体左移
     lv_obj_t* spacerR = lv_obj_create(status_bar_);
