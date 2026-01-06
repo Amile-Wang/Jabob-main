@@ -411,7 +411,8 @@ public:
 
         
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
-            GetBacklight()->RestoreBrightness();
+            // GetBacklight()->RestoreBrightness();
+            GetBacklight()->SetBrightness(50, true); 
         }
         
         pwm_servo_ = &pwm_servo::GetInstance();//初始化舵机

@@ -32,8 +32,10 @@ Backlight::~Backlight() {
 void Backlight::RestoreBrightness() {
     // Load brightness from settings
     Settings settings("display");  
-    int saved_brightness = settings.GetInt("brightness", 10);
+    int saved_brightness = settings.GetInt("brightness", 50);
     
+    // uint8_t fixed_brightness = 50;
+
     // 检查亮度值是否为0或过小，设置默认值
     if (saved_brightness <= 0) {
         ESP_LOGW(TAG, "Brightness value (%d) is too small, setting to default (10)", saved_brightness);
