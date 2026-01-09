@@ -74,7 +74,7 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
     pwm_servo* pwm_servo_;
-    // Button touch_button_;
+    Button touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
     std::unique_ptr<PowerSaveTimer> power_save_timer_; 
@@ -124,7 +124,15 @@ public:
             app.ToggleChatState();
         });
 
-        
+        // 新增触摸按钮的处理
+        board->touch_button_.OnPressDown([board]() {
+            ESP_LOGI(TAG, "Touch button pressed");
+            board->GetDisplay()->ShowNotification("Touch button pressed");
+            auto& app = Application::GetInstance();
+            app.ToggleChatState();
+        });
+
+
 // 只有当按钮指针不为空时才注册回调
         // if (board->volume_up_button_) {
             board->volume_up_button_.OnClick([board]() {
@@ -299,7 +307,7 @@ public:
 public:
     CompactWifiBoardLCD() :
         boot_button_(BOOT_BUTTON_GPIO),
-        // touch_button_(TOUCH_BUTTON_GPIO), 
+        touch_button_(TOUCH_BUTTON_GPIO, TOUCH_BUTTON_THRESHOLD), 
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO)
         {

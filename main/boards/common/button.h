@@ -40,6 +40,11 @@ public:
 };
 #endif
 
+class TouchButton : public Button {
+public:
+    TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_press_time = 0, uint16_t short_press_time = 0);
+};
+
 class PowerSaveButton : public Button {
 public:
     PowerSaveButton(gpio_num_t gpio_num) : Button(gpio_num, false, 0, 0, true) {

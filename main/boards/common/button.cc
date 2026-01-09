@@ -35,6 +35,18 @@ Button::Button(gpio_num_t gpio_num, bool active_high, uint16_t long_press_time, 
     ESP_ERROR_CHECK(iot_button_new_gpio_device(&button_config, &gpio_config, &button_handle_));
 }
 
+TouchButton::TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_press_time, uint16_t short_press_time) {
+    button_config_t button_config = {
+        .long_press_time = long_press_time,
+        .short_press_time = short_press_time
+    };
+    button_touch_config_t touch_config = {
+        .channel_num = gpio_num,
+        .threshold = threshold
+    };
+    ESP_ERROR_CHECK(iot_button_new_touch_device(&button_config, &touch_config, &button_handle_));
+}
+
 Button::~Button() {
     if (button_handle_ != NULL) {
         iot_button_delete(button_handle_);

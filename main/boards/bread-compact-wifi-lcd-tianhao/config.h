@@ -66,7 +66,8 @@
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_48
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_NC
+#define TOUCH_BUTTON_GPIO       GPIO_NUM_14
+#define TOUCH_BUTTON_THRESHOLD  100 
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_38 
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_39
 
@@ -78,12 +79,12 @@
 #define DISPLAY_RST_PIN       GPIO_NUM_45
 #define DISPLAY_CS_PIN        GPIO_NUM_41
 
-#define NFC_SDA                 GPIO_NUM_46
-#define NFC_SCK                 GPIO_NUM_9
-#define NFC_MOSI                GPIO_NUM_10
-#define NFC_MISO                GPIO_NUM_11
-#define NFC_IRQ                 GPIO_NUM_12
-#define NFC_RST                 GPIO_NUM_14
+#define NFC_SDA                 GPIO_NUM_10
+#define NFC_SCK                 GPIO_NUM_11
+#define NFC_MOSI                GPIO_NUM_12
+#define NFC_MISO                GPIO_NUM_13
+#define NFC_IRQ                 GPIO_NUM_3
+#define NFC_RST                 GPIO_NUM_9
 
 
 
