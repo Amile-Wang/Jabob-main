@@ -304,7 +304,10 @@ public:
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO)
         {
         InitializeSpi();
+
         InitializeLcdDisplay();
+
+        // gpio_set_level(AUDIO_I2S_PDM_MIC_GPIO_LR, 1);
 
 #ifdef BATTERY_ADC_UNIT
         // 初始化电池监控器（需要在config.h中定义相关参数）
@@ -409,6 +412,20 @@ public:
             ESP_ERROR_CHECK(gpio_set_level(SPK_GPIO_POWERSAVE, 1));
         }
 
+        // 初始化扬声器电源控制引脚，防止悬空导致扬声器电源被切断
+        if (AUDIO_I2S_PDM_MIC_GPIO_LR != GPIO_NUM_NC) {
+            gpio_config_t spk_power_save_cfg = {};
+            spk_power_save_cfg.pin_bit_mask = BIT64(AUDIO_I2S_PDM_MIC_GPIO_LR);
+            spk_power_save_cfg.mode = GPIO_MODE_OUTPUT;
+            spk_power_save_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
+            spk_power_save_cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
+            spk_power_save_cfg.intr_type = GPIO_INTR_DISABLE;
+            ESP_ERROR_CHECK(gpio_config(&spk_power_save_cfg));
+            
+            // 将引脚设置为高电平，确保扬声器电源正常供电
+            ESP_ERROR_CHECK(gpio_set_level(AUDIO_I2S_PDM_MIC_GPIO_LR, 1));
+        }
+
         
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             // GetBacklight()->RestoreBrightness();
@@ -437,6 +454,8 @@ public:
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, 
             AUDIO_I2S_PDM_MIC_GPIO_SCK, AUDIO_I2S_PDM_MIC_GPIO_DIN);
 #elif defined(AUDIO_I2S_METHOD_SIMPLEX_I2S_PDM)
+        // gpio_set_level(AUDIO_I2S_PDM_MIC_GPIO_LR, 1);
+
         static NoAudioCodecSimplexI2sPdm audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, 
             AUDIO_I2S_PDM_MIC_GPIO_SCK, AUDIO_I2S_PDM_MIC_GPIO_DIN);
