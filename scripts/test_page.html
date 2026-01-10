@@ -469,6 +469,10 @@
                         <label for="token">认证Token:</label>
                         <input type="text" id="token" value="your-token1" placeholder="认证Token">
                     </div>
+                    <div class="config-item">
+                        <label for="maxConnections">最大连接数:</label>
+                        <input type="number" id="maxConnections" value="1" min="1" max="50" placeholder="最大连接数">
+                    </div>
                 </div>
             </div>
         </div>
@@ -622,7 +626,7 @@
 
         // 压力测试相关变量
         let connectionInstances = [];  // 存储多个连接实例
-        let maxConnections = 1;       // 最大连接数
+        let maxConnections = 1;       // 最大连接数 - 现在将从配置中读取
         let baseDeviceId = '';         // 基础设备ID
         let testStartTime = null;      // 压力测试开始时间
         let connectionStats = {        // 连接统计信息
@@ -692,9 +696,9 @@
         function drawVisualizer(dataArray) {
             visualizationRequest = requestAnimationFrame(() => drawVisualizer(dataArray));
 
-            if (!isRecording) return;
+            if (!isRecording || !globalAnalyser) return;
 
-            analyser.getByteFrequencyData(dataArray);
+            globalAnalyser.getByteFrequencyData(dataArray);
 
             visualizerContext.fillStyle = '#fafafa';
             visualizerContext.fillRect(0, 0, visualizerCanvas.width, visualizerCanvas.height);
@@ -1166,11 +1170,17 @@
             }
         }
 
-        // 初始化音频录制和处理
+        // 初始化音频录制和处理 - 为所有实例共享的音频输入
         async function initAudio() {
             try {
+                // 检查是否已经有全局音频流
+                if (globalStream) {
+                    log('音频系统已经初始化', 'info');
+                    return true;
+                }
+
                 // 请求麦克风权限
-                const stream = await navigator.mediaDevices.getUserMedia({
+                globalStream = await navigator.mediaDevices.getUserMedia({
                     audio: {
                         echoCancellation: true,
                         noiseSuppression: true,
@@ -1180,152 +1190,25 @@
                 });
                 log('已获取麦克风访问权限', 'success');
 
-                // 创建音频上下文
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({
+                // 创建全局音频上下文
+                globalAudioContext = new (window.AudioContext || window.webkitAudioContext)({
                     sampleRate: 16000,  // 确保采样率与服务器期望的一致
                     latencyHint: 'interactive'
                 });
-                const source = audioContext.createMediaStreamSource(stream);
 
                 // 获取实际音频轨道设置
-                const audioTracks = stream.getAudioTracks();
+                const audioTracks = globalStream.getAudioTracks();
                 if (audioTracks.length > 0) {
                     const track = audioTracks[0];
                     const settings = track.getSettings();
                     log(`实际麦克风设置 - 采样率: ${settings.sampleRate || '未知'}Hz, 声道数: ${settings.channelCount || '未知'}`, 'info');
                 }
 
-                // 创建分析器用于可视化
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 2048;
-                source.connect(analyser);
-
-                // 尝试初始化MediaRecorder，按优先级尝试不同编码选项
-                try {
-                    // 优先尝试使用Opus编码
-                    mediaRecorder = new MediaRecorder(stream, {
-                        mimeType: 'audio/webm;codecs=opus',
-                        audioBitsPerSecond: 16000
-                    });
-                    log('已初始化MediaRecorder (使用Opus编码)', 'success');
-                    log(`选择的编码格式: ${mediaRecorder.mimeType}`, 'info');
-                } catch (e1) {
-                    try {
-                        // 如果Opus不支持，尝试MP3
-                        mediaRecorder = new MediaRecorder(stream, {
-                            mimeType: 'audio/webm',
-                            audioBitsPerSecond: 16000
-                        });
-                        log('已初始化MediaRecorder (使用WebM标准编码，Opus不支持)', 'warning');
-                        log(`选择的编码格式: ${mediaRecorder.mimeType}`, 'info');
-                    } catch (e2) {
-                        try {
-                            // 尝试其他备选格式
-                            mediaRecorder = new MediaRecorder(stream, {
-                                mimeType: 'audio/ogg;codecs=opus',
-                                audioBitsPerSecond: 16000
-                            });
-                            log('已初始化MediaRecorder (使用OGG+Opus编码)', 'warning');
-                            log(`选择的编码格式: ${mediaRecorder.mimeType}`, 'info');
-                        } catch (e3) {
-                            // 最后使用默认编码
-                            mediaRecorder = new MediaRecorder(stream);
-                            log(`已初始化MediaRecorder (使用默认编码: ${mediaRecorder.mimeType})`, 'warning');
-                        }
-                    }
-                }
-
-                // 处理录制的数据
-                mediaRecorder.ondataavailable = (event) => {
-                    if (event.data.size > 0) {
-                        audioChunks.push(event.data);
-                    }
-                };
-
-                // 录制结束后处理数据
-                mediaRecorder.onstop = async () => {
-                    // 停止可视化
-                    if (visualizationRequest) {
-                        cancelAnimationFrame(visualizationRequest);
-                        visualizationRequest = null;
-                    }
-
-                    log(`录音结束，已收集的音频块数量: ${audioChunks.length}`, 'info');
-                    if (audioChunks.length === 0) {
-                        log('警告：没有收集到任何音频数据，请检查麦克风是否工作正常', 'error');
-                        return;
-                    }
-
-                    // 创建完整的录音blob
-                    const blob = new Blob(audioChunks, { type: audioChunks[0].type });
-                    log(`已创建音频Blob，MIME类型: ${audioChunks[0].type}，大小: ${(blob.size / 1024).toFixed(2)} KB`, 'info');
-
-                    // 保存原始块，以防清空后需要调试
-                    const chunks = [...audioChunks];
-                    audioChunks = [];
-
-                    try {
-                        // 将blob转换为ArrayBuffer
-                        const arrayBuffer = await blob.arrayBuffer();
-                        const uint8Array = new Uint8Array(arrayBuffer);
-
-                        log(`已转换为Uint8Array，准备发送，大小: ${(arrayBuffer.byteLength / 1024).toFixed(2)} KB`, 'info');
-
-                        // 检查WebSocket状态
-                        if (!websocket) {
-                            log('错误：WebSocket连接不存在', 'error');
-                            return;
-                        }
-
-                        if (websocket.readyState !== WebSocket.OPEN) {
-                            log(`错误：WebSocket连接未打开，当前状态: ${websocket.readyState}`, 'error');
-                            return;
-                        }
-
-                        // 直接发送二进制音频数据 - 这是最简单有效的方式
-                        try {
-                            // 注意：开始和结束消息已在录音开始和结束时发送
-                            // 这里只需要发送音频数据
-                            await new Promise(resolve => setTimeout(resolve, 50));
-
-                            // 处理WebM容器格式，提取纯Opus数据
-                            // 服务器使用opuslib_next.Decoder，需要纯Opus帧
-                            log('正在处理音频数据，提取纯Opus帧...', 'info');
-                            const opusData = extractOpusFrames(uint8Array);
-
-                            // 记录Opus数据大小
-                            log(`已提取Opus数据，大小: ${(opusData.byteLength / 1024).toFixed(2)} KB`, 'info');
-
-                            // 发送音频消息第二步：二进制音频数据
-                            websocket.send(opusData);
-                            log(`已发送Opus音频数据: ${(opusData.byteLength / 1024).toFixed(2)} KB`, 'success');
-                        } catch (error) {
-                            log(`音频数据发送失败: ${error.message}`, 'error');
-
-                            // 尝试使用base64编码作为备选方案
-                            try {
-                                log('尝试使用base64编码方式发送...', 'info');
-                                const base64Data = arrayBufferToBase64(arrayBuffer);
-                                const audioDataMessage = {
-                                    type: 'audio',
-                                    action: 'data',
-                                    format: 'opus',
-                                    sample_rate: 16000,
-                                    channels: 1,
-                                    mime_type: chunks[0].type,
-                                    encoding: 'base64',
-                                    data: base64Data
-                                };
-                                websocket.send(JSON.stringify(audioDataMessage));
-                                log(`已使用base64编码发送音频数据: ${(arrayBuffer.byteLength / 1024).toFixed(2)} KB`, 'warning');
-                            } catch (base64Error) {
-                                log(`所有数据发送方式均失败: ${base64Error.message}`, 'error');
-                            }
-                        }
-                    } catch (error) {
-                        log(`处理录音数据错误: ${error.message}`, 'error');
-                    }
-                };
+                // 创建媒体源和分析器
+                globalAudioSource = globalAudioContext.createMediaStreamSource(globalStream);
+                globalAnalyser = globalAudioContext.createAnalyser();
+                globalAnalyser.fftSize = 2048;
+                globalAudioSource.connect(globalAnalyser);
 
                 // 尝试初始化Opus解码器
                 try {
@@ -1410,6 +1293,9 @@
 
                 // 保存基础设备ID
                 baseDeviceId = baseConfig.deviceId;
+                
+                // 设置最大连接数
+                maxConnections = baseConfig.maxConnections;
 
                 // 重置统计数据
                 resetTestStats();
@@ -1771,6 +1657,29 @@
             // 清理全局websocket引用
             websocket = null;
             
+            // 清理全局音频资源
+            if (globalAudioProcessor) {
+                globalAudioProcessor.disconnect();
+                globalAudioProcessor = null;
+            }
+            
+            if (globalAudioSource) {
+                globalAudioSource.disconnect();
+                globalAudioSource = null;
+            }
+            
+            if (globalStream) {
+                // 停止所有音轨
+                const tracks = globalStream.getTracks();
+                tracks.forEach(track => track.stop());
+                globalStream = null;
+            }
+            
+            if (globalAudioContext && globalAudioContext.state !== 'closed') {
+                globalAudioContext.close();
+                globalAudioContext = null;
+            }
+            
             // 更新UI
             connectButton.textContent = '连接';
             connectButton.removeEventListener('click', disconnectFromServer);
@@ -1878,6 +1787,7 @@
             const configPanel = document.getElementById('configPanel');
             const deviceMacInput = document.getElementById('deviceMac');
             const clientIdInput = document.getElementById('clientId');
+            const maxConnectionsInput = document.getElementById('maxConnections');
             const displayMac = document.getElementById('displayMac');
             const displayClient = document.getElementById('displayClient');
 
@@ -1890,6 +1800,14 @@
             deviceMacInput.value = savedMac;
             displayMac.textContent = savedMac;
 
+            // 从localStorage加载最大连接数
+            const savedMaxConnections = localStorage.getItem('maxConnections');
+            if (savedMaxConnections) {
+                maxConnectionsInput.value = savedMaxConnections;
+            } else {
+                maxConnectionsInput.value = '1'; // 默认值为1
+            }
+
             // 更新显示的值
             function updateDisplayValues() {
                 const newMac = deviceMacInput.value;
@@ -1897,11 +1815,14 @@
                 displayClient.textContent = clientIdInput.value;
                 // 保存MAC地址到localStorage
                 localStorage.setItem('deviceMac', newMac);
+                // 保存最大连接数到localStorage
+                localStorage.setItem('maxConnections', maxConnectionsInput.value);
             }
 
             // 监听输入变化
             deviceMacInput.addEventListener('input', updateDisplayValues);
             clientIdInput.addEventListener('input', updateDisplayValues);
+            maxConnectionsInput.addEventListener('input', updateDisplayValues);
 
             // 初始更新显示值
             updateDisplayValues();
@@ -2294,26 +2215,24 @@
             registerProcessor('audio-recorder-processor', AudioRecorderProcessor);
         `;
 
-        // 创建音频处理器
-        async function createAudioProcessor() {
-            if (!audioContext) {
-                audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: 16000,  // 确保与服务器期望的采样率一致
-                    latencyHint: 'interactive'
-                });
+        // 创建全局音频处理器 - 供所有实例共享
+        async function createGlobalAudioProcessor() {
+            if (!globalAudioContext) {
+                log('全局音频上下文未初始化', 'error');
+                return null;
             }
 
             try {
                 // 检查是否支持AudioWorklet
-                if (audioContext.audioWorklet) {
+                if (globalAudioContext.audioWorklet) {
                     // 注册音频处理器
                     const blob = new Blob([audioProcessorCode], { type: 'application/javascript' });
                     const url = URL.createObjectURL(blob);
-                    await audioContext.audioWorklet.addModule(url);
+                    await globalAudioContext.audioWorklet.addModule(url);
                     URL.revokeObjectURL(url);
 
                     // 创建音频处理节点
-                    const audioProcessor = new AudioWorkletNode(audioContext, 'audio-recorder-processor');
+                    const audioProcessor = new AudioWorkletNode(globalAudioContext, 'audio-recorder-processor');
 
                     // 设置音频处理消息处理
                     audioProcessor.port.onmessage = (event) => {
@@ -2323,14 +2242,14 @@
                         }
                     };
 
-                    log('使用AudioWorklet处理音频', 'success');
+                    log('使用AudioWorklet处理音频（共享模式）', 'success');
                     return { node: audioProcessor, type: 'worklet' };
                 } else {
                     // 使用旧版ScriptProcessorNode作为回退方案
-                    log('AudioWorklet不可用，使用ScriptProcessorNode作为回退方案', 'warning');
+                    log('AudioWorklet不可用，使用ScriptProcessorNode作为回退方案（共享模式）', 'warning');
 
                     const frameSize = 4096; // ScriptProcessorNode缓冲区大小
-                    const scriptProcessor = audioContext.createScriptProcessor(frameSize, 1, 1);
+                    const scriptProcessor = globalAudioContext.createScriptProcessor(frameSize, 1, 1);
 
                     // 将audioProcess事件设置为处理音频数据
                     scriptProcessor.onaudioprocess = (event) => {
@@ -2341,8 +2260,6 @@
 
                         // 将浮点数据转换为16位整数
                         for (let i = 0; i < input.length; i++) {
-                            // 确保采样率匹配 - 音频上下文是16kHz，但输入可能是48kHz
-                            // 这里需要按比例采样，每3个样本取1个（如果是48kHz输入）
                             buffer[i] = Math.max(-32768, Math.min(32767, Math.floor(input[i] * 32767)));
                         }
 
@@ -2352,20 +2269,20 @@
 
                     // 需要连接输出，否则不会触发处理
                     // 我们创建一个静音通道
-                    const silent = audioContext.createGain();
+                    const silent = globalAudioContext.createGain();
                     silent.gain.value = 0;
                     scriptProcessor.connect(silent);
-                    silent.connect(audioContext.destination);
+                    silent.connect(globalAudioContext.destination);
 
                     return { node: scriptProcessor, type: 'processor' };
                 }
             } catch (error) {
-                log(`创建音频处理器失败: ${error.message}，尝试回退方案`, 'error');
+                log(`创建全局音频处理器失败: ${error.message}，尝试回退方案`, 'error');
 
                 // 最后回退方案：使用ScriptProcessorNode
                 try {
                     const frameSize = 4096; // ScriptProcessorNode缓冲区大小
-                    const scriptProcessor = audioContext.createScriptProcessor(frameSize, 1, 1);
+                    const scriptProcessor = globalAudioContext.createScriptProcessor(frameSize, 1, 1);
 
                     scriptProcessor.onaudioprocess = (event) => {
                         if (!isRecording) return;
@@ -2380,15 +2297,15 @@
                         processPCMBuffer(buffer);
                     };
 
-                    const silent = audioContext.createGain();
+                    const silent = globalAudioContext.createGain();
                     silent.gain.value = 0;
                     scriptProcessor.connect(silent);
-                    silent.connect(audioContext.destination);
+                    silent.connect(globalAudioContext.destination);
 
-                    log('使用ScriptProcessorNode作为回退方案成功', 'warning');
+                    log('使用ScriptProcessorNode作为回退方案（共享模式）', 'warning');
                     return { node: scriptProcessor, type: 'processor' };
                 } catch (fallbackError) {
-                    log(`回退方案也失败: ${fallbackError.message}`, 'error');
+                    log(`全局音频处理器回退方案也失败: ${fallbackError.message}`, 'error');
                     return null;
                 }
             }
@@ -2488,9 +2405,18 @@
             }
         }
 
-        // 开始直接从PCM数据录音
+        // 开始直接从PCM数据录音 - 为所有实例录音
         async function startDirectRecording() {
             if (isRecording) return;
+
+            // 检查是否有任何WebSocket连接
+            const connectedInstances = connectionInstances.filter(instance => 
+                instance.ws && instance.ws.readyState === WebSocket.OPEN);
+                
+            if (connectedInstances.length === 0) {
+                log('没有可用的WebSocket连接，无法开始录音', 'error');
+                return false;
+            }
 
             try {
                 // 初始化Opus编码器
@@ -2499,41 +2425,21 @@
                     return;
                 }
 
-                // 请求麦克风权限
-                const stream = await navigator.mediaDevices.getUserMedia({
-                    audio: {
-                        echoCancellation: true,
-                        noiseSuppression: true,
-                        sampleRate: 16000,
-                        channelCount: 1
+                // 如果还没有全局音频处理器，创建它
+                if (!globalAudioProcessor) {
+                    const processorResult = await createGlobalAudioProcessor();
+                    if (!processorResult) {
+                        log('无法创建音频处理器', 'error');
+                        return false;  // 返回false而不是return;
                     }
-                });
 
-                // 创建音频上下文和分析器
-                if (!audioContext) {
-                    audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                        sampleRate: 16000,
-                        latencyHint: 'interactive'
-                    });
+                    globalAudioProcessor = processorResult.node;
+                    globalAudioProcessorType = processorResult.type;
+
+                    // 连接音频处理链
+                    globalAudioSource.connect(globalAnalyser);
+                    globalAudioSource.connect(globalAudioProcessor);
                 }
-
-                // 创建音频处理器
-                const processorResult = await createAudioProcessor();
-                if (!processorResult) {
-                    log('无法创建音频处理器', 'error');
-                    return;
-                }
-
-                audioProcessor = processorResult.node;
-                audioProcessorType = processorResult.type;
-
-                // 连接音频处理链
-                audioSource = audioContext.createMediaStreamSource(stream);
-                analyser = audioContext.createAnalyser();
-                analyser.fftSize = 2048;
-
-                audioSource.connect(analyser);
-                audioSource.connect(audioProcessor);
 
                 // 启动录音
                 pcmDataBuffer = new Int16Array();
@@ -2542,29 +2448,34 @@
                 isRecording = true;
 
                 // 启动音频处理器的录音 - 只有AudioWorklet才需要发送消息
-                if (audioProcessorType === 'worklet' && audioProcessor.port) {
-                    audioProcessor.port.postMessage({ command: 'start' });
+                if (globalAudioProcessorType === 'worklet' && globalAudioProcessor.port) {
+                    globalAudioProcessor.port.postMessage({ command: 'start' });
                 }
 
-                // 发送监听开始消息
-                if (websocket && websocket.readyState === WebSocket.OPEN) {
-                    // 使用与服务端期望的listen消息格式
-                    const listenMessage = {
-                        type: 'listen',
-                        mode: 'manual',  // 使用手动模式，由我们控制开始/停止
-                        state: 'start'   // 表示开始录音
-                    };
+                // 向所有连接的实例发送监听开始消息
+                for (let i = 0; i < connectedInstances.length; i++) {
+                    const instance = connectedInstances[i];
+                    if (instance.ws && instance.ws.readyState === WebSocket.OPEN) {
+                        // 使用与服务端期望的listen消息格式
+                        const listenMessage = {
+                            type: 'listen',
+                            mode: 'manual',  // 使用手动模式，由我们控制开始/停止
+                            state: 'start',  // 表示开始录音
+                            instance_id: i + 1  // 添加实例标识
+                        };
 
-                    log(`发送录音开始消息: ${JSON.stringify(listenMessage)}`, 'info');
-                    websocket.send(JSON.stringify(listenMessage));
-                } else {
-                    log('WebSocket未连接，无法发送开始消息', 'error');
-                    return false;
+                        log(`发送录音开始消息到实例${i + 1}: ${JSON.stringify(listenMessage)}`, 'info');
+                        instance.ws.send(JSON.stringify(listenMessage));
+                    }
                 }
 
                 // 开始音频可视化
-                const dataArray = new Uint8Array(analyser.frequencyBinCount);
-                drawVisualizer(dataArray);
+                if (globalAnalyser) {
+                    const dataArray = new Uint8Array(globalAnalyser.frequencyBinCount);
+                    drawVisualizer(dataArray);
+                } else {
+                    log('警告：全局分析器未初始化，无法显示音频可视化', 'warning');
+                }
 
                 // 在UI上显示录音计时器
                 let recordingSeconds = 0;
@@ -2579,7 +2490,7 @@
                 recordButton.classList.add('recording');
                 recordButton.disabled = false;
 
-                log('开始PCM直接录音', 'success');
+                log(`开始PCM直接录音，将同时发送到 ${connectedInstances.length} 个实例`, 'success');
                 return true;
             } catch (error) {
                 log(`直接录音启动错误: ${error.message}`, 'error');
@@ -2588,7 +2499,7 @@
             }
         }
 
-        // 停止直接从PCM数据录音
+        // 停止直接从PCM数据录音 - 对所有实例停止
         function stopDirectRecording() {
             if (!isRecording) return;
 
@@ -2597,20 +2508,14 @@
                 isRecording = false;
 
                 // 停止音频处理器的录音
-                if (audioProcessor) {
+                if (globalAudioProcessor) {
                     // 只有AudioWorklet才需要发送停止消息
-                    if (audioProcessorType === 'worklet' && audioProcessor.port) {
-                        audioProcessor.port.postMessage({ command: 'stop' });
+                    if (globalAudioProcessorType === 'worklet' && globalAudioProcessor.port) {
+                        globalAudioProcessor.port.postMessage({ command: 'stop' });
                     }
 
-                    audioProcessor.disconnect();
-                    audioProcessor = null;
-                }
-
-                // 断开音频连接
-                if (audioSource) {
-                    audioSource.disconnect();
-                    audioSource = null;
+                    globalAudioProcessor.disconnect();
+                    globalAudioProcessor = null;
                 }
 
                 // 停止可视化
@@ -2628,21 +2533,28 @@
                 // 编码并发送剩余的数据
                 encodeAndSendOpus();
 
-                // 发送一个空的消息作为结束标志（模拟接收到空音频数据的情况）
-                if (websocket && websocket.readyState === WebSocket.OPEN) {
-                    // 使用空的Uint8Array发送最后一个空帧
-                    const emptyOpusFrame = new Uint8Array(0);
-                    websocket.send(emptyOpusFrame);
+                // 向所有连接的实例发送停止消息
+                const connectedInstances = connectionInstances.filter(instance => 
+                    instance.ws && instance.ws.readyState === WebSocket.OPEN);
+                    
+                for (let i = 0; i < connectedInstances.length; i++) {
+                    const instance = connectedInstances[i];
+                    if (instance.ws && instance.ws.readyState === WebSocket.OPEN) {
+                        // 发送一个空的消息作为结束标志（模拟接收到空音频数据的情况）
+                        const emptyOpusFrame = new Uint8Array(0);
+                        instance.ws.send(emptyOpusFrame);
 
-                    // 发送监听结束消息
-                    const stopMessage = {
-                        type: 'listen',
-                        mode: 'manual',
-                        state: 'stop'
-                    };
+                        // 发送监听结束消息
+                        const stopMessage = {
+                            type: 'listen',
+                            mode: 'manual',
+                            state: 'stop',
+                            instance_id: i + 1  // 添加实例标识
+                        };
 
-                    websocket.send(JSON.stringify(stopMessage));
-                    log('已发送录音停止信号', 'info');
+                        instance.ws.send(JSON.stringify(stopMessage));
+                        log(`已发送录音停止信号到实例${i + 1}`, 'info');
+                    }
                 }
 
                 // 重置UI
@@ -2878,7 +2790,8 @@ async function handleBinaryMessage(data, deviceId) {
                 deviceName: document.getElementById('deviceName').value.trim(),
                 deviceMac: deviceMac,
                 clientId: document.getElementById('clientId').value.trim(),
-                token: document.getElementById('token').value.trim()
+                token: document.getElementById('token').value.trim(),
+                maxConnections: parseInt(document.getElementById('maxConnections').value) || 1
             };
         }
 
