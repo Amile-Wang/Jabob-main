@@ -622,8 +622,14 @@
 
         // 压力测试相关变量
         let connectionInstances = [];  // 存储多个连接实例
-        let maxConnections = 20;       // 最大连接数
+        let maxConnections = 1;       // 最大连接数
         let baseDeviceId = '';         // 基础设备ID
+        let testStartTime = null;      // 压力测试开始时间
+        let connectionStats = {        // 连接统计信息
+            successful: 0,
+            failed: 0,
+            disconnected: 0
+        };
         
         // 音频数据累积对象 - 用于将每个设备ID的音频数据整合到一个文件
         let accumulatedAudioData = {}; // 格式: { deviceId: [arrayBuffers], ... }
@@ -1351,6 +1357,12 @@
         function startRecording() {
             if (isRecording) return;
 
+            // 检查WebSocket连接状态
+            if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                log('WebSocket未连接，无法开始录音，请先连接服务器', 'error');
+                return;
+            }
+
             try {
                 // 最小录音时长提示
                 log('请至少录制1-2秒钟的音频，确保采集到足够数据', 'info');
@@ -1384,7 +1396,6 @@
             }
         }
 
-        // 连接WebSocket服务器
         // 连接WebSocket服务器 - 修改为压力测试版本
         async function connectToServer() {
             const url = serverUrlInput.value.trim();
@@ -1399,6 +1410,13 @@
 
                 // 保存基础设备ID
                 baseDeviceId = baseConfig.deviceId;
+
+                // 重置统计数据
+                resetTestStats();
+
+                // 记录测试开始时间
+                testStartTime = new Date();
+                log(`压力测试开始于: ${testStartTime.toLocaleString()}`, 'info');
 
                 // 检查URL格式
                 if (!url.startsWith('ws://') && !url.startsWith('wss://')) {
@@ -1497,9 +1515,9 @@
                 messageInput.disabled = false;
                 sendTextButton.disabled = false;
 
-                const audioInitialized = await initAudio();
-                if (audioInitialized) {
-                    recordButton.disabled = false;
+                // 保存WebSocket引用到全局变量，这样其他函数才能访问
+                if (connectionInstances.length > 0) {
+                    websocket = connectionInstances[0].ws; // 使用第一个连接作为主连接
                 }
 
                 log(`成功创建 ${connectionInstances.length} 个连接实例`, 'success');
@@ -1533,9 +1551,10 @@
                     isConnected: false
                 };
 
-                ws.onopen = async () => {
+                 ws.onopen = async () => {
                     log(`[实例${index + 1}] 已连接到服务器: ${url}`, 'success');
                     instance.isConnected = true;
+                    connectionStats.successful++; // 增加成功连接计数
 
                     // 连接成功后发送hello消息
                     await sendHelloMessage(ws, config, index);
@@ -1545,18 +1564,33 @@
                     if (allConnected) {
                         connectionStatus.textContent = `ws已连接 (${connectionInstances.length}/${maxConnections})`;
                         connectionStatus.style.color = 'green';
+                        
+                        // 确保音频系统被初始化，无论哪个实例先连接成功
+                        const audioInitialized = await initAudio();
+                        if (audioInitialized) {
+                            recordButton.disabled = false;
+                            log('音频系统初始化完成，录音功能已启用', 'success');
+                        } else {
+                            log('音频系统初始化失败，录音功能不可用', 'error');
+                        }
                     }
                 };
-
+                
                 ws.onclose = () => {
                     log(`[实例${index + 1}] 已断开连接`, 'info');
                     instance.isConnected = false;
+                    connectionStats.disconnected++; // 增加断开连接计数
 
                     // 检查是否所有连接都已断开
                     const allDisconnected = connectionInstances.every(conn => !conn.isConnected);
                     if (allDisconnected) {
                         connectionStatus.textContent = 'ws未连接';
                         connectionStatus.style.color = 'red';
+                        const testEndTime = new Date();
+                        log(`压力测试结束于: ${testEndTime.toLocaleString()}`, 'info');
+            
+            // 输出压力测试结果
+            logTestResults(testEndTime);
                     } else {
                         const connectedCount = connectionInstances.filter(conn => conn.isConnected).length;
                         connectionStatus.textContent = `ws部分连接 (${connectedCount}/${maxConnections})`;
@@ -1566,6 +1600,7 @@
 
                 ws.onerror = (error) => {
                     log(`[实例${index + 1}] WebSocket错误: ${error.message || '未知错误'}`, 'error');
+                    connectionStats.failed++; // 增加失败连接计数
                 };
 
                 ws.onmessage = function (event) {
@@ -1621,7 +1656,7 @@
                                 if (payload) {
                                     // 模拟小智客户端行为
                                     if(payload.method === 'tools/list'){
-                                        const replay_message = JSON.stringify({"session_id":"","type":"mcp","payload":{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"self.get_device_status","description":"Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.\nUse this tool for: \n1. Answering questions about current condition (e.g. what is the current volume of the audio speaker?)\n2. As the first step to control the device (e.g. turn up / down the volume of the audio speaker, etc.)","inputSchema":{"type":"object","properties":{}}},{"name":"self.audio_speaker.set_volume","description":"Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.","inputSchema":{"type":"object","properties":{"volume":{"type":"integer","minimum":0,"maximum":100}},"required":["volume"]}},{"name":"self.screen.set_brightness","description":"Set the brightness of the screen.","inputSchema":{"type":"object","properties":{"brightness":{"type":"integer","minimum":0,"maximum":100}},"required":["brightness"]}},{"name":"self.screen.set_theme","description":"Set the theme of the screen. The theme can be 'light' or 'dark'.","inputSchema":{"type":"object","properties":{"theme":{"type":"string"}},"required":["theme"]}}]}}})
+                                        const replay_message = JSON.stringify({"session_id":"","type":"mcp","payload":{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"self.get_device_status","description":"Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.\nUse this for: \n1. Answering questions about current condition (e.g. what is the current volume of the audio speaker?)\n2. As the first step to control the device (e.g. turn up / down the volume of the audio speaker, etc.)","inputSchema":{"type":"object","properties":{}}},{"name":"self.audio_speaker.set_volume","description":"Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.","inputSchema":{"type":"object","properties":{"volume":{"type":"integer","minimum":0,"maximum":100}},"required":["volume"]}},{"name":"self.screen.set_brightness","description":"Set the brightness of the screen.","inputSchema":{"type":"object","properties":{"brightness":{"type":"integer","minimum":0,"maximum":100}},"required":["brightness"]}},{"name":"self.screen.set_theme","description":"Set the theme of the screen. The theme can be 'light' or 'dark'.","inputSchema":{"type":"object","properties":{"theme":{"type":"string"}},"required":["theme"]}}]}}})
                                         ws.send(replay_message);
                                         log(`[实例${index + 1}] 回复MCP消息: ${replay_message}`, 'info');
                                     } else if(payload.method === 'tools/call'){
@@ -1715,6 +1750,13 @@
             // 保存所有累积的音频数据到文件
             // saveAllAudioToFile();
             
+            // 记录压力测试结束时间
+            const testEndTime = new Date();
+            log(`压力测试结束于: ${testEndTime.toLocaleString()}`, 'info');
+            
+            // 输出压力测试结果
+            logTestResults(testEndTime);
+            
             // 断开所有连接实例
             for (let i = 0; i < connectionInstances.length; i++) {
                 const instance = connectionInstances[i];
@@ -1725,6 +1767,9 @@
             
             connectionInstances = [];
             stopRecording();
+            
+            // 清理全局websocket引用
+            websocket = null;
             
             // 更新UI
             connectButton.textContent = '连接';
@@ -1737,6 +1782,46 @@
             connectionStatus.textContent = 'ws未连接';
             connectionStatus.style.color = 'red';
         }
+
+        // 重置测试统计信息
+        function resetTestStats() {
+            connectionStats.successful = 0;
+            connectionStats.failed = 0;
+            connectionStats.disconnected = 0;
+        }
+
+        // 输出压力测试结果
+        function logTestResults(endTime) {
+            if (!testStartTime) {
+                log('错误：未记录测试开始时间', 'error');
+                return;
+            }
+
+            const durationMs = endTime.getTime() - testStartTime.getTime();
+            const durationSec = durationMs / 1000;
+            
+            log('======= 压力测试结果 =======', 'info');
+            log(`测试持续时间: ${durationSec} 秒`, 'info');
+            log(`最大连接数: ${maxConnections}`, 'info');
+            log(`成功连接数: ${connectionStats.successful}`, 'info');
+            log(`失败连接数: ${connectionStats.failed}`, 'info');
+            log(`断开连接数: ${connectionStats.disconnected}`, 'info');
+            
+            if (connectionStats.successful > 0) {
+                const successRate = ((connectionStats.successful / maxConnections) * 100).toFixed(2);
+                log(`连接成功率: ${successRate}%`, 'info');
+            } else {
+                log('连接成功率: 0%', 'info');
+            }
+            
+            if (durationSec > 0) {
+                const connectionsPerSec = (maxConnections / durationSec).toFixed(2);
+                log(`平均连接速度: ${connectionsPerSec} 个/秒`, 'info');
+            }
+            
+            log('=========================', 'info');
+        }
+
 
         // 发送文本消息到所有连接
         function sendTextMessage() {
@@ -1861,6 +1946,11 @@
                 if (isRecording) {
                     stopRecording();
                 } else {
+                    // 检查WebSocket连接状态
+                    if (!websocket || websocket.readyState !== WebSocket.OPEN) {
+                        log('WebSocket未连接，无法开始录音，请先连接服务器', 'error');
+                        return;
+                    }
                     startRecording();
                 }
             });
@@ -2208,7 +2298,7 @@
         async function createAudioProcessor() {
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)({
-                    sampleRate: 16000,
+                    sampleRate: 16000,  // 确保与服务器期望的采样率一致
                     latencyHint: 'interactive'
                 });
             }
@@ -2251,6 +2341,8 @@
 
                         // 将浮点数据转换为16位整数
                         for (let i = 0; i < input.length; i++) {
+                            // 确保采样率匹配 - 音频上下文是16kHz，但输入可能是48kHz
+                            // 这里需要按比例采样，每3个样本取1个（如果是48kHz输入）
                             buffer[i] = Math.max(-32768, Math.min(32767, Math.floor(input[i] * 32767)));
                         }
 
@@ -2307,7 +2399,15 @@
         let audioProcessorType = null;
         let audioSource = null;
 
-        // 处理PCM缓冲数据
+        // 全局音频处理器 - 所有实例共享一个麦克风输入
+        let globalAudioContext = null;
+        let globalAudioProcessor = null;
+        let globalAudioProcessorType = null;
+        let globalAudioSource = null;
+        let globalStream = null;
+        let globalAnalyser = null;
+
+        // 处理PCM缓冲数据 - 发送到所有连接的实例
         let pcmDataBuffer = new Int16Array();
         function processPCMBuffer(buffer) {
             if (!isRecording) return;
@@ -2331,7 +2431,7 @@
             }
         }
 
-        // 编码并发送Opus数据
+        // 编码并发送Opus数据到所有连接的实例
         function encodeAndSendOpus(pcmData = null) {
             if (!opusEncoder) {
                 log('Opus编码器未初始化', 'error');
@@ -2349,14 +2449,19 @@
                         audioBuffers.push(opusData.buffer);
                         totalAudioSize += opusData.length;
 
-                        // 如果WebSocket已连接，则发送数据
-                        if (websocket && websocket.readyState === WebSocket.OPEN) {
-                            try {
-                                // 服务端期望接收原始Opus数据，不需要任何额外包装
-                                websocket.send(opusData.buffer);
-                                log(`发送Opus帧，大小：${opusData.length}字节`, 'debug');
-                            } catch (error) {
-                                log(`WebSocket发送错误: ${error.message}`, 'error');
+                        // 发送到所有连接的WebSocket实例
+                        for (let i = 0; i < connectionInstances.length; i++) {
+                            const instance = connectionInstances[i];
+                            if (instance.ws && instance.ws.readyState === WebSocket.OPEN) {
+                                try {
+                                    // 服务端期望接收原始Opus数据，不需要任何额外包装
+                                    instance.ws.send(opusData.buffer);
+                                    log(`发送Opus帧到实例${i+1}，大小：${opusData.length}字节`, 'debug');
+                                } catch (error) {
+                                    log(`向实例${i+1}发送音频数据失败: ${error.message}`, 'error');
+                                }
+                            } else {
+                                log(`实例${i+1}未连接，无法发送音频数据`, 'warning');
                             }
                         }
                     } else {
