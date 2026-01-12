@@ -92,35 +92,17 @@ public:
     void Start_touch_monitor() {
     // 创建一个监控任务
         xTaskCreate([](void* param) {
-            TouchButton* touch_btn = static_cast<TouchButton*>(param);
-            uint32_t last_raw_value = 0;
+            auto* board = static_cast<CompactWifiBoardLCD*>(param);
             
             while(1) {
-                uint32_t raw_value = touch_btn->read_raw_value();
-                // uint32_t benchmark_value;
-                // touch_pad_read_benchmark((touch_pad_t)TOUCH_BUTTON_GPIO, &benchmark_value);
-                
-                // int32_t diff = benchmark_value - raw_value;
-                ESP_LOGI("TouchMonitor", "Raw: %d", raw_value);
-                
-                // 只在值变化时输出，减少日志量
-                // if (raw_value != last_raw_value) {
-                //     // ESP_LOGI("TouchMonitor", "Raw: %u, Benchmark: %u, Diff: %d", 
-                //             //  raw_value, benchmark_value, diff);
-                //     ESP_LOGI("TouchMonitor", "Raw: %d", raw_value);
-                //     last_raw_value = raw_value;
-                // }
-                
-                // 检查是否达到阈值
-                uint32_t threshold;
-                // touch_pad_get_thresh((touch_pad_t)TOUCH_BUTTON_GPIO, &threshold);
-                // if (diff >= (int32_t)threshold) {
-                //     ESP_LOGI("TouchMonitor", ">>> TOUCH DETECTED! <<<");
-                // }
-                
-                vTaskDelay(pdMS_TO_TICKS(50)); // 每50ms检查一次
+                uint32_t raw_value = board->touch_button_.read_raw_value();
+
+                ESP_LOGI(TAG, "TouchMonitor,Raw: %" PRIu32, raw_value);
+                board->GetDisplay()->ShowNotification("Raw: " + std::to_string(raw_value));
+
+                vTaskDelay(pdMS_TO_TICKS(500)); // 每500ms检查一次
             }
-        }, "TouchMonitor", 2048, &touch_button_, 5, NULL);
+        }, "TouchMonitor", 2048, this, 5, NULL);
     }
 
     static void InitializeButtonsTask(void* param) {
@@ -488,6 +470,7 @@ public:
 
         // 启动触摸监控
         Start_touch_monitor();
+        
 
     }
 

@@ -43,7 +43,14 @@ public:
 class TouchButton : public Button {
 public:
     TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_press_time = 0, uint16_t short_press_time = 0);
+
     uint32_t read_raw_value();  // 添加读取原始值的方法
+    uint32_t read_stable_raw_value(int attempts = 5); // 添加读取稳定值的方法
+
+
+
+private:
+    static void touch_isr_handler(void* arg);  // 确保这个是静态函数
 };
 
 class PowerSaveButton : public Button {
