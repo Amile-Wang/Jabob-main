@@ -100,7 +100,7 @@ public:
                 ESP_LOGI(TAG, "TouchMonitor,Raw: %" PRIu32, raw_value);
                 board->GetDisplay()->ShowNotification("Raw: " + std::to_string(raw_value));
 
-                vTaskDelay(pdMS_TO_TICKS(500)); // 每500ms检查一次
+                vTaskDelay(pdMS_TO_TICKS(1500)); // 每500ms检查一次
             }
         }, "TouchMonitor", 2048, this, 5, NULL);
     }
