@@ -1,7 +1,9 @@
 #include "button.h"
 
 #include <button_gpio.h>
+
 #include <esp_log.h>
+#include "driver/touch_pad.h"
 
 #define TAG "Button"
 
@@ -35,18 +37,28 @@ Button::Button(gpio_num_t gpio_num, bool active_high, uint16_t long_press_time, 
     ESP_ERROR_CHECK(iot_button_new_gpio_device(&button_config, &gpio_config, &button_handle_));
 }
 
-TouchButton::TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_press_time, uint16_t short_press_time) {
+// 实现触摸按钮功能
+TouchButton::TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_press_time, uint16_t short_press_time) : Button(nullptr) {
+    // 初始化触摸传感器
+    touch_pad_init();
+    touch_pad_set_thresh((touch_pad_t)gpio_num, threshold);
+    
+    // 配置触摸传感器参数
+    touch_pad_config((touch_pad_t)gpio_num);
+
+    // 使用GPIO按钮作为基础，但配置为触摸传感器引脚
     button_config_t button_config = {
         .long_press_time = long_press_time,
         .short_press_time = short_press_time
     };
-    button_touch_config_t touch_config = {
-        .channel_num = gpio_num,
-        .threshold = threshold
+    button_gpio_config_t gpio_config = {
+        .gpio_num = gpio_num,
+        .active_level = 1, // 触摸传感器通常为高电平有效
+        .enable_power_save = false,
+        .disable_pull = true // 触摸传感器不需要内部上下拉
     };
-    ESP_ERROR_CHECK(iot_button_new_touch_device(&button_config, &touch_config, &button_handle_));
+    ESP_ERROR_CHECK(iot_button_new_gpio_device(&button_config, &gpio_config, &button_handle_));
 }
-
 Button::~Button() {
     if (button_handle_ != NULL) {
         iot_button_delete(button_handle_);

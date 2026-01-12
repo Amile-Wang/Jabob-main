@@ -74,7 +74,7 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
     pwm_servo* pwm_servo_;
-    Button touch_button_;
+    TouchButton touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
     std::unique_ptr<PowerSaveTimer> power_save_timer_; 
@@ -234,16 +234,10 @@ public:
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY
-//                                     {
-//                                         .text_font = &font_puhui_16_4,
-//                                         .icon_font = &font_awesome_16_4,
-// #if CONFIG_USE_WECHAT_MESSAGE_STYLE
-//                                         .emoji_font = font_emoji_32_init(),
-// #else
-//                                         .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-// #endif
-//                                     }
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, 
+                                    DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
+                                    DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, 
+                                    DISPLAY_SWAP_XY
         );
     }
 
