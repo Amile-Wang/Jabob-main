@@ -100,7 +100,7 @@ public:
                 ESP_LOGI(TAG, "TouchMonitor,Raw: %" PRIu32, raw_value);
                 board->GetDisplay()->ShowNotification("Raw: " + std::to_string(raw_value));
 
-                vTaskDelay(pdMS_TO_TICKS(1500)); // 每500ms检查一次
+                vTaskDelay(pdMS_TO_TICKS(3500)); // 每500ms检查一次
             }
         }, "TouchMonitor", 2048, this, 5, NULL);
     }
@@ -139,31 +139,35 @@ public:
             app.ToggleChatState();
         });
 
-        bool last_touch_state = false;
-        uint32_t last_touch_time = 0;
-        const uint32_t DEBOUNCE_TIME_MS = 1000; // 100ms防抖时间
+        // bool last_touch_state = false;
+        // uint32_t last_touch_time = 0;
+        // const uint32_t DEBOUNCE_TIME_MS = 1000; // 100ms防抖时间
 
 
         // 新增触摸按钮的处理
-        board->touch_button_.OnPressDown([board, &last_touch_time, &last_touch_state]() {
-            uint32_t current_time = esp_timer_get_time() / 1000; // 转换为毫秒
+        // board->touch_button_.OnPressDown([board, &last_touch_time, &last_touch_state]() {
+        //     uint32_t current_time = esp_timer_get_time() / 1000; // 转换为毫秒
     
-            // 如果距离上次触发时间太短，则忽略
-            if (current_time - last_touch_time < DEBOUNCE_TIME_MS && last_touch_state) {
-                return; // 防止重复触发
-            }
+        //     // 如果距离上次触发时间太短，则忽略
+        //     if (current_time - last_touch_time < DEBOUNCE_TIME_MS && last_touch_state) {
+        //         return; // 防止重复触发
+        //     }
             
-            last_touch_state = true;
-            last_touch_time = current_time;
+        //     last_touch_state = true;
+        //     last_touch_time = current_time;
             
-            ESP_LOGI(TAG, "Touch button pressed");
+        //     ESP_LOGI(TAG, "Touch button pressed");
 
+        //     ESP_LOGI(TAG, "Touch button pressed");
+        //     board->GetDisplay()->ShowNotification("Touch button pressed");
+        //     auto& app = Application::GetInstance();
+        //     app.ToggleChatState();
+        // });
+
+        board->touch_button_.OnTouch([]() {
+            printf("触摸事件被触发了！\n");
             ESP_LOGI(TAG, "Touch button pressed");
-            board->GetDisplay()->ShowNotification("Touch button pressed");
-            auto& app = Application::GetInstance();
-            app.ToggleChatState();
         });
-
 
 // 只有当按钮指针不为空时才注册回调
         // if (board->volume_up_button_) {

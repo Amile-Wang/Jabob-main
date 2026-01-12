@@ -40,7 +40,7 @@ Button::Button(gpio_num_t gpio_num, bool active_high, uint16_t long_press_time, 
 }
 
 // 实现触摸按钮功能
-TouchButton::TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_press_time, uint16_t short_press_time) : Button(nullptr) {
+TouchButton::TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_press_time, uint16_t short_press_time) : Button(nullptr), on_touch_(nullptr) {
     // 先设置gpio_num_，因为它是protected成员
     gpio_num_ = gpio_num;
 
@@ -126,17 +126,31 @@ void TouchButton::touch_isr_handler(void* arg) {
             // 确认是当前触摸引脚触发的中断
             if (static_cast<int>(instance->gpio_num_) == i) {
                 // ESP_LOGI(TAG, "Touch pad pressed ");
-                // 处理触摸事件
-                if (instance->on_press_down_) {
-                    instance->on_press_down_();
-                    // ESP_LOGI(TAG, "Touch pad pressed");
+                // 处理触摸事件 - 分别调用touch和press down回调
+                if (instance->on_touch_) {
+                    instance->on_touch_();
                 }
+                
+                // if (instance->on_press_down_) {
+                //     instance->on_press_down_();
+                //     // ESP_LOGI(TAG, "Touch pad pressed");
+                // }
             }
         }
     }
     
     // 清除中断
     touch_pad_intr_clear(TOUCH_PAD_INTR_MASK_ACTIVE);
+}
+
+// ... existing code ...
+
+// 添加触摸回调注册方法
+
+void TouchButton::OnTouch(std::function<void()> callback) {
+    ESP_LOGI(TAG, "Touch pad pressed 2");
+    on_touch_ = callback;
+    
 }
 
 // 添加读取原始值的方法实现
@@ -172,7 +186,7 @@ Button::~Button() {
 void Button::OnPressDown(std::function<void()> callback) {
     if (button_handle_ == nullptr) {
         // 对于没有button_handle_的情况（如TouchButton），直接存储回调
-        on_press_down_ = callback;
+        // on_press_down_ = callback;
         return;
     }
     on_press_down_ = callback;// 存储回调函数
