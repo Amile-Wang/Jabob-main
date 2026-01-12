@@ -83,12 +83,16 @@ private:
     std::unique_ptr<AdcBatteryMonitor> battery_monitor_;
 #endif
 
+   
+
+
 public:
     // 实现获取PowerSaveTimer的方法
     PowerSaveTimer* GetPowerSaveTimer() override { 
         return power_save_timer_.get(); 
     }
 
+    
     void Start_touch_monitor() {
     // 创建一个监控任务
         xTaskCreate([](void* param) {
@@ -133,9 +137,7 @@ public:
             ESP_LOGI(TAG, "Boot button pressed");
             board->GetDisplay()->ShowNotification("Boot button pressed");
             auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                board->ResetWifiConfiguration();
-            }
+            
             app.ToggleChatState();
         });
 
@@ -164,9 +166,21 @@ public:
         //     app.ToggleChatState();
         // });
 
-        board->touch_button_.OnTouch([]() {
+        board->touch_button_.OnTouch([board]() {
+            // 在中断回调中只记录日志，不执行复杂操作
+            ESP_DRAM_LOGI("TouchButton", "callback");
+            // CompactWifiBoardLCD* board = static_cast<CompactWifiBoardLCD*>(pvTimerGetTimerID(xTimer));
+        
             printf("触摸事件被触发了！\n");
             ESP_LOGI(TAG, "Touch button pressed");
+            
+            // 在安全的上下文中执行复杂操作
+            board->GetDisplay()->ShowNotification("Touch button pressed");
+            auto& app = Application::GetInstance();
+            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+                board->ResetWifiConfiguration();
+            }
+            app.ToggleChatState();
         });
 
 // 只有当按钮指针不为空时才注册回调
@@ -555,6 +569,8 @@ public:
     return true;         // 返回true表示成功获取电池状态
     }
 };
+
+
 
 
 
