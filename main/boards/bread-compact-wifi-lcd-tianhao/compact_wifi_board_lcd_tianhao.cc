@@ -89,6 +89,39 @@ public:
         return power_save_timer_.get(); 
     }
 
+    void Start_touch_monitor() {
+    // 创建一个监控任务
+        xTaskCreate([](void* param) {
+            TouchButton* touch_btn = static_cast<TouchButton*>(param);
+            uint32_t last_raw_value = 0;
+            
+            while(1) {
+                uint32_t raw_value = touch_btn->read_raw_value();
+                // uint32_t benchmark_value;
+                // touch_pad_read_benchmark((touch_pad_t)TOUCH_BUTTON_GPIO, &benchmark_value);
+                
+                // int32_t diff = benchmark_value - raw_value;
+                ESP_LOGI("TouchMonitor", "Raw: %d", raw_value);
+                
+                // 只在值变化时输出，减少日志量
+                // if (raw_value != last_raw_value) {
+                //     // ESP_LOGI("TouchMonitor", "Raw: %u, Benchmark: %u, Diff: %d", 
+                //             //  raw_value, benchmark_value, diff);
+                //     ESP_LOGI("TouchMonitor", "Raw: %d", raw_value);
+                //     last_raw_value = raw_value;
+                // }
+                
+                // 检查是否达到阈值
+                uint32_t threshold;
+                // touch_pad_get_thresh((touch_pad_t)TOUCH_BUTTON_GPIO, &threshold);
+                // if (diff >= (int32_t)threshold) {
+                //     ESP_LOGI("TouchMonitor", ">>> TOUCH DETECTED! <<<");
+                // }
+                
+                vTaskDelay(pdMS_TO_TICKS(50)); // 每50ms检查一次
+            }
+        }, "TouchMonitor", 2048, &touch_button_, 5, NULL);
+    }
 
     static void InitializeButtonsTask(void* param) {
         CompactWifiBoardLCD* board = static_cast<CompactWifiBoardLCD*>(param);
@@ -124,8 +157,25 @@ public:
             app.ToggleChatState();
         });
 
+        bool last_touch_state = false;
+        uint32_t last_touch_time = 0;
+        const uint32_t DEBOUNCE_TIME_MS = 1000; // 100ms防抖时间
+
+
         // 新增触摸按钮的处理
-        board->touch_button_.OnPressDown([board]() {
+        board->touch_button_.OnPressDown([board, &last_touch_time, &last_touch_state]() {
+            uint32_t current_time = esp_timer_get_time() / 1000; // 转换为毫秒
+    
+            // 如果距离上次触发时间太短，则忽略
+            if (current_time - last_touch_time < DEBOUNCE_TIME_MS && last_touch_state) {
+                return; // 防止重复触发
+            }
+            
+            last_touch_state = true;
+            last_touch_time = current_time;
+            
+            ESP_LOGI(TAG, "Touch button pressed");
+
             ESP_LOGI(TAG, "Touch button pressed");
             board->GetDisplay()->ShowNotification("Touch button pressed");
             auto& app = Application::GetInstance();
@@ -436,6 +486,9 @@ public:
         
         pwm_servo_ = &pwm_servo::GetInstance();//初始化舵机
 
+        // 启动触摸监控
+        Start_touch_monitor();
+
     }
 
     // virtual Led* GetLed() override {
@@ -515,5 +568,7 @@ public:
     return true;         // 返回true表示成功获取电池状态
     }
 };
+
+
 
 DECLARE_BOARD(CompactWifiBoardLCD);

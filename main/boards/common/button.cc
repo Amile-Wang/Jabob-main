@@ -41,6 +41,9 @@ Button::Button(gpio_num_t gpio_num, bool active_high, uint16_t long_press_time, 
 TouchButton::TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_press_time, uint16_t short_press_time) : Button(nullptr) {
     // 初始化触摸传感器
     touch_pad_init();
+    // 设置更多的充电放电时间，增加灵敏度
+    touch_pad_set_charge_discharge_times(0xFFFF);  // 最大充电放电次数
+    
     touch_pad_set_thresh((touch_pad_t)gpio_num, threshold);
     
     // 配置触摸传感器参数
@@ -59,6 +62,19 @@ TouchButton::TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_
     };
     ESP_ERROR_CHECK(iot_button_new_gpio_device(&button_config, &gpio_config, &button_handle_));
 }
+
+// 添加读取原始值的方法实现
+uint32_t TouchButton::read_raw_value() {
+    uint32_t raw_value = 0;
+    touch_pad_read_raw_data((touch_pad_t)gpio_num_, &raw_value);
+    return raw_value;
+}
+
+
+
+
+
+
 Button::~Button() {
     if (button_handle_ != NULL) {
         iot_button_delete(button_handle_);
@@ -69,13 +85,13 @@ void Button::OnPressDown(std::function<void()> callback) {
     if (button_handle_ == nullptr) {
         return;
     }
-    on_press_down_ = callback;
+    on_press_down_ = callback;// 存储回调函数
     iot_button_register_cb(button_handle_, BUTTON_PRESS_DOWN, nullptr, [](void* handle, void* usr_data) {
-        Button* button = static_cast<Button*>(usr_data);
-        if (button->on_press_down_) {
-            button->on_press_down_();
+        Button* button = static_cast<Button*>(usr_data);// 从用户数据获取Button实例
+        if (button->on_press_down_) {// 检查是否有回调函数
+            button->on_press_down_(); // 执行回调
         }
-    }, this);
+    }, this); // 传递this指针作为用户数据
 }
 
 void Button::OnPressUp(std::function<void()> callback) {
