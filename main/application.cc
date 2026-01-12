@@ -198,6 +198,7 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
     // 在状态栏显示激活码
     auto display = Board::GetInstance().GetDisplay();
     display->SetStatus(("激活码: " + code).c_str());
+    ESP_LOGI(TAG, "Activation code: %s", code.c_str());
 
     // This sentence uses 9KB of SRAM, so we need to wait for it to finish
     // Alert(Lang::Strings::ACTIVATION, message.c_str(), "happy", Lang::Sounds::P3_ACTIVATION);
@@ -1005,6 +1006,7 @@ void Application::SetAecMode(AecMode mode) {
         }
     });
 }
+
 
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);
