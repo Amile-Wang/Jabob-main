@@ -144,6 +144,14 @@ void McpServer::AddCommonTools() {
             // 关闭音频通道以确保可以进入睡眠模式
             app.SendMcpMessage("{\"method\":\"close_audio_channel\"}");
 
+            
+            // 关闭所有WebSocket连接以确保可以进入睡眠模式
+
+            if (app.GetDeviceState() != kDeviceStateIdle) {
+                app.CloseAudioChannel();
+            }
+            
+
             cJSON* root = cJSON_CreateObject();
             if (timer) {
                 app.SetDeviceState(kDeviceStateIdle);
