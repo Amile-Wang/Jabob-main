@@ -19,6 +19,12 @@ typedef enum {
     GIF_SHENMA,
     GIF_YAOTU,
     GIF_YUNLE,
+    GIF_CRY_ERROR,      // 新增：哭泣错误GIF
+    GIF_LISTEN,         // 新增：倾听GIF
+    GIF_NATURAL,        // 新增：自然GIF
+    GIF_SPEAK,          // 新增：说话GIF
+    GIF_SLEEP_TRANSPARENT, // 新增：睡眠透明GIF
+    GIF_COOL,              // 新增：酷GIF
     GIF_MAX
 } gif_id_t;
 

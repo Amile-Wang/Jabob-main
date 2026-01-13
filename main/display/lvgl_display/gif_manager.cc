@@ -29,6 +29,19 @@ extern const uint8_t yaotu_gif_end[]   asm("_binary_yaotu_gif_end");
 extern const uint8_t yunle_gif_start[] asm("_binary_yunle_gif_start");
 extern const uint8_t yunle_gif_end[]   asm("_binary_yunle_gif_end");
 
+// 新增GIF文件的外部符号引用 - 需要与文件名匹配
+extern const uint8_t Cry_Error_gif_start[] asm("_binary_Cry_Error_gif_start");
+extern const uint8_t Cry_Error_gif_end[]   asm("_binary_Cry_Error_gif_end");
+extern const uint8_t Listen_gif_start[] asm("_binary_Listen_gif_start");
+extern const uint8_t Listen_gif_end[]   asm("_binary_Listen_gif_end");
+extern const uint8_t Natrual_gif_start[] asm("_binary_Natrual_gif_start");
+extern const uint8_t Natrual_gif_end[]   asm("_binary_Natrual_gif_end");
+extern const uint8_t Speak_gif_start[] asm("_binary_Speak_gif_start");
+extern const uint8_t Speak_gif_end[]   asm("_binary_Speak_gif_end");
+extern const uint8_t Sleep_Transparent_gif_start[] asm("_binary_Sleep_Transparent_gif_start");
+extern const uint8_t Sleep_Transparent_gif_end[]   asm("_binary_Sleep_Transparent_gif_end");
+extern const uint8_t cool_gif_start[] asm("_binary_cool_gif_start");
+extern const uint8_t cool_gif_end[]   asm("_binary_cool_gif_end");
 static const char *TAG = "gif_manager";
 
 // GIF信息结构体
@@ -51,7 +64,13 @@ static gif_info_t gifs[GIF_MAX] = {
     {qingxing_gif_start, qingxing_gif_end, NULL, false}, // GIF_QINGXING
     {shenma_gif_start, shenma_gif_end, NULL, false},   // GIF_SHENMA
     {yaotu_gif_start, yaotu_gif_end, NULL, false},     // GIF_YAOTU
-    {yunle_gif_start, yunle_gif_end, NULL, false}      // GIF_YUNLE
+    {yunle_gif_start, yunle_gif_end, NULL, false},     // GIF_YUNLE
+    {Cry_Error_gif_start, Cry_Error_gif_end, NULL, false}, // GIF_CRY_ERROR
+    {Listen_gif_start, Listen_gif_end, NULL, false},       // GIF_LISTEN
+    {Natrual_gif_start, Natrual_gif_end, NULL, false},     // GIF_NATURAL
+    {Speak_gif_start, Speak_gif_end, NULL, false},          // GIF_SPEAK
+    {Sleep_Transparent_gif_start, Sleep_Transparent_gif_end, NULL, false}, // GIF_SLEEP_TRANSPARENT
+    {cool_gif_start, cool_gif_end, NULL, false} 
 };
 
 void gif_manager_init(void)
