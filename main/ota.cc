@@ -365,8 +365,32 @@ bool Ota::Upgrade(const std::string& firmware_url) {
         ESP_LOGE(TAG, "Failed to get firmware, status code: %d", http->GetStatusCode());
         return false;
     }
+    // 添加HEAD请求来获取content length
+    size_t content_length = 5000000;
+    // auto head_http = network->CreateHttp(0);
+    // if (head_http->Open("HEAD", firmware_url)) {
+    //     if (head_http->GetStatusCode() == 200) {
+    //         content_length = head_http->GetBodyLength();
+    //         ESP_LOGI(TAG, "Fetched content length: %zu", content_length);
+    //     } else {
+    //         ESP_LOGW(TAG, "HEAD request failed with status code: %d", head_http->GetStatusCode());
+    //     }
+    //     head_http->Close();
+    // } else {
+    //     ESP_LOGW(TAG, "Failed to create HEAD request for content length");
+    // }
 
-    size_t content_length = http->GetBodyLength();
+    // // 如果通过HEAD请求没有获取到长度，则尝试从GET请求中获取
+    // if (content_length == 0) {
+    //     content_length = http->GetBodyLength();
+    //     if (content_length > 0) {
+    //         ESP_LOGI(TAG, "Fallback: Got content length from GET request: %zu", content_length);
+    //     } else {
+    //         ESP_LOGW(TAG, "Could not determine content length, using default 5MB");
+    //         content_length = 5000000; // 默认值
+    //     }
+    // }
+    // size_t content_length = http->GetBodyLength();
     if (content_length == 0) {
         ESP_LOGE(TAG, "Failed to get content length");
         return false;
