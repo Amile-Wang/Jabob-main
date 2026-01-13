@@ -9,16 +9,16 @@
 // GIF ID枚举
 typedef enum {
     GIF_1,
-    GIF_JINGLE,
-    GIF_JINGXIA,
-    GIF_JINGXING,
-    GIF_MENGLE,
-    GIF_MINGBAI,
-    GIF_MINGBAILE,
-    GIF_QINGXING,
-    GIF_SHENMA,
-    GIF_YAOTU,
-    GIF_YUNLE,
+    // GIF_JINGLE,
+    // GIF_JINGXIA,
+    // GIF_JINGXING,
+    // GIF_MENGLE,
+    // GIF_MINGBAI,
+    // GIF_MINGBAILE,
+    // GIF_QINGXING,
+    // GIF_SHENMA,
+    // GIF_YAOTU,
+    // GIF_YUNLE,
     GIF_CRY_ERROR,      // 新增：哭泣错误GIF
     GIF_LISTEN,         // 新增：倾听GIF
     GIF_NATURAL,        // 新增：自然GIF

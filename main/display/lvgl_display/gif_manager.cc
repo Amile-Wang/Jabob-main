@@ -8,26 +8,26 @@
 // 嵌入的GIF图像数据 - 从assets/gif目录
 extern const uint8_t _1_gif_start[] asm("_binary_1_gif_start");
 extern const uint8_t _1_gif_end[]   asm("_binary_1_gif_end");
-extern const uint8_t jingle_gif_start[] asm("_binary_jingle_gif_start");
-extern const uint8_t jingle_gif_end[]   asm("_binary_jingle_gif_end");
-extern const uint8_t jingxia_gif_start[] asm("_binary_jingxia_gif_start");
-extern const uint8_t jingxia_gif_end[]   asm("_binary_jingxia_gif_end");
-extern const uint8_t jingxing_gif_start[] asm("_binary_jingxing_gif_start");
-extern const uint8_t jingxing_gif_end[]   asm("_binary_jingxing_gif_end");
-extern const uint8_t mengle_gif_start[] asm("_binary_mengle_gif_start");
-extern const uint8_t mengle_gif_end[]   asm("_binary_mengle_gif_end");
-extern const uint8_t mingbai_gif_start[] asm("_binary_mingbai_gif_start");
-extern const uint8_t mingbai_gif_end[]   asm("_binary_mingbai_gif_end");
-extern const uint8_t mingbaile_gif_start[] asm("_binary_mingbaile_gif_start");
-extern const uint8_t mingbaile_gif_end[]   asm("_binary_mingbaile_gif_end");
-extern const uint8_t qingxing_gif_start[] asm("_binary_qingxing_gif_start");
-extern const uint8_t qingxing_gif_end[]   asm("_binary_qingxing_gif_end");
-extern const uint8_t shenma_gif_start[] asm("_binary_shenma_gif_start");
-extern const uint8_t shenma_gif_end[]   asm("_binary_shenma_gif_end");
-extern const uint8_t yaotu_gif_start[] asm("_binary_yaotu_gif_start");
-extern const uint8_t yaotu_gif_end[]   asm("_binary_yaotu_gif_end");
-extern const uint8_t yunle_gif_start[] asm("_binary_yunle_gif_start");
-extern const uint8_t yunle_gif_end[]   asm("_binary_yunle_gif_end");
+// extern const uint8_t jingle_gif_start[] asm("_binary_jingle_gif_start");
+// extern const uint8_t jingle_gif_end[]   asm("_binary_jingle_gif_end");
+// extern const uint8_t jingxia_gif_start[] asm("_binary_jingxia_gif_start");
+// extern const uint8_t jingxia_gif_end[]   asm("_binary_jingxia_gif_end");
+// extern const uint8_t jingxing_gif_start[] asm("_binary_jingxing_gif_start");
+// extern const uint8_t jingxing_gif_end[]   asm("_binary_jingxing_gif_end");
+// extern const uint8_t mengle_gif_start[] asm("_binary_mengle_gif_start");
+// extern const uint8_t mengle_gif_end[]   asm("_binary_mengle_gif_end");
+// extern const uint8_t mingbai_gif_start[] asm("_binary_mingbai_gif_start");
+// extern const uint8_t mingbai_gif_end[]   asm("_binary_mingbai_gif_end");
+// extern const uint8_t mingbaile_gif_start[] asm("_binary_mingbaile_gif_start");
+// extern const uint8_t mingbaile_gif_end[]   asm("_binary_mingbaile_gif_end");
+// extern const uint8_t qingxing_gif_start[] asm("_binary_qingxing_gif_start");
+// extern const uint8_t qingxing_gif_end[]   asm("_binary_qingxing_gif_end");
+// extern const uint8_t shenma_gif_start[] asm("_binary_shenma_gif_start");
+// extern const uint8_t shenma_gif_end[]   asm("_binary_shenma_gif_end");
+// extern const uint8_t yaotu_gif_start[] asm("_binary_yaotu_gif_start");
+// extern const uint8_t yaotu_gif_end[]   asm("_binary_yaotu_gif_end");
+// extern const uint8_t yunle_gif_start[] asm("_binary_yunle_gif_start");
+// extern const uint8_t yunle_gif_end[]   asm("_binary_yunle_gif_end");
 
 // 新增GIF文件的外部符号引用 - 需要与文件名匹配
 extern const uint8_t Cry_Error_gif_start[] asm("_binary_Cry_Error_gif_start");
@@ -55,16 +55,16 @@ typedef struct {
 // GIF信息数组
 static gif_info_t gifs[GIF_MAX] = {
     {_1_gif_start, _1_gif_end, NULL, false},           // GIF_1
-    {jingle_gif_start, jingle_gif_end, NULL, false},   // GIF_JINGLE
-    {jingxia_gif_start, jingxia_gif_end, NULL, false}, // GIF_JINGXIA
-    {jingxing_gif_start, jingxing_gif_end, NULL, false}, // GIF_JINGXING
-    {mengle_gif_start, mengle_gif_end, NULL, false},   // GIF_MENGLE
-    {mingbai_gif_start, mingbai_gif_end, NULL, false}, // GIF_MINGBAI
-    {mingbaile_gif_start, mingbaile_gif_end, NULL, false}, // GIF_MINGBAILE
-    {qingxing_gif_start, qingxing_gif_end, NULL, false}, // GIF_QINGXING
-    {shenma_gif_start, shenma_gif_end, NULL, false},   // GIF_SHENMA
-    {yaotu_gif_start, yaotu_gif_end, NULL, false},     // GIF_YAOTU
-    {yunle_gif_start, yunle_gif_end, NULL, false},     // GIF_YUNLE
+    // {jingle_gif_start, jingle_gif_end, NULL, false},   // GIF_JINGLE
+    // {jingxia_gif_start, jingxia_gif_end, NULL, false}, // GIF_JINGXIA
+    // {jingxing_gif_start, jingxing_gif_end, NULL, false}, // GIF_JINGXING
+    // {mengle_gif_start, mengle_gif_end, NULL, false},   // GIF_MENGLE
+    // {mingbai_gif_start, mingbai_gif_end, NULL, false}, // GIF_MINGBAI
+    // {mingbaile_gif_start, mingbaile_gif_end, NULL, false}, // GIF_MINGBAILE
+    // {qingxing_gif_start, qingxing_gif_end, NULL, false}, // GIF_QINGXING
+    // {shenma_gif_start, shenma_gif_end, NULL, false},   // GIF_SHENMA
+    // {yaotu_gif_start, yaotu_gif_end, NULL, false},     // GIF_YAOTU
+    // {yunle_gif_start, yunle_gif_end, NULL, false},     // GIF_YUNLE
     {Cry_Error_gif_start, Cry_Error_gif_end, NULL, false}, // GIF_CRY_ERROR
     {Listen_gif_start, Listen_gif_end, NULL, false},       // GIF_LISTEN
     {Natrual_gif_start, Natrual_gif_end, NULL, false},     // GIF_NATURAL

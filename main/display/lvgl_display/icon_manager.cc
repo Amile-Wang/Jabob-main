@@ -11,112 +11,112 @@
 // 嵌入的PNG图像数据
 extern const uint8_t battery_png_start[] asm("_binary_battery_png_start");
 extern const uint8_t battery_png_end[]   asm("_binary_battery_png_end");
-extern const uint8_t battery_charging_png_start[] asm("_binary_battery_charging_png_start");
-extern const uint8_t battery_charging_png_end[]   asm("_binary_battery_charging_png_end");
-extern const uint8_t battery_full_png_start[] asm("_binary_battery_full_png_start");
-extern const uint8_t battery_full_png_end[]   asm("_binary_battery_full_png_end");
-extern const uint8_t battery_high_png_start[] asm("_binary_battery_high_png_start");
-extern const uint8_t battery_high_png_end[]   asm("_binary_battery_high_png_end");
-extern const uint8_t battery_low_png_start[] asm("_binary_battery_low_png_start");
-extern const uint8_t battery_low_png_end[]   asm("_binary_battery_low_png_end");
-extern const uint8_t battery_low_warning_png_start[] asm("_binary_battery_low_warning_png_start");
-extern const uint8_t battery_low_warning_png_end[]   asm("_binary_battery_low_warning_png_end");
-extern const uint8_t battery_mid_png_start[] asm("_binary_battery_mid_png_start");
-extern const uint8_t battery_mid_png_end[]   asm("_binary_battery_mid_png_end");
-extern const uint8_t battery_warning_png_start[] asm("_binary_battery_warning_png_start");
-extern const uint8_t battery_warning_png_end[]   asm("_binary_battery_warning_png_end");
-extern const uint8_t bluetooth_0_png_start[] asm("_binary_bluetooth_0_png_start");
-extern const uint8_t bluetooth_0_png_end[]   asm("_binary_bluetooth_0_png_end");
-extern const uint8_t bluetooth_1_png_start[] asm("_binary_bluetooth_1_png_start");
-extern const uint8_t bluetooth_1_png_end[]   asm("_binary_bluetooth_1_png_end");
-extern const uint8_t bluetooth_2_png_start[] asm("_binary_bluetooth_2_png_start");
-extern const uint8_t bluetooth_2_png_end[]   asm("_binary_bluetooth_2_png_end");
-extern const uint8_t bluetooth_L_png_start[] asm("_binary_bluetooth_L_png_start");
-extern const uint8_t bluetooth_L_png_end[]   asm("_binary_bluetooth_L_png_end");
-extern const uint8_t bluetooth_L_dark_png_start[] asm("_binary_bluetooth_L_dark_png_start");
-extern const uint8_t bluetooth_L_dark_png_end[]   asm("_binary_bluetooth_L_dark_png_end");
-extern const uint8_t bluetooth_S_png_start[] asm("_binary_bluetooth_S_png_start");
-extern const uint8_t bluetooth_S_png_end[]   asm("_binary_bluetooth_S_png_end");
-extern const uint8_t bluetooth_blue_png_start[] asm("_binary_bluetooth_blue_png_start");
-extern const uint8_t bluetooth_blue_png_end[]   asm("_binary_bluetooth_blue_png_end");
-extern const uint8_t bluetooth_blue2_png_start[] asm("_binary_bluetooth_blue2_png_start");
-extern const uint8_t bluetooth_blue2_png_end[]   asm("_binary_bluetooth_blue2_png_end");
-extern const uint8_t bluetooth_dark_png_start[] asm("_binary_bluetooth_dark_png_start");
-extern const uint8_t bluetooth_dark_png_end[]   asm("_binary_bluetooth_dark_png_end");
-extern const uint8_t bluetooth_off_png_start[] asm("_binary_bluetooth_off_png_start");
-extern const uint8_t bluetooth_off_png_end[]   asm("_binary_bluetooth_off_png_end");
-extern const uint8_t bluetooth_white_png_start[] asm("_binary_bluetooth_white_png_start");
-extern const uint8_t bluetooth_white_png_end[]   asm("_binary_bluetooth_white_png_end");
-extern const uint8_t calling_png_start[] asm("_binary_calling_png_start");
-extern const uint8_t calling_png_end[]   asm("_binary_calling_png_end");
-extern const uint8_t calling_green_png_start[] asm("_binary_calling_green_png_start");
-extern const uint8_t calling_green_png_end[]   asm("_binary_calling_green_png_end");
-extern const uint8_t careright_png_start[] asm("_binary_careright_png_start");
-extern const uint8_t careright_png_end[]   asm("_binary_careright_png_end");
-extern const uint8_t caretleft_png_start[] asm("_binary_caretleft_png_start");
-extern const uint8_t caretleft_png_end[]   asm("_binary_caretleft_png_end");
-extern const uint8_t checkcircle_png_start[] asm("_binary_checkcircle_png_start");
-extern const uint8_t checkcircle_png_end[]   asm("_binary_checkcircle_png_end");
-extern const uint8_t connected_png_start[] asm("_binary_connected_png_start");
-extern const uint8_t connected_png_end[]   asm("_binary_connected_png_end");
-extern const uint8_t cursor_png_start[] asm("_binary_cursor_png_start");
-extern const uint8_t cursor_png_end[]   asm("_binary_cursor_png_end");
-extern const uint8_t disconnected_png_start[] asm("_binary_disconnected_png_start");
-extern const uint8_t disconnected_png_end[]   asm("_binary_disconnected_png_end");
-extern const uint8_t dot_green_png_start[] asm("_binary_dot_green_png_start");
-extern const uint8_t dot_green_png_end[]   asm("_binary_dot_green_png_end");
-extern const uint8_t gray_png_start[] asm("_binary_gray_png_start");
-extern const uint8_t gray_png_end[]   asm("_binary_gray_png_end");
-extern const uint8_t lock_png_start[] asm("_binary_lock_png_start");
-extern const uint8_t lock_png_end[]   asm("_binary_lock_png_end");
-extern const uint8_t menu_png_start[] asm("_binary_menu_png_start");
-extern const uint8_t menu_png_end[]   asm("_binary_menu_png_end");
-extern const uint8_t menu_button_png_start[] asm("_binary_menu_button_png_start");
-extern const uint8_t menu_button_png_end[]   asm("_binary_menu_button_png_end");
-extern const uint8_t mic_png_start[] asm("_binary_mic_png_start");
-extern const uint8_t mic_png_end[]   asm("_binary_mic_png_end");
-extern const uint8_t mic_off_png_start[] asm("_binary_mic_off_png_start");
-extern const uint8_t mic_off_png_end[]   asm("_binary_mic_off_png_end");
-extern const uint8_t mic_on_png_start[] asm("_binary_mic_on_png_start");
-extern const uint8_t mic_on_png_end[]   asm("_binary_mic_on_png_end");
-extern const uint8_t phone_png_start[] asm("_binary_phone_png_start");
-extern const uint8_t phone_png_end[]   asm("_binary_phone_png_end");
-extern const uint8_t phonedisconnect_png_start[] asm("_binary_phonedisconnect_png_start");
-extern const uint8_t phonedisconnect_png_end[]   asm("_binary_phonedisconnect_png_end");
-extern const uint8_t phonedisconnect_dark_png_start[] asm("_binary_phonedisconnect_dark_png_start");
-extern const uint8_t phonedisconnect_dark_png_end[]   asm("_binary_phonedisconnect_dark_png_end");
-extern const uint8_t prohibit_png_start[] asm("_binary_prohibit_png_start");
-extern const uint8_t prohibit_png_end[]   asm("_binary_prohibit_png_end");
-extern const uint8_t select_png_start[] asm("_binary_select_png_start");
-extern const uint8_t select_png_end[]   asm("_binary_select_png_end");
-extern const uint8_t status_calling_png_start[] asm("_binary_status_calling_png_start");
-extern const uint8_t status_calling_png_end[]   asm("_binary_status_calling_png_end");
-extern const uint8_t status_idle_png_start[] asm("_binary_status_idle_png_start");
-extern const uint8_t status_idle_png_end[]   asm("_binary_status_idle_png_end");
-extern const uint8_t status_meeting_png_start[] asm("_binary_status_meeting_png_start");
-extern const uint8_t status_meeting_png_end[]   asm("_binary_status_meeting_png_end");
-extern const uint8_t status_music_png_start[] asm("_binary_status_music_png_start");
-extern const uint8_t status_music_png_end[]   asm("_binary_status_music_png_end");
-extern const uint8_t volume_high_png_start[] asm("_binary_volume_high_png_start");
-extern const uint8_t volume_high_png_end[]   asm("_binary_volume_high_png_end");
-extern const uint8_t volume_low_png_start[] asm("_binary_volume_low_png_start");
-extern const uint8_t volume_low_png_end[]   asm("_binary_volume_low_png_end");
-extern const uint8_t volume_mid_png_start[] asm("_binary_volume_mid_png_start");
-extern const uint8_t volume_mid_png_end[]   asm("_binary_volume_mid_png_end");
-extern const uint8_t volume_minus_png_start[] asm("_binary_volume_minus_png_start");
-extern const uint8_t volume_minus_png_end[]   asm("_binary_volume_minus_png_end");
-extern const uint8_t volume_mute_png_start[] asm("_binary_volume_mute_png_start");
-extern const uint8_t volume_mute_png_end[]   asm("_binary_volume_mute_png_end");
-extern const uint8_t volume_plus_png_start[] asm("_binary_volume_plus_png_start");
-extern const uint8_t volume_plus_png_end[]   asm("_binary_volume_plus_png_end");
-extern const uint8_t _1111_png_start[] asm("_binary_1111_png_start");
-extern const uint8_t _1111_png_end[]   asm("_binary_1111_png_end");
-extern const uint8_t anc_off_png_start[] asm("_binary_anc_off_png_start");
-extern const uint8_t anc_off_png_end[]   asm("_binary_anc_off_png_end");
-extern const uint8_t anc_on_png_start[] asm("_binary_anc_on_png_start");
-extern const uint8_t anc_on_png_end[]   asm("_binary_anc_on_png_end");
-extern const uint8_t settings_png_start[] asm("_binary_settings_png_start");
-extern const uint8_t settings_png_end[]   asm("_binary_settings_png_end");
+// extern const uint8_t battery_charging_png_start[] asm("_binary_battery_charging_png_start");
+// extern const uint8_t battery_charging_png_end[]   asm("_binary_battery_charging_png_end");
+// extern const uint8_t battery_full_png_start[] asm("_binary_battery_full_png_start");
+// extern const uint8_t battery_full_png_end[]   asm("_binary_battery_full_png_end");
+// extern const uint8_t battery_high_png_start[] asm("_binary_battery_high_png_start");
+// extern const uint8_t battery_high_png_end[]   asm("_binary_battery_high_png_end");
+// extern const uint8_t battery_low_png_start[] asm("_binary_battery_low_png_start");
+// extern const uint8_t battery_low_png_end[]   asm("_binary_battery_low_png_end");
+// extern const uint8_t battery_low_warning_png_start[] asm("_binary_battery_low_warning_png_start");
+// extern const uint8_t battery_low_warning_png_end[]   asm("_binary_battery_low_warning_png_end");
+// extern const uint8_t battery_mid_png_start[] asm("_binary_battery_mid_png_start");
+// extern const uint8_t battery_mid_png_end[]   asm("_binary_battery_mid_png_end");
+// extern const uint8_t battery_warning_png_start[] asm("_binary_battery_warning_png_start");
+// extern const uint8_t battery_warning_png_end[]   asm("_binary_battery_warning_png_end");
+// extern const uint8_t bluetooth_0_png_start[] asm("_binary_bluetooth_0_png_start");
+// extern const uint8_t bluetooth_0_png_end[]   asm("_binary_bluetooth_0_png_end");
+// extern const uint8_t bluetooth_1_png_start[] asm("_binary_bluetooth_1_png_start");
+// extern const uint8_t bluetooth_1_png_end[]   asm("_binary_bluetooth_1_png_end");
+// extern const uint8_t bluetooth_2_png_start[] asm("_binary_bluetooth_2_png_start");
+// extern const uint8_t bluetooth_2_png_end[]   asm("_binary_bluetooth_2_png_end");
+// extern const uint8_t bluetooth_L_png_start[] asm("_binary_bluetooth_L_png_start");
+// extern const uint8_t bluetooth_L_png_end[]   asm("_binary_bluetooth_L_png_end");
+// extern const uint8_t bluetooth_L_dark_png_start[] asm("_binary_bluetooth_L_dark_png_start");
+// extern const uint8_t bluetooth_L_dark_png_end[]   asm("_binary_bluetooth_L_dark_png_end");
+// extern const uint8_t bluetooth_S_png_start[] asm("_binary_bluetooth_S_png_start");
+// extern const uint8_t bluetooth_S_png_end[]   asm("_binary_bluetooth_S_png_end");
+// extern const uint8_t bluetooth_blue_png_start[] asm("_binary_bluetooth_blue_png_start");
+// extern const uint8_t bluetooth_blue_png_end[]   asm("_binary_bluetooth_blue_png_end");
+// extern const uint8_t bluetooth_blue2_png_start[] asm("_binary_bluetooth_blue2_png_start");
+// extern const uint8_t bluetooth_blue2_png_end[]   asm("_binary_bluetooth_blue2_png_end");
+// extern const uint8_t bluetooth_dark_png_start[] asm("_binary_bluetooth_dark_png_start");
+// extern const uint8_t bluetooth_dark_png_end[]   asm("_binary_bluetooth_dark_png_end");
+// extern const uint8_t bluetooth_off_png_start[] asm("_binary_bluetooth_off_png_start");
+// extern const uint8_t bluetooth_off_png_end[]   asm("_binary_bluetooth_off_png_end");
+// extern const uint8_t bluetooth_white_png_start[] asm("_binary_bluetooth_white_png_start");
+// extern const uint8_t bluetooth_white_png_end[]   asm("_binary_bluetooth_white_png_end");
+// extern const uint8_t calling_png_start[] asm("_binary_calling_png_start");
+// extern const uint8_t calling_png_end[]   asm("_binary_calling_png_end");
+// extern const uint8_t calling_green_png_start[] asm("_binary_calling_green_png_start");
+// extern const uint8_t calling_green_png_end[]   asm("_binary_calling_green_png_end");
+// extern const uint8_t careright_png_start[] asm("_binary_careright_png_start");
+// extern const uint8_t careright_png_end[]   asm("_binary_careright_png_end");
+// extern const uint8_t caretleft_png_start[] asm("_binary_caretleft_png_start");
+// extern const uint8_t caretleft_png_end[]   asm("_binary_caretleft_png_end");
+// extern const uint8_t checkcircle_png_start[] asm("_binary_checkcircle_png_start");
+// extern const uint8_t checkcircle_png_end[]   asm("_binary_checkcircle_png_end");
+// extern const uint8_t connected_png_start[] asm("_binary_connected_png_start");
+// extern const uint8_t connected_png_end[]   asm("_binary_connected_png_end");
+// extern const uint8_t cursor_png_start[] asm("_binary_cursor_png_start");
+// extern const uint8_t cursor_png_end[]   asm("_binary_cursor_png_end");
+// extern const uint8_t disconnected_png_start[] asm("_binary_disconnected_png_start");
+// extern const uint8_t disconnected_png_end[]   asm("_binary_disconnected_png_end");
+// extern const uint8_t dot_green_png_start[] asm("_binary_dot_green_png_start");
+// extern const uint8_t dot_green_png_end[]   asm("_binary_dot_green_png_end");
+// extern const uint8_t gray_png_start[] asm("_binary_gray_png_start");
+// extern const uint8_t gray_png_end[]   asm("_binary_gray_png_end");
+// extern const uint8_t lock_png_start[] asm("_binary_lock_png_start");
+// extern const uint8_t lock_png_end[]   asm("_binary_lock_png_end");
+// extern const uint8_t menu_png_start[] asm("_binary_menu_png_start");
+// extern const uint8_t menu_png_end[]   asm("_binary_menu_png_end");
+// extern const uint8_t menu_button_png_start[] asm("_binary_menu_button_png_start");
+// extern const uint8_t menu_button_png_end[]   asm("_binary_menu_button_png_end");
+// extern const uint8_t mic_png_start[] asm("_binary_mic_png_start");
+// extern const uint8_t mic_png_end[]   asm("_binary_mic_png_end");
+// extern const uint8_t mic_off_png_start[] asm("_binary_mic_off_png_start");
+// extern const uint8_t mic_off_png_end[]   asm("_binary_mic_off_png_end");
+// extern const uint8_t mic_on_png_start[] asm("_binary_mic_on_png_start");
+// extern const uint8_t mic_on_png_end[]   asm("_binary_mic_on_png_end");
+// extern const uint8_t phone_png_start[] asm("_binary_phone_png_start");
+// extern const uint8_t phone_png_end[]   asm("_binary_phone_png_end");
+// extern const uint8_t phonedisconnect_png_start[] asm("_binary_phonedisconnect_png_start");
+// extern const uint8_t phonedisconnect_png_end[]   asm("_binary_phonedisconnect_png_end");
+// extern const uint8_t phonedisconnect_dark_png_start[] asm("_binary_phonedisconnect_dark_png_start");
+// extern const uint8_t phonedisconnect_dark_png_end[]   asm("_binary_phonedisconnect_dark_png_end");
+// extern const uint8_t prohibit_png_start[] asm("_binary_prohibit_png_start");
+// extern const uint8_t prohibit_png_end[]   asm("_binary_prohibit_png_end");
+// extern const uint8_t select_png_start[] asm("_binary_select_png_start");
+// extern const uint8_t select_png_end[]   asm("_binary_select_png_end");
+// extern const uint8_t status_calling_png_start[] asm("_binary_status_calling_png_start");
+// extern const uint8_t status_calling_png_end[]   asm("_binary_status_calling_png_end");
+// extern const uint8_t status_idle_png_start[] asm("_binary_status_idle_png_start");
+// extern const uint8_t status_idle_png_end[]   asm("_binary_status_idle_png_end");
+// extern const uint8_t status_meeting_png_start[] asm("_binary_status_meeting_png_start");
+// extern const uint8_t status_meeting_png_end[]   asm("_binary_status_meeting_png_end");
+// extern const uint8_t status_music_png_start[] asm("_binary_status_music_png_start");
+// extern const uint8_t status_music_png_end[]   asm("_binary_status_music_png_end");
+// extern const uint8_t volume_high_png_start[] asm("_binary_volume_high_png_start");
+// extern const uint8_t volume_high_png_end[]   asm("_binary_volume_high_png_end");
+// extern const uint8_t volume_low_png_start[] asm("_binary_volume_low_png_start");
+// extern const uint8_t volume_low_png_end[]   asm("_binary_volume_low_png_end");
+// extern const uint8_t volume_mid_png_start[] asm("_binary_volume_mid_png_start");
+// extern const uint8_t volume_mid_png_end[]   asm("_binary_volume_mid_png_end");
+// extern const uint8_t volume_minus_png_start[] asm("_binary_volume_minus_png_start");
+// extern const uint8_t volume_minus_png_end[]   asm("_binary_volume_minus_png_end");
+// extern const uint8_t volume_mute_png_start[] asm("_binary_volume_mute_png_start");
+// extern const uint8_t volume_mute_png_end[]   asm("_binary_volume_mute_png_end");
+// extern const uint8_t volume_plus_png_start[] asm("_binary_volume_plus_png_start");
+// extern const uint8_t volume_plus_png_end[]   asm("_binary_volume_plus_png_end");
+// extern const uint8_t _1111_png_start[] asm("_binary_1111_png_start");
+// extern const uint8_t _1111_png_end[]   asm("_binary_1111_png_end");
+// extern const uint8_t anc_off_png_start[] asm("_binary_anc_off_png_start");
+// extern const uint8_t anc_off_png_end[]   asm("_binary_anc_off_png_end");
+// extern const uint8_t anc_on_png_start[] asm("_binary_anc_on_png_start");
+// extern const uint8_t anc_on_png_end[]   asm("_binary_anc_on_png_end");
+// extern const uint8_t settings_png_start[] asm("_binary_settings_png_start");
+// extern const uint8_t settings_png_end[]   asm("_binary_settings_png_end");
 
 
 static const char *TAG = "icon_manager";
@@ -132,60 +132,60 @@ typedef struct {
 // 图标信息数组
 static icon_info_t icons[ICON_MAX] = {
     {battery_png_start, battery_png_end, NULL, false},                           // ICON_BATTERY
-    {battery_charging_png_start, battery_charging_png_end, NULL, false},         // ICON_BATTERY_CHARGING
-    {battery_full_png_start, battery_full_png_end, NULL, false},                 // ICON_BATTERY_FULL
-    {battery_high_png_start, battery_high_png_end, NULL, false},                 // ICON_BATTERY_HIGH
-    {battery_low_png_start, battery_low_png_end, NULL, false},                   // ICON_BATTERY_LOW
-    {battery_low_warning_png_start, battery_low_warning_png_end, NULL, false},   // ICON_BATTERY_LOW_WARNING
-    {battery_mid_png_start, battery_mid_png_end, NULL, false},                   // ICON_BATTERY_MID
-    {battery_warning_png_start, battery_warning_png_end, NULL, false},           // ICON_BATTERY_WARNING
-    {bluetooth_0_png_start, bluetooth_0_png_end, NULL, false},                   // ICON_BLUETOOTH_0
-    {bluetooth_1_png_start, bluetooth_1_png_end, NULL, false},                   // ICON_BLUETOOTH_1
-    {bluetooth_L_png_start, bluetooth_L_png_end, NULL, false},                   // ICON_BLUETOOTH_L
-    {bluetooth_L_dark_png_start, bluetooth_L_dark_png_end, NULL, false},         // ICON_BLUETOOTH_L_DARK
-    {bluetooth_S_png_start, bluetooth_S_png_end, NULL, false},                   // ICON_BLUETOOTH_S
-    {bluetooth_blue_png_start, bluetooth_blue_png_end, NULL, false},             // ICON_BLUETOOTH_BLUE
-    {bluetooth_blue2_png_start, bluetooth_blue2_png_end, NULL, false},           // ICON_BLUETOOTH_BLUE2
-    {bluetooth_dark_png_start, bluetooth_dark_png_end, NULL, false},             // ICON_BLUETOOTH_DARK
-    {bluetooth_off_png_start, bluetooth_off_png_end, NULL, false},               // ICON_BLUETOOTH_OFF
-    {bluetooth_white_png_start, bluetooth_white_png_end, NULL, false},           // ICON_BLUETOOTH_WHITE
-    {calling_png_start, calling_png_end, NULL, false},                           // ICON_CALLING
-    {calling_green_png_start, calling_green_png_end, NULL, false},               // ICON_CALLING_GREEN
-    {careright_png_start, careright_png_end, NULL, false},                       // ICON_CARRIGHT
-    {caretleft_png_start, caretleft_png_end, NULL, false},                       // ICON_CARETLEFT
-    {checkcircle_png_start, checkcircle_png_end, NULL, false},                   // ICON_CHECKCIRCLE
-    {connected_png_start, connected_png_end, NULL, false},                       // ICON_CONNECTED
-    {cursor_png_start, cursor_png_end, NULL, false},                             // ICON_CURSOR
-    {disconnected_png_start, disconnected_png_end, NULL, false},                 // ICON_DISCONNECTED
-    {dot_green_png_start, dot_green_png_end, NULL, false},                       // ICON_DOT_GREEN
-    {gray_png_start, gray_png_end, NULL, false},                                 // ICON_GRAY
-    {lock_png_start, lock_png_end, NULL, false},                                 // ICON_LOCK
-    {menu_png_start, menu_png_end, NULL, false},                                 // ICON_MENU
-    {menu_button_png_start, menu_button_png_end, NULL, false},                   // ICON_MENU_BUTTON
-    {mic_png_start, mic_png_end, NULL, false},                                   // ICON_MIC
-    {mic_off_png_start, mic_off_png_end, NULL, false},                           // ICON_MIC_OFF
-    {mic_on_png_start, mic_on_png_end, NULL, false},                             // ICON_MIC_ON
-    {phone_png_start, phone_png_end, NULL, false},                               // ICON_PHONE
-    {phonedisconnect_png_start, phonedisconnect_png_end, NULL, false},           // ICON_PHONEDISCONNECT
-    {phonedisconnect_dark_png_start, phonedisconnect_dark_png_end, NULL, false}, // ICON_PHONE_DISCONNECT_DARK
-    {prohibit_png_start, prohibit_png_end, NULL, false},                         // ICON_PROHIBIT
-    {select_png_start, select_png_end, NULL, false},                             // ICON_SELECT
-    {status_calling_png_start, status_calling_png_end, NULL, false},             // ICON_STATUS_CALLING
-    {status_idle_png_start, status_idle_png_end, NULL, false},                   // ICON_STATUS_IDLE
-    {status_meeting_png_start, status_meeting_png_end, NULL, false},              // ICON_STATUS_MEETING
-    {status_music_png_start, status_music_png_end, NULL, false},                 // ICON_STATUS_MUSIC
-    {volume_high_png_start, volume_high_png_end, NULL, false},                   // ICON_VOLUME_HIGH
-    {volume_low_png_start, volume_low_png_end, NULL, false},                     // ICON_VOLUME_LOW
-    {volume_mid_png_start, volume_mid_png_end, NULL, false},                     // ICON_VOLUME_MID
-    {volume_minus_png_start, volume_minus_png_end, NULL, false},                 // ICON_VOLUME_MINUS
-    {volume_mute_png_start, volume_mute_png_end, NULL, false},                   // ICON_VOLUME_MUTE
-    {volume_plus_png_start, volume_plus_png_end, NULL, false},                   // ICON_VOLUME_PLUS
-    {_1111_png_start, _1111_png_end, NULL, false},                               // ICON_1111
-    {anc_off_png_start, anc_off_png_end, NULL, false},                           // ICON_ANC_OFF
-    {anc_on_png_start, anc_on_png_end, NULL, false},                             // ICON_ANC_ON
-    {mic_png_start, mic_png_end, NULL, false} ,                                   // ICON_MIC_PNG
-    {bluetooth_2_png_start, bluetooth_2_png_end, NULL, false},                   // ICON_BLUETOOTH_2
-    {settings_png_start, settings_png_end, NULL, false}                            // ICON_SETTINGS
+    // {battery_charging_png_start, battery_charging_png_end, NULL, false},         // ICON_BATTERY_CHARGING
+    // {battery_full_png_start, battery_full_png_end, NULL, false},                 // ICON_BATTERY_FULL
+    // {battery_high_png_start, battery_high_png_end, NULL, false},                 // ICON_BATTERY_HIGH
+    // {battery_low_png_start, battery_low_png_end, NULL, false},                   // ICON_BATTERY_LOW
+    // {battery_low_warning_png_start, battery_low_warning_png_end, NULL, false},   // ICON_BATTERY_LOW_WARNING
+    // {battery_mid_png_start, battery_mid_png_end, NULL, false},                   // ICON_BATTERY_MID
+    // {battery_warning_png_start, battery_warning_png_end, NULL, false},           // ICON_BATTERY_WARNING
+    // {bluetooth_0_png_start, bluetooth_0_png_end, NULL, false},                   // ICON_BLUETOOTH_0
+    // {bluetooth_1_png_start, bluetooth_1_png_end, NULL, false},                   // ICON_BLUETOOTH_1
+    // {bluetooth_L_png_start, bluetooth_L_png_end, NULL, false},                   // ICON_BLUETOOTH_L
+    // {bluetooth_L_dark_png_start, bluetooth_L_dark_png_end, NULL, false},         // ICON_BLUETOOTH_L_DARK
+    // {bluetooth_S_png_start, bluetooth_S_png_end, NULL, false},                   // ICON_BLUETOOTH_S
+    // {bluetooth_blue_png_start, bluetooth_blue_png_end, NULL, false},             // ICON_BLUETOOTH_BLUE
+    // {bluetooth_blue2_png_start, bluetooth_blue2_png_end, NULL, false},           // ICON_BLUETOOTH_BLUE2
+    // {bluetooth_dark_png_start, bluetooth_dark_png_end, NULL, false},             // ICON_BLUETOOTH_DARK
+    // {bluetooth_off_png_start, bluetooth_off_png_end, NULL, false},               // ICON_BLUETOOTH_OFF
+    // {bluetooth_white_png_start, bluetooth_white_png_end, NULL, false},           // ICON_BLUETOOTH_WHITE
+    // {calling_png_start, calling_png_end, NULL, false},                           // ICON_CALLING
+    // {calling_green_png_start, calling_green_png_end, NULL, false},               // ICON_CALLING_GREEN
+    // {careright_png_start, careright_png_end, NULL, false},                       // ICON_CARRIGHT
+    // {caretleft_png_start, caretleft_png_end, NULL, false},                       // ICON_CARETLEFT
+    // {checkcircle_png_start, checkcircle_png_end, NULL, false},                   // ICON_CHECKCIRCLE
+    // {connected_png_start, connected_png_end, NULL, false},                       // ICON_CONNECTED
+    // {cursor_png_start, cursor_png_end, NULL, false},                             // ICON_CURSOR
+    // {disconnected_png_start, disconnected_png_end, NULL, false},                 // ICON_DISCONNECTED
+    // {dot_green_png_start, dot_green_png_end, NULL, false},                       // ICON_DOT_GREEN
+    // {gray_png_start, gray_png_end, NULL, false},                                 // ICON_GRAY
+    // {lock_png_start, lock_png_end, NULL, false},                                 // ICON_LOCK
+    // {menu_png_start, menu_png_end, NULL, false},                                 // ICON_MENU
+    // {menu_button_png_start, menu_button_png_end, NULL, false},                   // ICON_MENU_BUTTON
+    // {mic_png_start, mic_png_end, NULL, false},                                   // ICON_MIC
+    // {mic_off_png_start, mic_off_png_end, NULL, false},                           // ICON_MIC_OFF
+    // {mic_on_png_start, mic_on_png_end, NULL, false},                             // ICON_MIC_ON
+    // {phone_png_start, phone_png_end, NULL, false},                               // ICON_PHONE
+    // {phonedisconnect_png_start, phonedisconnect_png_end, NULL, false},           // ICON_PHONEDISCONNECT
+    // {phonedisconnect_dark_png_start, phonedisconnect_dark_png_end, NULL, false}, // ICON_PHONE_DISCONNECT_DARK
+    // {prohibit_png_start, prohibit_png_end, NULL, false},                         // ICON_PROHIBIT
+    // {select_png_start, select_png_end, NULL, false},                             // ICON_SELECT
+    // {status_calling_png_start, status_calling_png_end, NULL, false},             // ICON_STATUS_CALLING
+    // {status_idle_png_start, status_idle_png_end, NULL, false},                   // ICON_STATUS_IDLE
+    // {status_meeting_png_start, status_meeting_png_end, NULL, false},              // ICON_STATUS_MEETING
+    // {status_music_png_start, status_music_png_end, NULL, false},                 // ICON_STATUS_MUSIC
+    // {volume_high_png_start, volume_high_png_end, NULL, false},                   // ICON_VOLUME_HIGH
+    // {volume_low_png_start, volume_low_png_end, NULL, false},                     // ICON_VOLUME_LOW
+    // {volume_mid_png_start, volume_mid_png_end, NULL, false},                     // ICON_VOLUME_MID
+    // {volume_minus_png_start, volume_minus_png_end, NULL, false},                 // ICON_VOLUME_MINUS
+    // {volume_mute_png_start, volume_mute_png_end, NULL, false},                   // ICON_VOLUME_MUTE
+    // {volume_plus_png_start, volume_plus_png_end, NULL, false},                   // ICON_VOLUME_PLUS
+    // {_1111_png_start, _1111_png_end, NULL, false},                               // ICON_1111
+    // {anc_off_png_start, anc_off_png_end, NULL, false},                           // ICON_ANC_OFF
+    // {anc_on_png_start, anc_on_png_end, NULL, false},                             // ICON_ANC_ON
+    // {mic_png_start, mic_png_end, NULL, false} ,                                   // ICON_MIC_PNG
+    // {bluetooth_2_png_start, bluetooth_2_png_end, NULL, false},                   // ICON_BLUETOOTH_2
+    // {settings_png_start, settings_png_end, NULL, false}                            // ICON_SETTINGS
 };
 
 

@@ -1090,12 +1090,12 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         {"thinking", GIF_LISTEN},    
         {"winking", GIF_NATURAL},      
         {"cool", GIF_COOL},            
-        {"relaxed", GIF_NATURAL},      
+        {"relaxed", GIF_SLEEP_TRANSPARENT},       
         {"delicious", GIF_1},  
         {"kissy", GIF_1},          
         {"confident", GIF_1},  
         {"sleepy", GIF_SLEEP_TRANSPARENT},        
-        {"silly", GIF_1},          
+        {"silly", GIF_SLEEP_TRANSPARENT},          
         {"confused", GIF_LISTEN}   
     };
     
