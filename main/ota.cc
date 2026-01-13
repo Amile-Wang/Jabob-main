@@ -365,8 +365,10 @@ bool Ota::Upgrade(const std::string& firmware_url) {
         ESP_LOGE(TAG, "Failed to get firmware, status code: %d", http->GetStatusCode());
         return false;
     }
+
+    size_t content_length = http->GetBodyLength();
     // 添加HEAD请求来获取content length
-    size_t content_length = 5000000;
+    content_length = 5000000;
     // auto head_http = network->CreateHttp(0);
     // if (head_http->Open("HEAD", firmware_url)) {
     //     if (head_http->GetStatusCode() == 200) {
@@ -390,7 +392,7 @@ bool Ota::Upgrade(const std::string& firmware_url) {
     //         content_length = 5000000; // 默认值
     //     }
     // }
-    // size_t content_length = http->GetBodyLength();
+    
     if (content_length == 0) {
         ESP_LOGE(TAG, "Failed to get content length");
         return false;
