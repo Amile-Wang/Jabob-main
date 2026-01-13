@@ -123,7 +123,7 @@ void Application::CheckNewVersion(Ota& ota) {
             bool upgrade_success = ota.StartUpgrade([display](int progress, size_t speed) {
                 char buffer[64];
                 snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
-                display->ShowNotification("system", buffer);
+                display->ShowNotification(buffer);
             });
 
             if (!upgrade_success) {
@@ -890,6 +890,14 @@ void Application::SetDeviceState(DeviceState state) {
             // Do nothing
             break;
     }
+}
+
+void Application::CloseAudioChannel() {
+    Schedule([this]() {
+        if (protocol_ && protocol_->IsAudioChannelOpened()) {
+            protocol_->CloseAudioChannel();
+        }
+    });
 }
 
 void Application::Reboot() {
