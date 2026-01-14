@@ -109,7 +109,7 @@ void CustomWakeWord::AudioDetectionTask() {
     auto feed_size = afe_iface_->get_feed_chunksize(afe_data_);
 
     // 初始化 multinet (命令词识别)
-    char *mn_name = esp_srmodel_filter(models, ESP_MN_PREFIX, ESP_MN_CHINESE);
+    char *mn_name = esp_srmodel_filter(models, ESP_MN_PREFIX, ESP_MN_ENGLISH);
     ESP_LOGI(TAG, "multinet:%s", mn_name);
     esp_mn_iface_t *multinet = esp_mn_handle_from_name(mn_name);
     model_iface_data_t *model_data = multinet->create(mn_name, 2000);  // 2秒超时
