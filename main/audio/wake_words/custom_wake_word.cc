@@ -109,11 +109,11 @@ void CustomWakeWord::AudioDetectionTask() {
     auto feed_size = afe_iface_->get_feed_chunksize(afe_data_);
 
     // 初始化 multinet (命令词识别)
-    char *mn_name = esp_srmodel_filter(models, ESP_MN_PREFIX, ESP_MN_ENGLISH);
+    char *mn_name = esp_srmodel_filter(models, ESP_MN_PREFIX, ESP_MN_CHINESE);
     ESP_LOGI(TAG, "multinet:%s", mn_name);
     esp_mn_iface_t *multinet = esp_mn_handle_from_name(mn_name);
     model_iface_data_t *model_data = multinet->create(mn_name, 2000);  // 2秒超时
-    multinet->set_det_threshold(model_data, 0.2);
+    multinet->set_det_threshold(model_data, 0.3);
     esp_mn_commands_clear();
     esp_mn_commands_add(1, CONFIG_CUSTOM_WAKE_WORD);  // 添加自定义唤醒词作为命令词
     esp_mn_commands_update();

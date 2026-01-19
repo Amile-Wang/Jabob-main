@@ -197,7 +197,7 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
 
     // 在状态栏显示激活码
     auto display = Board::GetInstance().GetDisplay();
-    display->SetStatus(("激活码: " + code).c_str());
+    display->SetStatus(("binding code: " + code).c_str());
     ESP_LOGI(TAG, "Activation code: %s", code.c_str());
 
     // This sentence uses 9KB of SRAM, so we need to wait for it to finish
@@ -707,7 +707,7 @@ void Application::OnWakeWordDetected() {
             {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
-                    std::ref(Lang::Sounds::P3_0)
+                    std::ref(Lang::Sounds::P3_3)
                 };
                 
                 // 生成随机索引并播放随机音效
@@ -754,10 +754,13 @@ void Application::OnWakeWordDetected() {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
-                    std::ref(Lang::Sounds::P3_0),
-                    // std::ref(Lang::Sounds::P3_5),
-                    // std::ref(Lang::Sounds::P3_6),
-                    // std::ref(Lang::Sounds::P3_7),
+                    // std::ref(Lang::Sounds::P3_1),//等等哦
+                    // std::ref(Lang::Sounds::P3_2), //在呢在呢
+                    std::ref(Lang::Sounds::P3_3), //嗯嗯
+                    // std::ref(Lang::Sounds::P3_4),//让我想想
+                    // std::ref(Lang::Sounds::P3_5),稍等哈
+                    // std::ref(Lang::Sounds::P3_6),//我听着呢
+                    // std::ref(Lang::Sounds::P3_7)
 
                 };
                 
@@ -853,12 +856,12 @@ void Application::SetDeviceState(DeviceState state) {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
-                    std::ref(Lang::Sounds::P3_1),
-                    std::ref(Lang::Sounds::P3_2),
-                    // std::ref(Lang::Sounds::P3_3),
-                    // std::ref(Lang::Sounds::P3_4),
-                    // std::ref(Lang::Sounds::P3_5),
-                    // std::ref(Lang::Sounds::P3_6),
+                    // std::ref(Lang::Sounds::P3_1),//等等哦
+                    // std::ref(Lang::Sounds::P3_2), //在呢在呢
+                    std::ref(Lang::Sounds::P3_3), //嗯嗯
+                    // std::ref(Lang::Sounds::P3_4),//让我想想
+                    // std::ref(Lang::Sounds::P3_5),稍等哈
+                    // std::ref(Lang::Sounds::P3_6),//我听着呢
                     // std::ref(Lang::Sounds::P3_7)
                 };
                 
