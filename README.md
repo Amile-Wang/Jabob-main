@@ -9,7 +9,8 @@
 ## 硬件平台
 
 - **主控芯片**: ESP32S3
-- **推荐开发板**: 多种面包板紧凑型开发板适配
+- **推荐开发板**: Kris 定制 JBB board 2代
+- **推荐bsp**:  bread-compact-wifi-lcd-tianhao
 - **外设支持**: 音频Codec、显示屏、LED指示灯、RFID等
 
 ## 项目结构
@@ -109,7 +110,7 @@ Jabob/
 - **bread-compact-ml307**: 支持ML307 4G模块
 - **bread-compact-wifi**: WiFi连接版本
 - **bread-compact-wifi-lcd**: WiFi+LCD版本
-- **bread-compact-wifi-lcd-tianhao**: 捷宝宝定制版本（带特殊电源管理）
+- **bread-compact-wifi-lcd-tianhao**: 捷宝宝定制版本
 - **bread-compact-wifi-s3cam**: 带摄像头的S3版本
 
 ## 开发指南
@@ -201,7 +202,7 @@ led_strip: LED灯带控制
 本项目采用MIT许可证。
 
 致谢
-感谢所有为本项目做出贡献的开发者和使用者，以及乐鑫（Espressif）提供的强大ESP32生态系统支持。
+感谢所有为本项目做出贡献的开发者和使用者、小智生态的贡献者，以及乐鑫（Espressif）提供的强大ESP32生态系统支持。
 
 联系方式
 如需技术支持或有相关问题，请通过GitHub Issues提交。
