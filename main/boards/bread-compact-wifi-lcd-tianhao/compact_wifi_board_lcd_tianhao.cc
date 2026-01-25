@@ -74,7 +74,7 @@ private:
     Button boot_button_;
     LcdDisplay* display_;
     pwm_servo* pwm_servo_;
-    // Button touch_button_;
+    TouchButton touch_button_;
     Button volume_up_button_;
     Button volume_down_button_;
     std::unique_ptr<PowerSaveTimer> power_save_timer_; 
@@ -83,12 +83,31 @@ private:
     std::unique_ptr<AdcBatteryMonitor> battery_monitor_;
 #endif
 
+   
+
+
 public:
     // 实现获取PowerSaveTimer的方法
     PowerSaveTimer* GetPowerSaveTimer() override { 
         return power_save_timer_.get(); 
     }
 
+    
+    void Start_touch_monitor() {
+    // 创建一个监控任务
+        xTaskCreate([](void* param) {
+            auto* board = static_cast<CompactWifiBoardLCD*>(param);
+            
+            while(1) {
+                uint32_t raw_value = board->touch_button_.read_raw_value();
+
+                ESP_LOGI(TAG, "TouchMonitor,Raw: %" PRIu32, raw_value);
+                // board->GetDisplay()->ShowNotification("Raw: " + std::to_string(raw_value));
+
+                vTaskDelay(pdMS_TO_TICKS(3500)); // 每500ms检查一次
+            }
+        }, "TouchMonitor", 2048, this, 5, NULL);
+    }
 
     static void InitializeButtonsTask(void* param) {
         CompactWifiBoardLCD* board = static_cast<CompactWifiBoardLCD*>(param);
@@ -118,13 +137,52 @@ public:
             ESP_LOGI(TAG, "Boot button pressed");
             board->GetDisplay()->ShowNotification("Boot button pressed");
             auto& app = Application::GetInstance();
+            
+            app.ToggleChatState();
+        });
+
+        // bool last_touch_state = false;
+        // uint32_t last_touch_time = 0;
+        // const uint32_t DEBOUNCE_TIME_MS = 1000; // 100ms防抖时间
+
+
+        // 新增触摸按钮的处理
+        // board->touch_button_.OnPressDown([board, &last_touch_time, &last_touch_state]() {
+        //     uint32_t current_time = esp_timer_get_time() / 1000; // 转换为毫秒
+    
+        //     // 如果距离上次触发时间太短，则忽略
+        //     if (current_time - last_touch_time < DEBOUNCE_TIME_MS && last_touch_state) {
+        //         return; // 防止重复触发
+        //     }
+            
+        //     last_touch_state = true;
+        //     last_touch_time = current_time;
+            
+        //     ESP_LOGI(TAG, "Touch button pressed");
+
+        //     ESP_LOGI(TAG, "Touch button pressed");
+        //     board->GetDisplay()->ShowNotification("Touch button pressed");
+        //     auto& app = Application::GetInstance();
+        //     app.ToggleChatState();
+        // });
+
+        board->touch_button_.OnTouch([board]() {
+            // 在中断回调中只记录日志，不执行复杂操作
+            ESP_DRAM_LOGI("TouchButton", "callback");
+            // CompactWifiBoardLCD* board = static_cast<CompactWifiBoardLCD*>(pvTimerGetTimerID(xTimer));
+        
+            printf("触摸事件被触发了！\n");
+            ESP_LOGI(TAG, "Touch button pressed");
+            
+            // 在安全的上下文中执行复杂操作
+            board->GetDisplay()->ShowNotification("Touch button pressed");
+            auto& app = Application::GetInstance();
             if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
                 board->ResetWifiConfiguration();
             }
             app.ToggleChatState();
         });
 
-        
 // 只有当按钮指针不为空时才注册回调
         // if (board->volume_up_button_) {
             board->volume_up_button_.OnClick([board]() {
@@ -226,16 +284,11 @@ public:
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif
         display_ = new SpiLcdDisplay(panel_io, panel,
-                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, DISPLAY_SWAP_XY,
-                                    {
-                                        .text_font = &font_puhui_16_4,
-                                        .icon_font = &font_awesome_16_4,
-#if CONFIG_USE_WECHAT_MESSAGE_STYLE
-                                        .emoji_font = font_emoji_32_init(),
-#else
-                                        .emoji_font = DISPLAY_HEIGHT >= 240 ? font_emoji_64_init() : font_emoji_32_init(),
-#endif
-                                    });
+                                    DISPLAY_WIDTH, DISPLAY_HEIGHT, 
+                                    DISPLAY_OFFSET_X, DISPLAY_OFFSET_Y,
+                                    DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y, 
+                                    DISPLAY_SWAP_XY
+        );
     }
 
 
@@ -298,12 +351,15 @@ public:
 public:
     CompactWifiBoardLCD() :
         boot_button_(BOOT_BUTTON_GPIO),
-        // touch_button_(TOUCH_BUTTON_GPIO), 
+        touch_button_(TOUCH_BUTTON_GPIO, TOUCH_BUTTON_THRESHOLD), 
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO)
         {
         InitializeSpi();
+
         InitializeLcdDisplay();
+
+        // gpio_set_level(AUDIO_I2S_PDM_MIC_GPIO_LR, 1);
 
 #ifdef BATTERY_ADC_UNIT
         // 初始化电池监控器（需要在config.h中定义相关参数）
@@ -408,12 +464,31 @@ public:
             ESP_ERROR_CHECK(gpio_set_level(SPK_GPIO_POWERSAVE, 1));
         }
 
+        // 初始化扬声器电源控制引脚，防止悬空导致扬声器电源被切断
+        if (AUDIO_I2S_PDM_MIC_GPIO_LR != GPIO_NUM_NC) {
+            gpio_config_t spk_power_save_cfg = {};
+            spk_power_save_cfg.pin_bit_mask = BIT64(AUDIO_I2S_PDM_MIC_GPIO_LR);
+            spk_power_save_cfg.mode = GPIO_MODE_OUTPUT;
+            spk_power_save_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
+            spk_power_save_cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
+            spk_power_save_cfg.intr_type = GPIO_INTR_DISABLE;
+            ESP_ERROR_CHECK(gpio_config(&spk_power_save_cfg));
+            
+            // 将引脚设置为高电平，确保扬声器电源正常供电
+            ESP_ERROR_CHECK(gpio_set_level(AUDIO_I2S_PDM_MIC_GPIO_LR, 1));
+        }
+
         
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
-            GetBacklight()->RestoreBrightness();
+            // GetBacklight()->RestoreBrightness();
+            GetBacklight()->SetBrightness(50, true); 
         }
         
         pwm_servo_ = &pwm_servo::GetInstance();//初始化舵机
+
+        // 启动触摸监控
+        Start_touch_monitor();
+        
 
     }
 
@@ -430,6 +505,16 @@ public:
 #ifdef AUDIO_I2S_METHOD_SIMPLEX
         static NoAudioCodecSimplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, AUDIO_I2S_MIC_GPIO_SCK, AUDIO_I2S_MIC_GPIO_WS, AUDIO_I2S_MIC_GPIO_DIN);
+#elif defined(AUDIO_I2S_METHOD_SIMPLEX_PDM)
+        static NoAudioCodecSimplexPdm audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, 
+            AUDIO_I2S_PDM_MIC_GPIO_SCK, AUDIO_I2S_PDM_MIC_GPIO_DIN);
+#elif defined(AUDIO_I2S_METHOD_SIMPLEX_I2S_PDM)
+        // gpio_set_level(AUDIO_I2S_PDM_MIC_GPIO_LR, 1);
+
+        static NoAudioCodecSimplexI2sPdm audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
+            AUDIO_I2S_SPK_GPIO_BCLK, AUDIO_I2S_SPK_GPIO_LRCK, AUDIO_I2S_SPK_GPIO_DOUT, 
+            AUDIO_I2S_PDM_MIC_GPIO_SCK, AUDIO_I2S_PDM_MIC_GPIO_DIN);
 #else
         static NoAudioCodecDuplex audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE,
             AUDIO_I2S_GPIO_BCLK, AUDIO_I2S_GPIO_WS, AUDIO_I2S_GPIO_DOUT, AUDIO_I2S_GPIO_DIN);
@@ -484,5 +569,9 @@ public:
     return true;         // 返回true表示成功获取电池状态
     }
 };
+
+
+
+
 
 DECLARE_BOARD(CompactWifiBoardLCD);

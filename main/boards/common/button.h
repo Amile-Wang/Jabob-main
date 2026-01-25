@@ -7,6 +7,11 @@
 #include <button_adc.h>
 #include <button_gpio.h>
 #include <functional>
+#include "freertos/FreeRTOS.h"  // 需要先包含 FreeRTOS.h
+#include "freertos/queue.h"     // 然后才能包含 queue.h
+#include "freertos/task.h"      // 和 task.h
+#include "driver/touch_pad.h"   // 添加触摸传感器头文件
+
 
 class Button {
 public:
@@ -39,6 +44,30 @@ public:
     AdcButton(const button_adc_config_t& adc_config);
 };
 #endif
+
+// TouchButton不再继承自Button类，而是独立的类
+class TouchButton {
+public:
+    TouchButton(gpio_num_t gpio_num, uint16_t threshold, uint16_t long_press_time = 0, uint16_t short_press_time = 0);
+    ~TouchButton();  // 添加析构函数清理资源
+    void OnTouch(std::function<void()> callback);  // 添加OnTouch方法声明   
+    
+    uint32_t read_raw_value();  // 添加读取原始值的方法
+    uint32_t read_stable_raw_value(int attempts = 5); // 添加读取稳定值的方法
+
+private:
+    gpio_num_t gpio_num_;
+    std::function<void()> on_touch_;  // 添加on_touch_成员变量
+    static void touch_isr_handler(void* arg);  // 确保这个是静态函数
+    uint16_t long_press_time_;
+    uint16_t short_press_time_;
+    bool is_initialized_;
+
+    // 添加一个队列用于在中断和任务之间通信
+    static QueueHandle_t touch_evt_queue_;
+    static TaskHandle_t touch_event_task_handle_;
+    static void touch_event_task(void* param);  // 处理触摸事件的任务
+};
 
 class PowerSaveButton : public Button {
 public:

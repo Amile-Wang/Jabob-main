@@ -32,4 +32,11 @@ public:
     int Read(int16_t* dest, int samples);
 };
 
+// 新增类，同时支持I2S扬声器输出和PDM麦克风输入
+class NoAudioCodecSimplexI2sPdm : public NoAudioCodec {
+public:
+    NoAudioCodecSimplexI2sPdm(int input_sample_rate, int output_sample_rate, gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout, gpio_num_t mic_sck, gpio_num_t mic_din);
+    int Read(int16_t* dest, int samples) override;
+};
+
 #endif // _NO_AUDIO_CODEC_H

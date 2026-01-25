@@ -106,13 +106,13 @@ void Application::CheckNewVersion(Ota& ota) {
         retry_delay = 10; // 重置重试延迟时间
 
         if (ota.HasNewVersion()) {
-            Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "happy", Lang::Sounds::P3_UPGRADE);
+            // Alert(Lang::Strings::OTA_UPGRADE, Lang::Strings::UPGRADING, "happy", Lang::Sounds::P3_UPGRADE);
 
             vTaskDelay(pdMS_TO_TICKS(3000));
 
             SetDeviceState(kDeviceStateUpgrading);
-            
-            display->SetIcon(FONT_AWESOME_DOWNLOAD);
+
+            display->SetEmotion("cool");
             std::string message = std::string(Lang::Strings::NEW_VERSION) + ota.GetFirmwareVersion();
             display->SetChatMessage("system", message.c_str());
 
@@ -123,7 +123,7 @@ void Application::CheckNewVersion(Ota& ota) {
             bool upgrade_success = ota.StartUpgrade([display](int progress, size_t speed) {
                 char buffer[64];
                 snprintf(buffer, sizeof(buffer), "%d%% %uKB/s", progress, speed / 1024);
-                display->SetChatMessage("system", buffer);
+                display->ShowNotification(buffer);
             });
 
             if (!upgrade_success) {
@@ -152,7 +152,7 @@ void Application::CheckNewVersion(Ota& ota) {
             break;
         }
 
-        display->SetStatus(Lang::Strings::ACTIVATION);
+        // display->SetStatus(Lang::Strings::ACTIVATION);
         // Activation code is shown to the user and waiting for the user to input
         if (ota.HasActivationCode()) {
             ShowActivationCode(ota.GetActivationCode(), ota.GetActivationMessage());
@@ -195,16 +195,21 @@ void Application::ShowActivationCode(const std::string& code, const std::string&
         digit_sound{'9', Lang::Sounds::P3_9}
     }};
 
-    // This sentence uses 9KB of SRAM, so we need to wait for it to finish
-    Alert(Lang::Strings::ACTIVATION, message.c_str(), "happy", Lang::Sounds::P3_ACTIVATION);
+    // 在状态栏显示激活码
+    auto display = Board::GetInstance().GetDisplay();
+    display->SetStatus(("binding code: " + code).c_str());
+    ESP_LOGI(TAG, "Activation code: %s", code.c_str());
 
-    for (const auto& digit : code) {
-        auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
-            [digit](const digit_sound& ds) { return ds.digit == digit; });
-        if (it != digit_sounds.end()) {
-            audio_service_.PlaySound(it->sound);
-        }
-    }
+    // This sentence uses 9KB of SRAM, so we need to wait for it to finish
+    // Alert(Lang::Strings::ACTIVATION, message.c_str(), "happy", Lang::Sounds::P3_ACTIVATION);
+
+    // for (const auto& digit : code) {
+    //     auto it = std::find_if(digit_sounds.begin(), digit_sounds.end(),
+    //         [digit](const digit_sound& ds) { return ds.digit == digit; });
+    //     if (it != digit_sounds.end()) {
+    //         audio_service_.PlaySound(it->sound);
+    //     }
+    // }
 }
 
 void Application::Alert(const char* status, const char* message, const char* emotion, const std::string_view& sound) {
@@ -408,7 +413,7 @@ void Application::Start() {
 
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
-    codec->SetOutputVolume(20);  // 初始化音量为10%
+    codec->SetOutputVolume(75);  // 初始化音量为10%
     // audio_service_.Initialize(codec);
     audio_service_.Initialize(codec);
     audio_service_.Start();
@@ -549,6 +554,7 @@ void Application::Start() {
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
+            ESP_LOGI(TAG, "Emotion: %s", emotion->valuestring);
             if (cJSON_IsString(emotion)) {
                 Schedule([this, display, pwm_servo, emotion_str = std::string(emotion->valuestring)]() {
                     display->SetEmotion(emotion_str.c_str());
@@ -701,7 +707,7 @@ void Application::OnWakeWordDetected() {
             {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
-                    std::ref(Lang::Sounds::P3_0)
+                    std::ref(Lang::Sounds::P3_3)
                 };
                 
                 // 生成随机索引并播放随机音效
@@ -748,10 +754,13 @@ void Application::OnWakeWordDetected() {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
-                    std::ref(Lang::Sounds::P3_0),
-                    // std::ref(Lang::Sounds::P3_5),
-                    // std::ref(Lang::Sounds::P3_6),
-                    // std::ref(Lang::Sounds::P3_7),
+                    // std::ref(Lang::Sounds::P3_1),//等等哦
+                    // std::ref(Lang::Sounds::P3_2), //在呢在呢
+                    std::ref(Lang::Sounds::P3_3), //嗯嗯
+                    // std::ref(Lang::Sounds::P3_4),//让我想想
+                    // std::ref(Lang::Sounds::P3_5),稍等哈
+                    // std::ref(Lang::Sounds::P3_6),//我听着呢
+                    // std::ref(Lang::Sounds::P3_7)
 
                 };
                 
@@ -847,13 +856,13 @@ void Application::SetDeviceState(DeviceState state) {
                 // 定义可用的音效数组
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
-                    std::ref(Lang::Sounds::P3_1),
-                    std::ref(Lang::Sounds::P3_2),
-                    std::ref(Lang::Sounds::P3_3),
-                    std::ref(Lang::Sounds::P3_4),
-                    std::ref(Lang::Sounds::P3_5),
-                    std::ref(Lang::Sounds::P3_6),
-                    std::ref(Lang::Sounds::P3_7)
+                    // std::ref(Lang::Sounds::P3_1),//等等哦
+                    // std::ref(Lang::Sounds::P3_2), //在呢在呢
+                    std::ref(Lang::Sounds::P3_3), //嗯嗯
+                    // std::ref(Lang::Sounds::P3_4),//让我想想
+                    // std::ref(Lang::Sounds::P3_5),稍等哈
+                    // std::ref(Lang::Sounds::P3_6),//我听着呢
+                    // std::ref(Lang::Sounds::P3_7)
                 };
                 
                 // 生成随机索引并播放随机音效
@@ -884,6 +893,14 @@ void Application::SetDeviceState(DeviceState state) {
             // Do nothing
             break;
     }
+}
+
+void Application::CloseAudioChannel() {
+    Schedule([this]() {
+        if (protocol_ && protocol_->IsAudioChannelOpened()) {
+            protocol_->CloseAudioChannel();
+        }
+    });
 }
 
 void Application::Reboot() {
@@ -1000,6 +1017,7 @@ void Application::SetAecMode(AecMode mode) {
         }
     });
 }
+
 
 void Application::PlaySound(const std::string_view& sound) {
     audio_service_.PlaySound(sound);

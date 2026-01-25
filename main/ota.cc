@@ -64,6 +64,33 @@ std::unique_ptr<Http> Ota::SetupHttp() {
     http->SetHeader("User-Agent", std::string(BOARD_NAME "/") + app_desc->version);
     http->SetHeader("Accept-Language", Lang::CODE);
     http->SetHeader("Content-Type", "application/json");
+    // Log all HTTP-related info (headers and potential body)
+    std::ostringstream headers_log;
+    headers_log << "HTTP headers: ";
+    headers_log << "Activation-Version=" << (has_serial_number_ ? "2" : "1") << ", ";
+    headers_log << "Device-Id=" << SystemInfo::GetMacAddress() << ", ";
+    headers_log << "Client-Id=" << board.GetUuid();
+    if (has_serial_number_) {
+        headers_log << ", Serial-Number=" << serial_number_;
+    }
+    headers_log << ", User-Agent=" << (std::string(BOARD_NAME "/") + app_desc->version);
+    headers_log << ", Accept-Language=" << Lang::CODE;
+    headers_log << ", Content-Type=application/json";
+    ESP_LOGI(TAG, "%s", headers_log.str().c_str());
+
+    // If there is a default JSON payload from board, log a preview
+    std::string preview = board.GetJson();
+    if (!preview.empty()) {
+        // limit preview length to avoid huge logs
+        const size_t max_preview = 4096;
+        if (preview.size() > max_preview) {
+            ESP_LOGI(TAG, "HTTP body (preview, %u bytes shown of %u): %s", (unsigned)max_preview, (unsigned)preview.size(), preview.substr(0, max_preview).c_str());
+        } else {
+            ESP_LOGI(TAG, "HTTP body: %s", preview.c_str());
+        }
+    } else {
+        ESP_LOGI(TAG, "HTTP body: (empty)");
+    }
 
     return http;
 }
@@ -136,6 +163,8 @@ bool Ota::CheckVersion() {
         }
 
         data_response = http->ReadAll();
+
+        ESP_LOGI(TAG, "Response: %s", data_response.c_str());
         http->Close();
         return true;
     };
@@ -338,6 +367,32 @@ bool Ota::Upgrade(const std::string& firmware_url) {
     }
 
     size_t content_length = http->GetBodyLength();
+    // 添加HEAD请求来获取content length
+    content_length = 5000000;
+    // auto head_http = network->CreateHttp(0);
+    // if (head_http->Open("HEAD", firmware_url)) {
+    //     if (head_http->GetStatusCode() == 200) {
+    //         content_length = head_http->GetBodyLength();
+    //         ESP_LOGI(TAG, "Fetched content length: %zu", content_length);
+    //     } else {
+    //         ESP_LOGW(TAG, "HEAD request failed with status code: %d", head_http->GetStatusCode());
+    //     }
+    //     head_http->Close();
+    // } else {
+    //     ESP_LOGW(TAG, "Failed to create HEAD request for content length");
+    // }
+
+    // // 如果通过HEAD请求没有获取到长度，则尝试从GET请求中获取
+    // if (content_length == 0) {
+    //     content_length = http->GetBodyLength();
+    //     if (content_length > 0) {
+    //         ESP_LOGI(TAG, "Fallback: Got content length from GET request: %zu", content_length);
+    //     } else {
+    //         ESP_LOGW(TAG, "Could not determine content length, using default 5MB");
+    //         content_length = 5000000; // 默认值
+    //     }
+    // }
+    
     if (content_length == 0) {
         ESP_LOGE(TAG, "Failed to get content length");
         return false;
@@ -522,7 +577,8 @@ esp_err_t Ota::Activate() {
         ESP_LOGE(TAG, "Failed to activate, code: %d, body: %s", status_code, http->ReadAll().c_str());
         return ESP_FAIL;
     }
-
+    // 输出http的响应
+    ESP_LOGI(TAG, "Response: %s", http->ReadAll().c_str());
     ESP_LOGI(TAG, "Activation successful");
     return ESP_OK;
 }

@@ -13,7 +13,14 @@ set(SOURCES "audio/audio_codec.cc"
             "led/gpio_led.cc"
             "display/display.cc"
             "display/lcd_display.cc"
-            "display/oled_display.cc"
+            "display/lvgl_display/icon_manager.cc"
+            "display/lvgl_display/gif_manager.cc"
+            "display/lvgl_display/emoji_collection.cc"
+            "display/lvgl_display/lvgl_display.cc"
+            "display/lvgl_display/lvgl_font.cc"
+            "display/lvgl_display/lvgl_image.cc"
+            "display/lvgl_display/lvgl_theme.cc"
+            "display/lvgl_display/gif/lvgl_gif.cc"
             "protocols/protocol.cc"
             "protocols/mqtt_protocol.cc"
             "protocols/websocket_protocol.cc"
@@ -28,7 +35,7 @@ set(SOURCES "audio/audio_codec.cc"
             
             )
 
-set(INCLUDE_DIRS "." "display" "audio" "protocols")
+set(INCLUDE_DIRS "." "display" "audio" "protocols" "display/lvgl_display")
 
 # 添加板级公共文件
 file(GLOB BOARD_COMMON_SOURCES ${CMAKE_CURRENT_SOURCE_DIR}/boards/common/*.cc)
@@ -254,6 +261,8 @@ set(LANG_JSON "${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/language.json")
 set(LANG_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/assets/lang_config.h")
 file(GLOB LANG_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/${LANG_DIR}/*.p3)
 file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
+file(GLOB IMAGES ${CMAKE_CURRENT_SOURCE_DIR}/assets/images/*.png)
+file(GLOB GIFS ${CMAKE_CURRENT_SOURCE_DIR}/assets/gif/*.gif)
 
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
@@ -264,7 +273,7 @@ if(CONFIG_IDF_TARGET_ESP32)
 endif()
 
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS}
+                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${IMAGES} ${GIFS}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     )

@@ -96,18 +96,18 @@ void McpServer::AddCommonTools() {
             });
     }
 
-    auto display = board.GetDisplay();
-    if (display && !display->GetTheme().empty()) {
-        AddTool("self.screen.set_theme",
-            "Set the theme of the screen. The theme can be `light` or `dark`.",
-            PropertyList({
-                Property("theme", kPropertyTypeString)
-            }),
-            [display](const PropertyList& properties) -> ReturnValue {
-                display->SetTheme(properties["theme"].value<std::string>().c_str());
-                return true;
-            });
-    }
+    // auto display = board.GetDisplay();
+    // if (display && !display->GetTheme().empty()) {
+    //     AddTool("self.screen.set_theme",
+    //         "Set the theme of the screen. The theme can be `light` or `dark`.",
+    //         PropertyList({
+    //             Property("theme", kPropertyTypeString)
+    //         }),
+    //         [display](const PropertyList& properties) -> ReturnValue {
+    //             display->SetTheme(properties["theme"].value<std::string>().c_str());
+    //             return true;
+    //         });
+    // }
 
     auto camera = board.GetCamera();
     if (camera) {
@@ -143,6 +143,14 @@ void McpServer::AddCommonTools() {
             
             // 关闭音频通道以确保可以进入睡眠模式
             app.SendMcpMessage("{\"method\":\"close_audio_channel\"}");
+
+            
+            // 关闭所有WebSocket连接以确保可以进入睡眠模式
+
+            if (app.GetDeviceState() != kDeviceStateIdle) {
+                app.CloseAudioChannel();
+            }
+            
 
             cJSON* root = cJSON_CreateObject();
             if (timer) {

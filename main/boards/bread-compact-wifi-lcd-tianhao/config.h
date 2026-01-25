@@ -6,10 +6,18 @@
 #define AUDIO_INPUT_SAMPLE_RATE  16000
 #define AUDIO_OUTPUT_SAMPLE_RATE 24000
 
-// 如果使用 Duplex I2S 模式，请注释下面一行
+// 使用sdkconfig中的选项而不是硬编码定义
+#ifdef CONFIG_AUDIO_I2S_METHOD_SIMPLEX
 #define AUDIO_I2S_METHOD_SIMPLEX
+#elif defined(CONFIG_AUDIO_I2S_METHOD_SIMPLEX_PDM)
+#define AUDIO_I2S_METHOD_SIMPLEX_PDM
+#elif defined(CONFIG_AUDIO_I2S_METHOD_SIMPLEX_I2S_PDM)
+#define AUDIO_I2S_METHOD_SIMPLEX_I2S_PDM
+#endif
 
-#ifdef AUDIO_I2S_METHOD_SIMPLEX
+
+
+#ifdef AUDIO_I2S_METHOD_SIMPLEX 
 
 
 
@@ -21,6 +29,26 @@
 #define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16
 #define SPK_GPIO_POWERSAVE      GPIO_NUM_8
 
+#elif defined (AUDIO_I2S_METHOD_SIMPLEX_PDM)
+
+// #define AUDIO_I2S_MIC_GPIO_WS   GPIO_NUM_4
+#define AUDIO_I2S_MIC_GPIO_SCK  GPIO_NUM_9
+#define AUDIO_I2S_MIC_GPIO_DIN  GPIO_NUM_10
+#define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_7
+#define AUDIO_I2S_SPK_GPIO_BCLK GPIO_NUM_15
+#define AUDIO_I2S_SPK_GPIO_LRCK GPIO_NUM_16
+#define SPK_GPIO_POWERSAVE      GPIO_NUM_8
+
+
+#elif defined (AUDIO_I2S_METHOD_SIMPLEX_I2S_PDM)
+// PDM麦克风配置
+#define AUDIO_I2S_PDM_MIC_GPIO_SCK      GPIO_NUM_5
+#define AUDIO_I2S_PDM_MIC_GPIO_DIN      GPIO_NUM_6
+#define AUDIO_I2S_PDM_MIC_GPIO_LR       GPIO_NUM_4
+#define AUDIO_I2S_SPK_GPIO_DOUT         GPIO_NUM_7
+#define AUDIO_I2S_SPK_GPIO_BCLK         GPIO_NUM_15
+#define AUDIO_I2S_SPK_GPIO_LRCK         GPIO_NUM_16
+#define SPK_GPIO_POWERSAVE              GPIO_NUM_8
 
 #else
 
@@ -40,7 +68,8 @@
 
 #define BUILTIN_LED_GPIO        GPIO_NUM_48
 #define BOOT_BUTTON_GPIO        GPIO_NUM_0
-#define TOUCH_BUTTON_GPIO       GPIO_NUM_NC
+#define TOUCH_BUTTON_GPIO       GPIO_NUM_14
+#define TOUCH_BUTTON_THRESHOLD  1500
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_38 
 #define VOLUME_DOWN_BUTTON_GPIO GPIO_NUM_39
 
@@ -52,12 +81,12 @@
 #define DISPLAY_RST_PIN       GPIO_NUM_45
 #define DISPLAY_CS_PIN        GPIO_NUM_41
 
-#define NFC_SDA                 GPIO_NUM_46
-#define NFC_SCK                 GPIO_NUM_9
-#define NFC_MOSI                GPIO_NUM_10
-#define NFC_MISO                GPIO_NUM_11
-#define NFC_IRQ                 GPIO_NUM_12
-#define NFC_RST                 GPIO_NUM_14
+#define NFC_SDA                 GPIO_NUM_10
+#define NFC_SCK                 GPIO_NUM_11
+#define NFC_MOSI                GPIO_NUM_12
+#define NFC_MISO                GPIO_NUM_13
+#define NFC_IRQ                 GPIO_NUM_3
+#define NFC_RST                 GPIO_NUM_9
 
 
 

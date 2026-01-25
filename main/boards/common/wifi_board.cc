@@ -3,7 +3,7 @@
 #include "display.h"
 #include "application.h"
 #include "system_info.h"
-#include "font_awesome_symbols.h"
+#include "lvgl.h"
 #include "settings.h"
 #include "assets/lang_config.h"
 
@@ -38,7 +38,7 @@ void WifiBoard::EnterWifiConfigMode() {
 
     auto& wifi_ap = WifiConfigurationAp::GetInstance();
     wifi_ap.SetLanguage(Lang::CODE);
-    wifi_ap.SetSsidPrefix("Xiaozhi");
+    wifi_ap.SetSsidPrefix("Jabobo");
     wifi_ap.Start();
 
     // 显示 WiFi 配置 AP 的 SSID 和 Web 服务器 URL
@@ -116,21 +116,22 @@ NetworkInterface* WifiBoard::GetNetwork() {
 
 const char* WifiBoard::GetNetworkStateIcon() {
     if (wifi_config_mode_) {
-        return FONT_AWESOME_WIFI;
+        return LV_SYMBOL_WIFI;
     }
     auto& wifi_station = WifiStation::GetInstance();
     if (!wifi_station.IsConnected()) {
-        return FONT_AWESOME_WIFI_OFF;
+        return LV_SYMBOL_WIFI;
     }
     int8_t rssi = wifi_station.GetRssi();
     if (rssi >= -60) {
-        return FONT_AWESOME_WIFI;
+        return LV_SYMBOL_WIFI;
     } else if (rssi >= -70) {
-        return FONT_AWESOME_WIFI_FAIR;
+        return LV_SYMBOL_WIFI;
     } else {
-        return FONT_AWESOME_WIFI_WEAK;
+        return LV_SYMBOL_WIFI;
     }
 }
+// 待修改：替换wifi强度图标
 
 std::string WifiBoard::GetBoardJson() {
     // Set the board type for OTA
@@ -212,7 +213,7 @@ std::string WifiBoard::GetDeviceStatusJson() {
     }
     auto display = board.GetDisplay();
     if (display && display->height() > 64) { // For LCD display only
-        cJSON_AddStringToObject(screen, "theme", display->GetTheme().c_str());
+        // cJSON_AddStringToObject(screen, "theme", display->GetTheme().c_str());
     }
     cJSON_AddItemToObject(root, "screen", screen);
 

@@ -4,10 +4,15 @@
 # CMakeLists in this exact order for cmake to work correctly
 cmake_minimum_required(VERSION 3.16)
 
-set(PROJECT_VER "2.0.1")
+set(PROJECT_VER "2.0.5")
 
 # Add this line to disable the specific warning
 add_compile_options(-Wno-missing-field-initializers)
+
+# 添加C++标准库相关编译选项以解决编译错误
+set(CMAKE_CXX_STANDARD 17)
+add_compile_options(-D_GLIBCXX_USE_C99=1)
+add_compile_options(-D_GLIBCXX_USE_C99_DYNAMIC=0)
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
 project(Jabob)

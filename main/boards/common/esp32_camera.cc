@@ -122,7 +122,7 @@ bool Esp32Camera::Capture() {
             // 交换每个16位字内的字节
             dst[i] = __builtin_bswap16(src[i]);
         }
-        display->SetPreviewImage(&preview_image_);
+        // display->SetPreviewImage(&preview_image_);
     }
     return true;
 }

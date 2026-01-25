@@ -193,6 +193,18 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
     last_input_time_ = std::chrono::steady_clock::now();
     debug_statistics_.input_count++;
 
+    // 添加调试日志，输出部分音频数据以检查麦克风是否正常工作
+    if (debug_statistics_.input_count % 50 == 0) { // 每50次采样输出一次调试信息
+        ESP_LOGI(TAG, "Audio input debug - first 10 samples: ");
+        for (int i = 0; i < std::min(10, (int)data.size()); i++) {
+            ESP_LOGI(TAG, "  Sample[%d]: %d", i, data[i]);
+        }
+        ESP_LOGI(TAG, "  Total samples: %d, max value: %d, min value: %d", 
+                 (int)data.size(), 
+                 *std::max_element(data.begin(), data.end()),
+                 *std::min_element(data.begin(), data.end()));
+    }
+
 #if CONFIG_USE_AUDIO_DEBUGGER
     // 音频调试：发送原始音频数据
     if (audio_debugger_ == nullptr) {

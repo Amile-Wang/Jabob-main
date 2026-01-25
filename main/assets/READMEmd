@@ -1,0 +1,57 @@
+# 捷宝宝 AI 聊天机器人 - 语言资源包
+
+## 目录结构
+
+此目录存放捷宝宝 AI 聊天机器人的多语言资源文件，用于支持不同地区的本地化界面显示。
+assets/ ├── zh-CN/ # 中文简体语言包 ├── zh-TW/ # 中文繁体语言包 ├── en-US/ # 英语(美国)语言包 ├── ja-JP/ # 日语(日本)语言包 ├── common/ # 通用资源文件 ├── images/ # 图片资源 ├── gif/ # 动画资源 ├── lang_config.h # 语言配置头文件 └── ...
+
+
+## 语言包结构
+
+每个语言包目录都包含以下类型的文件：
+
+- [.p3](file://z:\jabobo\Jabob-main\main\assets\common\popup.p3) 文件：预渲染的音频文件，用于语音提示
+- [language.json](file://z:\jabobo\Jabob-main\main\assets\zh-CN\language.json)：该语言的文本字符串映射表
+
+## 支持的语言
+
+目前支持以下语言:
+
+- **zh-CN** (`zh-CN/`)：中文简体
+- **zh-TW** (`zh-TW/`)：中文繁体
+- **en-US** (`en-US/`)：英语(美国)
+- **ja-JP** (`ja-JP/`)：日语(日本)
+
+## 文件说明
+
+### .p3 音频文件
+- 存储预渲染的语音提示，如数字(0-9)、系统提示音等
+- 用于在联网受限或需要快速反馈的场景下播放
+
+### language.json
+- 包含该语言的所有界面文本映射
+- JSON格式存储，便于程序解析和使用
+- 包含系统消息、错误提示、状态文本等
+
+### lang_config.h
+- C++头文件，定义了默认语言和其他语言相关的常量
+- 供主程序编译时使用，实现语言切换功能
+
+## 添加新语言
+
+要添加新的语言支持，请按以下步骤操作：
+
+1. 创建新的语言目录（如 `de-DE/` 表示德语）
+2. 复制其他语言包中的 [language.json](file://z:\jabobo\Jabob-main\main\assets\zh-CN\language.json) 并翻译其中的文本
+3. 生成对应的 [.p3](file://z:\jabobo\Jabob-main\main\assets\common\popup.p3) 音频文件
+4. 在 [lang_config.h](file://z:\jabobo\Jabob-main\main\assets\lang_config.h) 中添加相应的宏定义
+
+## 使用方法
+
+系统会根据配置自动加载对应的语言包资源，用户也可以通过界面设置切换语言。
+
+## 注意事项
+
+- 所有语言包应保持结构一致
+- 翻译文本需注意长度限制，避免界面显示问题
+- 音频文件命名规则需保持统一

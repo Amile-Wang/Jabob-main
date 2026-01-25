@@ -51,6 +51,7 @@ public:
     void ToggleChatState();
     void StartListening();
     void StopListening();
+    void CloseAudioChannel();
     void Reboot();
     void WakeWordInvoke(const std::string& wake_word);
     bool CanEnterSleepMode();
