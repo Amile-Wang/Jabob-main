@@ -113,7 +113,7 @@ void CustomWakeWord::AudioDetectionTask() {
     ESP_LOGI(TAG, "multinet:%s", mn_name);
     esp_mn_iface_t *multinet = esp_mn_handle_from_name(mn_name);
     model_iface_data_t *model_data = multinet->create(mn_name, 2000);  // 2秒超时
-    multinet->set_det_threshold(model_data, 0.3);
+    multinet->set_det_threshold(model_data, 0.5);
     esp_mn_commands_clear();
     esp_mn_commands_add(1, CONFIG_CUSTOM_WAKE_WORD);  // 添加自定义唤醒词作为命令词
     esp_mn_commands_update();
