@@ -13,3 +13,4 @@ main/mmap_generate_emoji.h
 .cache
 main/mmap_generate_emoji.h
 *.pyc
+.gitnexus

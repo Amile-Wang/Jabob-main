@@ -1,0 +1,13 @@
+{
+    "target": "esp32s3",
+    "builds": [
+        {
+            "name": "bread-compact-wifi-lcd-tianhao-uac",
+            "sdkconfig_append": [
+                "CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO_UAC=y",
+                "CONFIG_USB_HOST_ENABLE=y",
+                "CONFIG_USB_HOST_UAC_ENABLE=y"
+            ]
+        }
+    ]
+}
