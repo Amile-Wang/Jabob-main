@@ -2,7 +2,7 @@ menu "Xiaozhi Assistant"
 
 config OTA_URL
     string "Default OTA URL"
-    default "http://121.41.168.85:8002/xiaozhi/ota/"
+    default "http://121.41.168.85:8007/xiaozhi/ota/"
     help
         The application will access this URL to check for new firmwares and server address.
 
@@ -36,6 +36,11 @@ choice BOARD_TYPE
     config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO
         bool "面包板新版接线（WiFi）+ LCD + tianhao"
         depends on IDF_TARGET_ESP32S3
+    config BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO_UAC
+        bool "面包板新版接线（WiFi）+ LCD + tianhao UAC 麦克风"
+        depends on IDF_TARGET_ESP32S3
+        select CONFIG_USB_HOST_ENABLE
+        select CONFIG_USB_HOST_UAC_ENABLE
     config BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
         bool "面包板新版接线（WiFi）+ LCD + Camera"
         depends on IDF_TARGET_ESP32S3     
@@ -333,7 +338,7 @@ choice DISPLAY_OLED_TYPE
 endchoice
 
 choice DISPLAY_LCD_TYPE
-    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
+    depends on BOARD_TYPE_BREAD_COMPACT_WIFI_LCD || BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO || BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO_UAC || BOARD_TYPE_BREAD_COMPACT_ESP32_LCD || BOARD_TYPE_ESP32_CGC || BOARD_TYPE_ESP32P4_NANO || BOARD_TYPE_ESP32P4_WIFI6_Touch_LCD_XC || BOARD_TYPE_BREAD_COMPACT_WIFI_CAM
     prompt "LCD Type"
     default LCD_ST7789_240X320
     help
@@ -453,7 +458,7 @@ config CUSTOM_WAKE_WORD
 
 config CUSTOM_WAKE_WORD_DISPLAY
     string "Custom Wake Word Display"
-    default "你好捷宝宝"
+    default "ni hao jie bao bao"
     depends on USE_CUSTOM_WAKE_WORD
     help
         自定义唤醒词对应问候语 

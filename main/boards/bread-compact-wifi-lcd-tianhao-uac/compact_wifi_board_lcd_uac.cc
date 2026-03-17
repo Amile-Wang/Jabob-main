@@ -1,6 +1,5 @@
 #include "wifi_board.h"
-#include "usb_audio_codec.h"
-#include "codecs/no_audio_codec.h"
+#include "codecs/usb_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
 #include "application.h"
