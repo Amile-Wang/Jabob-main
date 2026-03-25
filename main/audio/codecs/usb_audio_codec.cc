@@ -111,7 +111,7 @@ esp_err_t UsbAudioCodec::InitializeUsbHost() {
         .create_background_task = true,
         .task_priority = 5,
         .stack_size = 4096,
-        .core_id = tskNO_AFFINITY,
+        .core_id = 0,  // 固定在 CPU Core 0 上运行，避免 tskNO_AFFINITY 导致的错误
         .callback = uac_driver_event_callback,
         .callback_arg = this,
     };
@@ -139,9 +139,30 @@ esp_err_t UsbAudioCodec::InitializeUsbHost() {
                 ESP_LOGI(TAG, "USB Audio device connected");
                 codec->device_connected_ = true;
                 
+                // 获取并打印设备信息
+                uac_host_dev_info_t dev_info;
+                esp_err_t ret = uac_host_get_device_info(codec->uac_device_, &dev_info);
+                if (ret == ESP_OK) {
+                    ESP_LOGI(TAG, "=== USB Audio Device Info ===");
+                    ESP_LOGI(TAG, "  Manufacturer: %ls", dev_info.iManufacturer[0] ? dev_info.iManufacturer : L"N/A");
+                    ESP_LOGI(TAG, "  Product: %ls", dev_info.iProduct[0] ? dev_info.iProduct : L"N/A");
+                    ESP_LOGI(TAG, "  Serial Number: %ls", dev_info.iSerialNumber[0] ? dev_info.iSerialNumber : L"N/A");
+                    ESP_LOGI(TAG, "  VID: 0x%04X, PID: 0x%04X", dev_info.VID, dev_info.PID);
+                    ESP_LOGI(TAG, "  Interface Num: %d", dev_info.iface_num);
+                    ESP_LOGI(TAG, "  Stream Type: %s", dev_info.type == UAC_STREAM_RX ? "RX(Microphone)" : "TX(Speaker)");
+                    ESP_LOGI(TAG, "===============================");
+                }
+                
                 // 尝试打开音频流
-                codec->OpenRxStream();
-                codec->OpenTxStream();
+                esp_err_t rx_ret = codec->OpenRxStream();
+                if (rx_ret != ESP_OK) {
+                    ESP_LOGE(TAG, "Failed to open RX stream: %s", esp_err_to_name(rx_ret));
+                }
+                
+                esp_err_t tx_ret = codec->OpenTxStream();
+                if (tx_ret != ESP_OK) {
+                    ESP_LOGW(TAG, "TX stream not available: %s", esp_err_to_name(tx_ret));
+                }
             }
             
             if (events & USB_EVENT_DISCONNECTED) {
@@ -290,7 +311,8 @@ void UsbAudioCodec::CloseStreams() {
 }
 
 bool UsbAudioCodec::WaitForDevice(int timeout_ms) {
-    ESP_LOGI(TAG, "Waiting for USB audio device...");
+    ESP_LOGI(TAG, "Waiting for USB audio device (timeout: %dms)...", timeout_ms);
+    ESP_LOGI(TAG, "Please ensure USB microphone is properly connected");
     
     EventBits_t bits = xEventGroupWaitBits(
         usb_event_group_,
@@ -301,11 +323,17 @@ bool UsbAudioCodec::WaitForDevice(int timeout_ms) {
     );
     
     if (bits & USB_EVENT_CONNECTED) {
-        ESP_LOGI(TAG, "USB audio device found");
+        ESP_LOGI(TAG, "USB audio device found and ready");
         return true;
     }
     
     ESP_LOGW(TAG, "No USB audio device found within %dms", timeout_ms);
+    ESP_LOGW(TAG, "Entering standby mode - system will continue without USB microphone");
+    ESP_LOGW(TAG, "To use USB microphone:");
+    ESP_LOGW(TAG, "  1. Check USB connection");
+    ESP_LOGW(TAG, "  2. Verify USB cable supports data transfer");
+    ESP_LOGW(TAG, "  3. Ensure adequate power supply");
+    ESP_LOGW(TAG, "  4. Try reconnecting the device");
     return false;
 }
 

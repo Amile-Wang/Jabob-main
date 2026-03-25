@@ -355,8 +355,11 @@ public:
         // UAC Input + I2S Output 混合编解码器
         // 注意：这里使用的是 UsbAudioCodec，它内部处理 UAC 输入
         // I2S 输出由 UsbAudioCodec 内部管理
-        static UsbAudioCodec audio_codec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE);
-        return &audio_codec;
+        static UsbAudioCodec* audio_codec = nullptr;
+        if (audio_codec == nullptr) {
+            audio_codec = new UsbAudioCodec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE);
+        }
+        return audio_codec;
     }
 
     virtual Display* GetDisplay() override {

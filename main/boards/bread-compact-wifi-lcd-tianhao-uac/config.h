@@ -36,13 +36,13 @@
 #define DISPLAY_RST_PIN       GPIO_NUM_45
 #define DISPLAY_CS_PIN        GPIO_NUM_41
 
-// NFC 配置
-#define NFC_SDA                 GPIO_NUM_10
-#define NFC_SCK                 GPIO_NUM_11
-#define NFC_MOSI                GPIO_NUM_12
-#define NFC_MISO                GPIO_NUM_13
-#define NFC_IRQ                 GPIO_NUM_3
-#define NFC_RST                 GPIO_NUM_9
+// // NFC 配置
+// #define NFC_SDA                 GPIO_NUM_10
+// #define NFC_SCK                 GPIO_NUM_11
+// #define NFC_MOSI                GPIO_NUM_12
+// #define NFC_MISO                GPIO_NUM_13
+// #define NFC_IRQ                 GPIO_NUM_3
+// #define NFC_RST                 GPIO_NUM_9
 
 // LCD 型号选择（通过 menuconfig 配置）
 #ifdef CONFIG_LCD_ST7789_240X320
