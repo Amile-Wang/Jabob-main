@@ -5,6 +5,7 @@
 #include <usb/uac_host.h>
 #include <usb/usb_types_ch9.h>
 #include <usb/usb_host.h>  // USB Host 底层 API
+#include <esp_task_wdt.h>  // 看门狗相关API
 #endif
 
 #include <esp_log.h>
@@ -14,9 +15,10 @@
 #define TAG "UsbAudioCodec"
 
 // USB 事件位定义
-#define USB_EVENT_CONNECTED     (1 << 0)
-#define USB_EVENT_DISCONNECTED  (1 << 1)
-#define USB_EVENT_ERROR         (1 << 2)
+#define USB_EVENT_RX_CONNECTED  (1 << 0)
+#define USB_EVENT_TX_CONNECTED  (1 << 1)
+#define USB_EVENT_DISCONNECTED  (1 << 2)
+#define USB_EVENT_ERROR         (1 << 3)
 
 UsbAudioCodec::UsbAudioCodec(int input_sample_rate, int output_sample_rate) {
     duplex_ = true;                    // UAC 设备通常支持双工
@@ -61,23 +63,35 @@ UsbAudioCodec::~UsbAudioCodec() {
 
 #ifdef CONFIG_IDF_TARGET_ESP32S3
 
-// UAC 驱动事件回调
+// UAC 驱动事件回调 - 在头文件中已声明为 extern "C"
 void uac_driver_event_callback(uint8_t addr, uint8_t iface_num,
                                       const uac_host_driver_event_t event, void *arg) {
+    // arg 参数应该是指向 UsbAudioCodec 实例的指针
     auto codec = reinterpret_cast<UsbAudioCodec*>(arg);
     
     switch (event) {
         case UAC_HOST_DRIVER_EVENT_RX_CONNECTED:
             ESP_LOGI(TAG, "UAC RX device connected - Addr: %d, Iface: %d", addr, iface_num);
-            if (codec->usb_event_group_ != nullptr) {
-                xEventGroupSetBits(codec->usb_event_group_, USB_EVENT_CONNECTED);
+            // 保存设备信息供主任务使用
+            // 注意：现在需要通过公共方法或确保这些成员是可访问的
+            // 由于我们移除了友元声明，这里需要确保这些操作是安全的
+            if (codec) {
+                codec->rx_device_addr_ = addr;
+                codec->rx_iface_num_ = iface_num;
+                if (codec->usb_event_group_ != nullptr) {
+                    xEventGroupSetBits(codec->usb_event_group_, USB_EVENT_RX_CONNECTED);
+                }
             }
             break;
             
         case UAC_HOST_DRIVER_EVENT_TX_CONNECTED:
             ESP_LOGI(TAG, "UAC TX device connected - Addr: %d, Iface: %d", addr, iface_num);
-            if (codec->usb_event_group_ != nullptr) {
-                xEventGroupSetBits(codec->usb_event_group_, USB_EVENT_CONNECTED);
+            if (codec) {
+                codec->tx_device_addr_ = addr;
+                codec->tx_iface_num_ = iface_num;
+                if (codec->usb_event_group_ != nullptr) {
+                    xEventGroupSetBits(codec->usb_event_group_, USB_EVENT_TX_CONNECTED);
+                }
             }
             break;
             
@@ -129,37 +143,43 @@ esp_err_t UsbAudioCodec::InitializeUsbHost() {
         while (true) {
             EventBits_t events = xEventGroupWaitBits(
                 codec->usb_event_group_,
-                USB_EVENT_CONNECTED | USB_EVENT_DISCONNECTED | USB_EVENT_ERROR,
+                USB_EVENT_RX_CONNECTED | USB_EVENT_TX_CONNECTED | USB_EVENT_DISCONNECTED | USB_EVENT_ERROR,
                 pdFALSE,
                 pdFALSE,
                 portMAX_DELAY
             );
             
-            if (events & USB_EVENT_CONNECTED) {
-                ESP_LOGI(TAG, "USB Audio device connected");
+            if (events & USB_EVENT_RX_CONNECTED) {
+                ESP_LOGI(TAG, "USB Audio RX device connected");
                 codec->device_connected_ = true;
                 
-                // 获取并打印设备信息
-                uac_host_dev_info_t dev_info;
-                esp_err_t ret = uac_host_get_device_info(codec->uac_device_, &dev_info);
-                if (ret == ESP_OK) {
-                    ESP_LOGI(TAG, "=== USB Audio Device Info ===");
-                    ESP_LOGI(TAG, "  Manufacturer: %ls", dev_info.iManufacturer[0] ? dev_info.iManufacturer : L"N/A");
-                    ESP_LOGI(TAG, "  Product: %ls", dev_info.iProduct[0] ? dev_info.iProduct : L"N/A");
-                    ESP_LOGI(TAG, "  Serial Number: %ls", dev_info.iSerialNumber[0] ? dev_info.iSerialNumber : L"N/A");
-                    ESP_LOGI(TAG, "  VID: 0x%04X, PID: 0x%04X", dev_info.VID, dev_info.PID);
-                    ESP_LOGI(TAG, "  Interface Num: %d", dev_info.iface_num);
-                    ESP_LOGI(TAG, "  Stream Type: %s", dev_info.type == UAC_STREAM_RX ? "RX(Microphone)" : "TX(Speaker)");
-                    ESP_LOGI(TAG, "===============================");
-                }
-                
-                // 尝试打开音频流
-                esp_err_t rx_ret = codec->OpenRxStream();
+                // 在主任务中打开 RX 设备（使用从回调获取的地址和接口号）
+                esp_err_t rx_ret = codec->OpenRxStream(codec->rx_device_addr_, codec->rx_iface_num_);
                 if (rx_ret != ESP_OK) {
                     ESP_LOGE(TAG, "Failed to open RX stream: %s", esp_err_to_name(rx_ret));
+                } else {
+                    // 获取并打印设备信息
+                    uac_host_dev_info_t dev_info;
+                    esp_err_t info_ret = uac_host_get_device_info(codec->uac_rx_stream_, &dev_info);
+                    if (info_ret == ESP_OK) {
+                        ESP_LOGI(TAG, "=== USB Audio Device Info ===");
+                        ESP_LOGI(TAG, "  Manufacturer: %ls", dev_info.iManufacturer[0] ? dev_info.iManufacturer : L"N/A");
+                        ESP_LOGI(TAG, "  Product: %ls", dev_info.iProduct[0] ? dev_info.iProduct : L"N/A");
+                        ESP_LOGI(TAG, "  Serial Number: %ls", dev_info.iSerialNumber[0] ? dev_info.iSerialNumber : L"N/A");
+                        ESP_LOGI(TAG, "  VID: 0x%04X, PID: 0x%04X", dev_info.VID, dev_info.PID);
+                        ESP_LOGI(TAG, "  Interface Num: %d", dev_info.iface_num);
+                        ESP_LOGI(TAG, "  Stream Type: %s", dev_info.type == UAC_STREAM_RX ? "RX(Microphone)" : "TX(Speaker)");
+                        ESP_LOGI(TAG, "===============================");
+                    }
                 }
+            }
+            
+            if (events & USB_EVENT_TX_CONNECTED) {
+                ESP_LOGI(TAG, "USB Audio TX device connected");
+                codec->device_connected_ = true;
                 
-                esp_err_t tx_ret = codec->OpenTxStream();
+                // 在主任务中打开 TX 设备（使用从回调获取的地址和接口号）
+                esp_err_t tx_ret = codec->OpenTxStream(codec->tx_device_addr_, codec->tx_iface_num_);
                 if (tx_ret != ESP_OK) {
                     ESP_LOGW(TAG, "TX stream not available: %s", esp_err_to_name(tx_ret));
                 }
@@ -180,6 +200,9 @@ esp_err_t UsbAudioCodec::InitializeUsbHost() {
             if (events & USB_EVENT_ERROR) {
                 ESP_LOGE(TAG, "USB Audio error occurred");
             }
+            
+            // 主动喂狗，防止看门狗复位
+            esp_task_wdt_reset();
         }
     }, "usb_event", 4096, this, 5, &usb_event_task_handle_);
     
@@ -190,44 +213,45 @@ esp_err_t UsbAudioCodec::InitializeUsbHost() {
 }
 
 
-esp_err_t UsbAudioCodec::OpenRxStream() {
+esp_err_t UsbAudioCodec::OpenRxStream(uint8_t addr, uint8_t iface_num) {
     if (!device_connected_) {
         return ESP_ERR_INVALID_STATE;
     }
     
-    ESP_LOGI(TAG, "Opening RX stream (MIC)...");
+    ESP_LOGI(TAG, "Opening RX stream (MIC) - Addr: %d, Iface: %d", addr, iface_num);
     
     // 配置 RX 流参数
     uac_host_device_config_t rx_config = {
+        .addr = addr,  // 使用从回调获取的地址
+        .iface_num = iface_num,  // 使用从回调获取的接口号
         .buffer_size = AUDIO_CODEC_DMA_FRAME_NUM * sizeof(int16_t),
         .buffer_threshold = AUDIO_CODEC_DMA_FRAME_NUM * sizeof(int16_t) / 2,
         .callback = nullptr,
         .callback_arg = this,
     };
     
-    // 打开 RX 流（使用第一个找到的 RX 设备）
+    // 打开 RX 流
     esp_err_t ret = uac_host_device_open(&rx_config, &uac_rx_stream_);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open RX stream: %s", esp_err_to_name(ret));
         return ret;
     }
     
-    // 获取设备信息
-    ret = uac_host_get_device_info(uac_rx_stream_, &device_info_);
+    // 查询设备实际支持的能力
+    uac_host_dev_alt_param_t rx_alt_params;
+    ret = uac_host_get_device_alt_param(uac_rx_stream_, 1, &rx_alt_params);
     if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "Failed to get device info: %s", esp_err_to_name(ret));
+        ESP_LOGE(TAG, "Failed to get RX device alt param: %s", esp_err_to_name(ret));
+        uac_host_device_close(uac_rx_stream_);
+        uac_rx_stream_ = nullptr;
         return ret;
     }
     
-    ESP_LOGI(TAG, "Device Info:");
-    ESP_LOGI(TAG, "  VID: 0x%04X, PID: 0x%04X", device_info_.VID, device_info_.PID);
-    ESP_LOGI(TAG, "  Stream Type: %s", device_info_.type == UAC_STREAM_RX ? "RX(MIC)" : "TX(SPK)");
-    
-    // 启动 RX 流
+    // 使用设备实际支持的参数配置流
     uac_host_stream_config_t stream_config = {
-        .channels = 1,  // 默认单声道
-        .bit_resolution = 16,
-        .sample_freq = (uint32_t)input_sample_rate_,
+        .channels = rx_alt_params.channels,
+        .bit_resolution = rx_alt_params.bit_resolution,
+        .sample_freq = rx_alt_params.sample_freq[0],  // 使用设备支持的第一个采样率
         .flags = 0,
     };
     
@@ -239,8 +263,9 @@ esp_err_t UsbAudioCodec::OpenRxStream() {
         return ret;
     }
     
-    // 更新实际通道数
+    // 更新实际通道数和采样率
     input_channels_ = stream_config.channels;
+    input_sample_rate_ = stream_config.sample_freq;
     
     ESP_LOGI(TAG, "RX stream opened successfully - Channels: %d, Sample Rate: %dHz",
              input_channels_, input_sample_rate_);
@@ -248,33 +273,45 @@ esp_err_t UsbAudioCodec::OpenRxStream() {
     return ESP_OK;
 }
 
-esp_err_t UsbAudioCodec::OpenTxStream() {
+esp_err_t UsbAudioCodec::OpenTxStream(uint8_t addr, uint8_t iface_num) {
     if (!device_connected_) {
         return ESP_ERR_INVALID_STATE;
     }
     
-    ESP_LOGI(TAG, "Opening TX stream (SPK)...");
+    ESP_LOGI(TAG, "Opening TX stream (SPK) - Addr: %d, Iface: %d", addr, iface_num);
     
     // 配置 TX 流参数
     uac_host_device_config_t tx_config = {
+        .addr = addr,  // 使用从回调获取的地址
+        .iface_num = iface_num,  // 使用从回调获取的接口号
         .buffer_size = AUDIO_CODEC_DMA_FRAME_NUM * sizeof(int16_t),
         .buffer_threshold = AUDIO_CODEC_DMA_FRAME_NUM * sizeof(int16_t) / 2,
         .callback = nullptr,
         .callback_arg = this,
     };
     
-    // 打开 TX 流（使用第一个找到的 TX 设备）
+    // 打开 TX 流
     esp_err_t ret = uac_host_device_open(&tx_config, &uac_tx_stream_);
     if (ret != ESP_OK) {
         ESP_LOGE(TAG, "Failed to open TX stream: %s", esp_err_to_name(ret));
         return ret;
     }
     
-    // 启动 TX 流
+    // 查询设备实际支持的能力
+    uac_host_dev_alt_param_t tx_alt_params;
+    ret = uac_host_get_device_alt_param(uac_tx_stream_, 1, &tx_alt_params);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get TX device alt param: %s", esp_err_to_name(ret));
+        uac_host_device_close(uac_tx_stream_);
+        uac_tx_stream_ = nullptr;
+        return ret;
+    }
+    
+    // 使用设备实际支持的参数配置流
     uac_host_stream_config_t stream_config = {
-        .channels = 1,  // 默认单声道
-        .bit_resolution = 16,
-        .sample_freq = (uint32_t)output_sample_rate_,
+        .channels = tx_alt_params.channels,
+        .bit_resolution = tx_alt_params.bit_resolution,
+        .sample_freq = tx_alt_params.sample_freq[0],  // 使用设备支持的第一个采样率
         .flags = 0,
     };
     
@@ -286,8 +323,11 @@ esp_err_t UsbAudioCodec::OpenTxStream() {
         return ret;
     }
     
-    ESP_LOGI(TAG, "TX stream opened successfully - Sample Rate: %dHz",
-             output_sample_rate_);
+    // 更新实际输出采样率
+    output_sample_rate_ = stream_config.sample_freq;
+    
+    ESP_LOGI(TAG, "TX stream opened successfully - Channels: %d, Sample Rate: %dHz",
+             stream_config.channels, output_sample_rate_);
     
     return ESP_OK;
 }
@@ -314,17 +354,27 @@ bool UsbAudioCodec::WaitForDevice(int timeout_ms) {
     ESP_LOGI(TAG, "Waiting for USB audio device (timeout: %dms)...", timeout_ms);
     ESP_LOGI(TAG, "Please ensure USB microphone is properly connected");
     
-    EventBits_t bits = xEventGroupWaitBits(
-        usb_event_group_,
-        USB_EVENT_CONNECTED,
-        pdTRUE,  // 清除标志位
-        pdFALSE,
-        pdMS_TO_TICKS(timeout_ms)
-    );
+    // 拆分长延时为短延时循环，防止看门狗复位
+    TickType_t total_ticks = pdMS_TO_TICKS(timeout_ms);
+    TickType_t elapsed_ticks = 0;
+    const TickType_t check_interval = pdMS_TO_TICKS(100);
     
-    if (bits & USB_EVENT_CONNECTED) {
-        ESP_LOGI(TAG, "USB audio device found and ready");
-        return true;
+    while (elapsed_ticks < total_ticks) {
+        EventBits_t bits = xEventGroupWaitBits(
+            usb_event_group_,
+            USB_EVENT_RX_CONNECTED | USB_EVENT_TX_CONNECTED,
+            pdTRUE,  // 清除标志位
+            pdFALSE,
+            check_interval
+        );
+        
+        if (bits & (USB_EVENT_RX_CONNECTED | USB_EVENT_TX_CONNECTED)) {
+            ESP_LOGI(TAG, "USB audio device found and ready");
+            return true;
+        }
+        
+        elapsed_ticks += check_interval;
+        esp_task_wdt_reset();  // 主动喂狗
     }
     
     ESP_LOGW(TAG, "No USB audio device found within %dms", timeout_ms);
@@ -489,9 +539,10 @@ int UsbAudioCodec::Write(const int16_t* data, int samples) {
     return samples;
 }
 
-#else  // CONFIG_IDF_TARGET_ESP32S3
+#endif  // CONFIG_IDF_TARGET_ESP32S3
 
-// 非 ESP32-S3 平台的空实现
+// 非 ESP32-S3 平台的空实现 - 注意：这里没有 #else，因为 Read/Write 已经在头文件中有内联实现
+#ifndef CONFIG_IDF_TARGET_ESP32S3
 
 void UsbAudioCodec::Start() {
     ESP_LOGE(TAG, "UAC is only supported on ESP32-S3");
@@ -510,4 +561,4 @@ void UsbAudioCodec::SetOutputVolume(int volume) {
     ESP_LOGW(TAG, "Volume setting has no effect (UAC not available)");
 }
 
-#endif  // CONFIG_IDF_TARGET_ESP32S3
+#endif  // !CONFIG_IDF_TARGET_ESP32S3

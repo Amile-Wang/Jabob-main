@@ -1,0 +1,20 @@
+{
+  "idf.portWin": "COM11",
+  "idf.flashType": "UART",
+  "idf.openOcdConfigs": [
+    "board/esp32s3-builtin.cfg"
+  ],
+  "idf.customExtraVars": {
+    "IDF_TARGET": "esp32s3"
+  },
+  "clangd.path": "C:\\Users\\tiawang\\.espressif\\tools\\esp-clang\\esp-18.1.2_20240912\\esp-clang\\bin\\clangd.exe",
+  "clangd.arguments": [
+    "--background-index",
+    "--query-driver=C:\\Users\\tiawang\\.espressif\\tools\\xtensa-esp-elf\\esp-14.2.0_20250730\\xtensa-esp-elf\\bin\\xtensa-esp32s3-elf-gcc.exe",
+    "--compile-commands-dir=c:\\Users\\tiawang\\my_code\\Jabob-main\\build"
+  ],
+  "idf.espIdfPathWin": "C:\\Users\\tiawang\\esp\\v5.4.3\\esp-idf",
+  "idf.toolsPathWin": "C:\\Users\\tiawang\\.espressif",
+  "idf.pythonInstallPath": "C:\\Users\\tiawang\\.espressif\\tools\\idf-python\\3.11.2\\python.exe",
+  "idf.currentSetup": "C:\\Users\\tiawang\\esp\\v5.4.3\\esp-idf"
+}
