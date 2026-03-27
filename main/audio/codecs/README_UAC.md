@@ -2,14 +2,16 @@
 
 ## 📋 概述
 
-`UsbAudioCodec` 类实现了基于 USB Audio Class (UAC) 标准的音频编解码器，支持 ESP32-S3 作为 USB Host 连接 USB 麦克风/扬声器设备。
+`UsbAudioCodec` 类实现了基于 USB Audio Class (UAC) 标准的音频编解码器，支持 ESP32-S3 作为 USB Host 连接 USB 麦克风设备。
+
+**注意：当前实现仅支持麦克风输入，不支持 USB 扬声器输出。**
 
 ## 🎯 主要特性
 
 - ✅ **支持 UAC1.0 和 UAC2.0** 设备
 - ✅ **即插即用** - 自动检测和热插拔支持
-- ✅ **双工模式** - 同时支持麦克风输入和扬声器输出
-- ✅ **自适应采样率** - 8k/16k/24k/48kHz 自动协商
+- ✅ **单工模式** - 仅支持麦克风输入
+- ✅ **自适应采样率** - 8k/11.025k/16k/22.05k/24k/32k/44.1k/48kHz 自动协商
 - ✅ **零配置** - 自动枚举设备参数
 - ✅ **低功耗** - 无音频活动时自动进入待机
 
@@ -28,8 +30,8 @@
 
 | 资源 | 占用量 | 备注 |
 |------|--------|------|
-| RAM | ~20KB | USB 协议栈 + 缓冲区 |
-| CPU | 5-10% | 取决于采样率和通道数 |
+| RAM | ~15KB | USB 协议栈 + 缓冲区（仅麦克风）|
+| CPU | 3-8% | 取决于采样率和通道数 |
 | USB Host | 1 个 | 独占 USB OTG 接口 |
 
 ## 💻 使用方法
@@ -39,14 +41,14 @@
 ```cpp
 #include "usb_audio_codec.h"
 
-// 创建 16kHz 双工 USB 音频编解码器
-auto codec = new UsbAudioCodec(16000, 16000);
+// 创建 16kHz USB 麦克风编解码器（output_sample_rate = 0 禁用输出）
+auto codec = new UsbAudioCodec(16000, 0);
 
 // 在 Board 中返回
 AudioCodec* Board::GetAudioCodec() {
     static UsbAudioCodec* codec = nullptr;
     if (codec == nullptr) {
-        codec = new UsbAudioCodec(16000, 16000);
+        codec = new UsbAudioCodec(16000, 0);
     }
     return codec;
 }
@@ -79,8 +81,8 @@ dependencies:
 #include "audio_service.h"
 
 void app_main(void) {
-    // 创建 USB 音频编解码器
-    auto codec = new UsbAudioCodec(16000, 16000);
+    // 创建 USB 麦克风编解码器（禁用输出）
+    auto codec = new UsbAudioCodec(16000, 0);
     
     // 创建并初始化音频服务
     auto audio_service = new AudioService();
@@ -110,8 +112,7 @@ graph TD
     C --> D{设备连接？}
     D -->|是 | E[枚举设备信息]
     E --> F[打开 RX 流 MIC]
-    F --> G[打开 TX 流 SPK]
-    G --> H[启动音频服务]
+    F --> G[启动音频服务]
     D -->|否 | I[待机模式]
     I --> C
 ```
@@ -120,8 +121,6 @@ graph TD
 
 ```
 USB 麦克风 → usb_host_uac_stream_read() → Read() → AudioService
-                                                      ↓
-AudioService ← Write() ← usb_host_uac_stream_write() ← USB 扬声器
 ```
 
 ## 🛠️ API 参考
@@ -134,11 +133,11 @@ UsbAudioCodec(int input_sample_rate, int output_sample_rate);
 
 **参数**:
 - `input_sample_rate`: 期望的麦克风采样率（Hz）
-- `output_sample_rate`: 期望的扬声器采样率（Hz）
+- `output_sample_rate`: 期望的输出采样率（Hz），设为 0 禁用输出
 
 **示例**:
 ```cpp
-auto codec = new UsbAudioCodec(16000, 16000);  // 16kHz 双工
+auto codec = new UsbAudioCodec(16000, 0);  // 16kHz 麦克风，禁用输出
 ```
 
 ### Start()
@@ -164,25 +163,25 @@ void EnableInput(bool enable) override;
 
 ### EnableOutput()
 
-启用或禁用扬声器输出。
+启用或禁用输出（当前实现中始终禁用）。
 
 ```cpp
 void EnableOutput(bool enable) override;
 ```
 
 **参数**:
-- `enable`: true 启用，false 禁用
+- `enable`: true 启用，false 禁用（但实际无效）
 
 ### SetOutputVolume()
 
-设置输出音量（软件控制）。
+设置输出音量（当前实现中无效）。
 
 ```cpp
 void SetOutputVolume(int volume) override;
 ```
 
 **参数**:
-- `volume`: 0-100（百分比）
+- `volume`: 0-100（百分比，但实际无效）
 
 ## ⚠️ 注意事项
 
@@ -202,9 +201,9 @@ void SetOutputVolume(int volume) override;
 ### 兼容性
 
 #### 已知兼容的设备
-- ✅ Logitech H390 USB 耳机
+- ✅ Logitech H390 USB 耳机（仅麦克风部分）
 - ✅ Generic USB Microphone (C-Media)
-- ✅ USB Speaker (Generic UAC1.0)
+- ✅ USB 麦克风（Generic UAC1.0）
 
 #### 可能不兼容的设备
 - ❌ 需要特殊驱动的 USB 设备
@@ -215,7 +214,7 @@ void SetOutputVolume(int volume) override;
 
 1. **延迟**: USB 枚举增加约 1-2 秒启动延迟
 2. **带宽**: USB Full Speed 最大 12Mbps，足够音频传输
-3. **CPU 占用**: 额外 5-10% CPU 用于 USB 协议处理
+3. **CPU 占用**: 额外 3-8% CPU 用于 USB 协议处理
 
 ## 🐛 故障排查
 
@@ -233,7 +232,7 @@ void SetOutputVolume(int volume) override;
 
 ### 问题 2: 音频断断续续
 
-**症状**: 播放或录音有爆音、中断
+**症状**: 录音有爆音、中断
 
 **可能原因**:
 - CPU 负载过高
@@ -266,7 +265,7 @@ void SetOutputVolume(int volume) override;
 ### 正常启动日志
 
 ```
-I (1234) UsbAudioCodec: UsbAudioCodec created - Input: 16000Hz, Output: 16000Hz
+I (1234) UsbAudioCodec: UsbAudioCodec created - Input: 16000Hz, Output: disabled
 I (2345) UsbAudioCodec: Starting USB Audio codec...
 I (2456) UsbAudioCodec: Initializing USB Host...
 I (2567) UsbAudioCodec: USB Host initialized
@@ -275,11 +274,10 @@ I (4789) UsbAudioCodec: USB Audio device connected
 I (4890) UsbAudioCodec: Device Info:
 I (4891) UsbAudioCodec:   Manufacturer: C-Media Electronics Inc.
 I (4892) UsbAudioCodec:   Product: USB Audio Device
-I (4893) UsbAudioCodec:   RX channels: 1
-I (4894) UsbAudioCodec:   TX channels: 2
+I (4893) UsbAudioCodec:   VID: 0x0D8C, PID: 0x0014
+I (4894) UsbAudioCodec:   Stream Type: RX(MIC)
 I (5001) UsbAudioCodec: RX stream opened successfully - Channels: 1, Sample Rate: 16000Hz
-I (5112) UsbAudioCodec: TX stream opened successfully - Channels: 2, Sample Rate: 16000Hz
-I (5223) UsbAudioCodec: USB Audio codec started successfully
+I (5223) UsbAudioCodec: USB Audio codec started successfully (microphone only)
 ```
 
 ### 设备断开日志
@@ -287,7 +285,6 @@ I (5223) UsbAudioCodec: USB Audio codec started successfully
 ```
 W (123456) UsbAudioCodec: USB Audio device disconnected
 W (123457) UsbAudioCodec: RX (MIC) stream stopped
-W (123458) UsbAudioCodec: TX (SPK) stream stopped
 ```
 
 ### 设备重连日志
@@ -295,7 +292,6 @@ W (123458) UsbAudioCodec: TX (SPK) stream stopped
 ```
 I (234567) UsbAudioCodec: USB Audio device connected
 I (234678) UsbAudioCodec: RX stream opened successfully
-I (234789) UsbAudioCodec: TX stream opened successfully
 ```
 
 ## 🔬 高级配置
@@ -304,7 +300,7 @@ I (234789) UsbAudioCodec: TX stream opened successfully
 
 ```cpp
 // 使用 48kHz 高采样率
-auto codec = new UsbAudioCodec(48000, 48000);
+auto codec = new UsbAudioCodec(48000, 0);
 
 // 注意：需要在 AudioService 中配置重采样到 16kHz
 // 因为 Opus 编码器固定使用 16kHz
@@ -314,17 +310,6 @@ auto codec = new UsbAudioCodec(48000, 48000);
 
 ```cpp
 auto codec = new UsbAudioCodec(16000, 0);  // output_sample_rate = 0 禁用输出
-```
-
-### 混合模式（USB 麦克风 + I2S 扬声器）
-
-```cpp
-// 需要自定义编解码器类，组合 UsbAudioCodec 和 NoAudioCodec
-class HybridCodec : public AudioCodec {
-    UsbAudioCodec* usb_mic;
-    NoAudioCodec* i2s_spk;
-    // ... 实现 Read/Write 分别调用不同后端
-};
 ```
 
 ## 📚 参考资料
@@ -339,6 +324,6 @@ class HybridCodec : public AudioCodec {
 
 ---
 
-**最后更新**: 2026-03-17  
+**最后更新**: 2026-03-27  
 **作者**: Jabob Team  
 **许可证**: Apache-2.0

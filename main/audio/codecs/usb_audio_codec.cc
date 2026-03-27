@@ -37,24 +37,15 @@ UsbAudioCodec::UsbAudioCodec(int input_sample_rate, int output_sample_rate) {
 
 UsbAudioCodec::~UsbAudioCodec() {
 #ifdef CONFIG_IDF_TARGET_ESP32S3
-    // 停止流传输
-    CloseStreams();
-    
-    // 关闭设备
-    if (uac_device_ != nullptr) {
-        ESP_LOGI(TAG, "Closing UAC device");
-        uac_host_device_close(uac_device_);
-        uac_device_ = nullptr;
-    }
-    
-    // 删除事件任务
-    if (usb_event_task_handle_ != nullptr) {
-        vTaskDelete(usb_event_task_handle_);
-    }
-    
-    // 删除事件组
     if (usb_event_group_ != nullptr) {
         vEventGroupDelete(usb_event_group_);
+    }
+    
+    if (usb_host_initialized_) {
+        CloseStreams();
+        uac_host_driver_uninstall();
+        usb_host_uninstall();
+        usb_host_initialized_ = false;
     }
     
     ESP_LOGI(TAG, "UsbAudioCodec destroyed");
@@ -354,6 +345,10 @@ bool UsbAudioCodec::WaitForDevice(int timeout_ms) {
     ESP_LOGI(TAG, "Waiting for USB audio device (timeout: %dms)...", timeout_ms);
     ESP_LOGI(TAG, "Please ensure USB microphone is properly connected");
     
+    // 给USB Host一些时间来初始化和开始枚举设备
+    vTaskDelay(pdMS_TO_TICKS(500));
+    esp_task_wdt_reset();
+    
     // 拆分长延时为短延时循环，防止看门狗复位
     TickType_t total_ticks = pdMS_TO_TICKS(timeout_ms);
     TickType_t elapsed_ticks = 0;
@@ -375,6 +370,12 @@ bool UsbAudioCodec::WaitForDevice(int timeout_ms) {
         
         elapsed_ticks += check_interval;
         esp_task_wdt_reset();  // 主动喂狗
+        
+        // 如果设备还没连接，给USB Host更多时间处理事件
+        if (elapsed_ticks % pdMS_TO_TICKS(1000) == 0) {
+            ESP_LOGD(TAG, "Still waiting for USB device... (%dms elapsed)", 
+                     (int)(elapsed_ticks * portTICK_PERIOD_MS));
+        }
     }
     
     ESP_LOGW(TAG, "No USB audio device found within %dms", timeout_ms);
@@ -388,11 +389,7 @@ bool UsbAudioCodec::WaitForDevice(int timeout_ms) {
 }
 
 void UsbAudioCodec::Start() {
-    ESP_LOGI(TAG, "Starting USB Audio codec...");
-    
-    // 读取音量设置
-    Settings settings("audio", false);
-    output_volume_ = settings.GetInt("output_volume", output_volume_);
+    ESP_LOGI(TAG, "Starting USB Audio codec (microphone only)...");
     
     // 初始化 USB Host 和 UAC 驱动
     esp_err_t ret = InitializeUsbHost();
@@ -407,15 +404,16 @@ void UsbAudioCodec::Start() {
         return;
     }
     
-    ESP_LOGI(TAG, "UAC device opened");
-    
-    // 短暂延迟等待设备完全枚举
-    vTaskDelay(pdMS_TO_TICKS(500));
+    // 短暂延迟等待设备完全枚举，期间喂狗
+    for (int i = 0; i < 5; i++) {
+        vTaskDelay(pdMS_TO_TICKS(100));
+        esp_task_wdt_reset();
+    }
     
     EnableInput(true);
-    EnableOutput(true);
+    EnableOutput(false);  // 禁用输出
     
-    ESP_LOGI(TAG, "USB Audio codec started successfully");
+    ESP_LOGI(TAG, "USB Audio codec started successfully (microphone only)");
 }
 
 void UsbAudioCodec::EnableInput(bool enable) {
@@ -424,7 +422,6 @@ void UsbAudioCodec::EnableInput(bool enable) {
     }
     
     if (enable && uac_rx_stream_ != nullptr && device_connected_) {
-        // RX 流已经在 OpenRxStream 中启动
         rx_stream_started_ = true;
         input_enabled_ = true;
         ESP_LOGI(TAG, "RX (MIC) enabled");
@@ -437,41 +434,16 @@ void UsbAudioCodec::EnableInput(bool enable) {
 }
 
 void UsbAudioCodec::EnableOutput(bool enable) {
-    if (enable == output_enabled_) {
-        return;
-    }
-    
-    if (enable && uac_tx_stream_ != nullptr && device_connected_) {
-        // TX 流已经在 OpenTxStream 中启动
-        tx_stream_started_ = true;
-        output_enabled_ = true;
-        ESP_LOGI(TAG, "TX (SPK) enabled");
-    } else if (!enable && uac_tx_stream_ != nullptr) {
-        uac_host_device_stop(uac_tx_stream_);
-        tx_stream_started_ = false;
-        output_enabled_ = false;
-        ESP_LOGI(TAG, "TX (SPK) disabled");
+    // 不支持 USB 扬声器输出，始终禁用
+    output_enabled_ = false;
+    if (enable) {
+        ESP_LOGW(TAG, "USB speaker output is not supported, output disabled");
     }
 }
 
 void UsbAudioCodec::SetOutputVolume(int volume) {
     output_volume_ = volume;
-    
-    // 如果设备支持硬件音量控制，可以尝试设置
-    if (uac_tx_stream_ != nullptr && device_connected_) {
-        esp_err_t ret = uac_host_device_set_volume(uac_tx_stream_, (uint8_t)volume);
-        if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "Output volume set to %d (hardware control)", output_volume_);
-        } else {
-            ESP_LOGW(TAG, "Hardware volume control not supported, using software control");
-        }
-    } else {
-        ESP_LOGI(TAG, "Output volume set to %d (software control)", output_volume_);
-    }
-    
-    // 保存到 NVS
-    Settings settings("audio", true);
-    settings.SetInt("output_volume", output_volume_);
+    ESP_LOGW(TAG, "USB speaker output is not supported, volume setting ignored");
 }
 
 int UsbAudioCodec::Read(int16_t* dest, int samples) {
@@ -502,41 +474,8 @@ int UsbAudioCodec::Read(int16_t* dest, int samples) {
 }
 
 int UsbAudioCodec::Write(const int16_t* data, int samples) {
-    if (!output_enabled_ || uac_tx_stream_ == nullptr || !device_connected_) {
-        return 0;
-    }
-    
-    // 应用音量控制（软件）
-    std::vector<int16_t> buffer(samples);
-    float volume_factor = powf(static_cast<float>(output_volume_) / 100.0f, 2.0f);
-    
-    for (int i = 0; i < samples; i++) {
-        float temp = static_cast<float>(data[i]) * volume_factor;
-        if (temp > INT16_MAX) {
-            buffer[i] = INT16_MAX;
-        } else if (temp < INT16_MIN) {
-            buffer[i] = INT16_MIN;
-        } else {
-            buffer[i] = static_cast<int16_t>(temp);
-        }
-    }
-    
-    // 写入到 USB 音频流
-    esp_err_t ret = uac_host_device_write(
-        uac_tx_stream_,
-        reinterpret_cast<uint8_t*>(buffer.data()),
-        samples * sizeof(int16_t),
-        portMAX_DELAY
-    );
-    
-    if (ret != ESP_OK) {
-        if (ret != ESP_ERR_TIMEOUT) {
-            ESP_LOGE(TAG, "Write failed: %s", esp_err_to_name(ret));
-        }
-        return 0;
-    }
-    
-    return samples;
+    // 不支持 USB 扬声器输出
+    return 0;
 }
 
 #endif  // CONFIG_IDF_TARGET_ESP32S3

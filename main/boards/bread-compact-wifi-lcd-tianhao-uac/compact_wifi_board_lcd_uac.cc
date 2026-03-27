@@ -1,4 +1,5 @@
 #include "wifi_board.h"
+#include "codecs/hybrid_usb_i2s_codec.h"
 #include "codecs/usb_audio_codec.h"
 #include "display/lcd_display.h"
 #include "system_reset.h"
@@ -249,7 +250,7 @@ public:
             BATTERY_ADC_UNIT, 
             BATTERY_ADC_CHANNEL, 
             BATTERY_UPPER_RESISTOR, 
-            BATTERY_LOWER_RESISTOR, 
+            BATTERY_LOWER_RESISTOR,
             BATTERY_CHARGING_PIN
         );
 #endif
@@ -341,6 +342,20 @@ public:
             ESP_ERROR_CHECK(gpio_set_level(SPK_GPIO_POWERSAVE, 1));
         }
 
+        // 初始化GPIO17为输出并拉高（电池充电检测或其他用途）
+        {
+            gpio_config_t gpio17_cfg = {};
+            gpio17_cfg.pin_bit_mask = BIT64(GPIO_NUM_17);
+            gpio17_cfg.mode = GPIO_MODE_OUTPUT;
+            gpio17_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
+            gpio17_cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
+            gpio17_cfg.intr_type = GPIO_INTR_DISABLE;
+            ESP_ERROR_CHECK(gpio_config(&gpio17_cfg));
+            
+            // 将GPIO17设置为高电平
+            ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_17, 1));
+        }
+
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->SetBrightness(50, true); 
         }
@@ -352,14 +367,15 @@ public:
     }
 
     virtual AudioCodec* GetAudioCodec() override {
-        // UAC Input + I2S Output 混合编解码器
-        // 注意：这里使用的是 UsbAudioCodec，它内部处理 UAC 输入
-        // I2S 输出由 UsbAudioCodec 内部管理
-        static UsbAudioCodec* audio_codec = nullptr;
-        if (audio_codec == nullptr) {
-            audio_codec = new UsbAudioCodec(AUDIO_INPUT_SAMPLE_RATE, AUDIO_OUTPUT_SAMPLE_RATE);
-        }
-        return audio_codec;
+        // 混合模式：USB 麦克风输入 + I2S 扬声器输出
+        static HybridUsbI2sCodec audio_codec(
+            AUDIO_INPUT_SAMPLE_RATE,   // USB 麦克风输入采样率 (16kHz)
+            AUDIO_OUTPUT_SAMPLE_RATE,  // I2S 扬声器输出采样率 (24kHz)
+            AUDIO_I2S_SPK_GPIO_BCLK,  // I2S 扬声器 BCLK 引脚
+            AUDIO_I2S_SPK_GPIO_LRCK,  // I2S 扬声器 LRCK 引脚  
+            AUDIO_I2S_SPK_GPIO_DOUT   // I2S 扬声器 DOUT 引脚
+        );
+        return &audio_codec;
     }
 
     virtual Display* GetDisplay() override {

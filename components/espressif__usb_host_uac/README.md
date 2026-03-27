@@ -1,58 +1,56 @@
-# USB Host UAC Driver
+# USB 主机 UAC 驱动
 
 [![Component Registry](https://components.espressif.com/components/espressif/usb_host_uac/badge.svg)](https://components.espressif.com/components/espressif/usb_host_uac)
 ![maintenance-status](https://img.shields.io/badge/maintenance-actively--developed-brightgreen.svg)
 ![changelog](https://img.shields.io/badge/Keep_a_Changelog-blue?logo=keepachangelog&logoColor=E05735)
 
-This directory contains an implementation of a USB UAC Driver implemented on top of the [USB Host Library](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/api-reference/peripherals/usb_host.html).
+本目录包含基于 [USB Host Library](https://docs.espressif.com/projects/esp-idf/en/latest/esp32s2/api-reference/peripherals/usb_host.html) 实现的 USB UAC 驱动。
 
-UAC driver allows access to UAC 1.0 devices.
+UAC 驱动用于访问 UAC 1.0 设备。
 
-## Usage
+## 使用方法
 
-The following steps outline the typical API call pattern of the UAC Class Driver:
+下面列出 UAC 类驱动的典型 API 调用流程：
 
-1. Install the USB Host Library via `usb_host_install()`
-2. Install the UAC driver via `uac_host_install()`
-3. When the new (logic) UAC device is connected, the driver event callback will be called with USB device address and event:
-    - `UAC_HOST_DRIVER_EVENT_TX_CONNECTED`
-    - `UAC_HOST_DRIVER_EVENT_RX_CONNECTED`
-4. To open/close the UAC device with USB device address and interface number:
-    - `uac_host_device_open()`
-    - `uac_host_device_close()`
-5. To get the device-supported audio format use:
-    - `uac_host_get_device_info()`
-    - `uac_host_get_device_alt_param()`
-6. To enable/disable data streaming with specific audio format use:
-    - `uac_host_device_start()`
-    - `uac_host_device_stop()`
-7. To suspend/resume data streaming use:
-    - `uac_host_device_suspend()`
-    - `uac_host_device_resume()`
-8. To control the volume/mute use:
-    - `uac_host_device_set_mute()`
-9. To control the volume use:
-    - `uac_host_device_set_volume()` or `uac_host_device_set_volume_db()`
-10. After the uac device is opened, the device event callback will be called with the following events:
-    - UAC_HOST_DEVICE_EVENT_RX_DONE
-    - UAC_HOST_DEVICE_EVENT_TX_DONE
-    - UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR
-    - UAC_HOST_DRIVER_EVENT_DISCONNECTED
-11. When the `UAC_HOST_DRIVER_EVENT_DISCONNECTED` event is called, the device should be closed via `uac_host_device_close()`
-12. The UAC driver can be uninstalled via `uac_host_uninstall()`
+1. 通过 `usb_host_install()` 安装 USB 主机库
+2. 通过 `uac_host_install()` 安装 UAC 驱动
+3. 当新的（逻辑）UAC 设备连接时，驱动的事件回调会收到设备地址和事件：
+   - `UAC_HOST_DRIVER_EVENT_TX_CONNECTED`
+   - `UAC_HOST_DRIVER_EVENT_RX_CONNECTED`
+4. 使用设备地址和接口号打开/关闭 UAC 设备：
+   - `uac_host_device_open()`
+   - `uac_host_device_close()`
+5. 获取设备支持的音频格式：
+   - `uac_host_get_device_info()`
+   - `uac_host_get_device_alt_param()`
+6. 使用特定音频格式启用/禁用数据流：
+   - `uac_host_device_start()`
+   - `uac_host_device_stop()`
+7. 挂起/恢复数据流：
+   - `uac_host_device_suspend()`
+   - `uac_host_device_resume()`
+8. 控制静音/取消静音：
+   - `uac_host_device_set_mute()`
+9. 控制音量：
+   - `uac_host_device_set_volume()` 或 `uac_host_device_set_volume_db()`
+10. 打开设备后，设备回调会收到以下事件：
+    - `UAC_HOST_DEVICE_EVENT_RX_DONE`
+    - `UAC_HOST_DEVICE_EVENT_TX_DONE`
+    - `UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR`
+    - `UAC_HOST_DRIVER_EVENT_DISCONNECTED`
+11. 收到 `UAC_HOST_DRIVER_EVENT_DISCONNECTED` 时，应调用 `uac_host_device_close()` 关闭设备
+12. 可通过 `uac_host_uninstall()` 卸载 UAC 驱动
 
-> Note: For physical device with both microphone and speaker, the driver will treat it as two separate logic devices.
+> 注意：若物理设备同时包含麦克风和扬声器，驱动会将其视为两个独立的逻辑设备。
 
-> The `UAC_HOST_DRIVER_EVENT_TX_CONNECTED` and `UAC_HOST_DRIVER_EVENT_RX_CONNECTED` event will be called for the device.
+## 已知问题
 
-## Known issues
+- 无
 
-- Empty
+## 示例
 
-## Examples
+- 参考示例：usb_audio_player（见 esp-iot-solution 仓库）
 
-- For an example, refer to [usb_audio_player](https://github.com/espressif/esp-iot-solution/tree/master/examples/usb/host/usb_audio_player)
+## 支持的设备
 
-## Supported Devices
-
-- UAC Driver supports any UAC 1.0 compatible device.
+- 支持任何兼容 UAC 1.0 的设备。
