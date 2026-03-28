@@ -121,11 +121,29 @@ void HybridUsbI2sCodec::Start() {
         usb_microphone_ready_ = true;
     }
     
-    // 启用输入输出
-    input_enabled_ = true;
-    output_enabled_ = true;
-    
-    ESP_LOGI(TAG, "Hybrid USB-I2S Audio codec started successfully");
+    // 只有在USB麦克风就绪时才启用输入
+    if (usb_microphone_ready_) {
+        input_enabled_ = true;
+        ESP_LOGI(TAG, "USB microphone input enabled");
+    } else {
+        input_enabled_ = false;
+        ESP_LOGW(TAG, "USB microphone not connected, input disabled");
+    }
+
+    // 启用输出
+    if (i2s_tx_handle_ != nullptr) {
+        output_enabled_ = true;
+        ESP_LOGI(TAG, "I2S speaker output enabled");
+        // 确保通道被启用
+        i2s_channel_enable(i2s_tx_handle_);
+        ESP_LOGI(TAG, "I2S channel enabled");
+    } else {
+        output_enabled_ = false;
+        ESP_LOGW(TAG, "I2S speaker not initialized, output disabled");
+    }
+
+    ESP_LOGI(TAG, "Hybrid USB-I2S Audio codec started - Input: %s, Output: %s",
+             input_enabled_ ? "enabled" : "disabled", output_enabled_ ? "enabled" : "disabled");
 }
 
 void HybridUsbI2sCodec::EnableInput(bool enable) {
@@ -162,24 +180,43 @@ int HybridUsbI2sCodec::Read(int16_t* dest, int samples) {
     if (!input_enabled_ || !usb_microphone_ready_ || uac_rx_device_ == nullptr) {
         return 0;
     }
-    
+
     uint32_t bytes_read = 0;
-    esp_err_t ret = uac_host_device_read(uac_rx_device_, (uint8_t*)dest, samples * sizeof(int16_t), &bytes_read, pdMS_TO_TICKS(10));
+    // 使用更长的超时时间以适应USB音频传输
+    esp_err_t ret = uac_host_device_read(uac_rx_device_, (uint8_t*)dest, samples * sizeof(int16_t), &bytes_read, pdMS_TO_TICKS(100));
     if (ret == ESP_OK && bytes_read > 0) {
         return bytes_read / sizeof(int16_t);
+    } else if (ret == ESP_ERR_TIMEOUT) {
+        // 超时是正常的，只是暂时没有数据
+        return 0;
+    } else if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "USB read error: %s, bytes_read: %u", esp_err_to_name(ret), bytes_read);
+        return 0;
     }
     return 0;
 }
 
 int HybridUsbI2sCodec::Write(const int16_t* data, int samples) {
     if (!output_enabled_ || i2s_tx_handle_ == nullptr) {
+        if (!output_enabled_) {
+            ESP_LOGD(TAG, "I2S output not enabled");
+        }
+        if (i2s_tx_handle_ == nullptr) {
+            ESP_LOGW(TAG, "I2S TX handle is null");
+        }
         return 0;
     }
-    
+
     size_t bytes_written = 0;
-    esp_err_t ret = i2s_channel_write(i2s_tx_handle_, data, samples * sizeof(int16_t), &bytes_written, pdMS_TO_TICKS(10));
+    esp_err_t ret = i2s_channel_write(i2s_tx_handle_, data, samples * sizeof(int16_t), &bytes_written, pdMS_TO_TICKS(100));
     if (ret == ESP_OK && bytes_written > 0) {
         return bytes_written / sizeof(int16_t);
+    } else if (ret == ESP_ERR_TIMEOUT) {
+        ESP_LOGD(TAG, "I2S write timeout, samples: %d", samples);
+        return 0;
+    } else if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "I2S write error: %s, bytes_written: %u", esp_err_to_name(ret), bytes_written);
+        return 0;
     }
     return 0;
 }
@@ -437,6 +474,8 @@ esp_err_t HybridUsbI2sCodec::InitializeI2sSpeaker() {
     }
     
     // 配置 I2S 标准模式
+    ESP_LOGI(TAG, "Configuring I2S with sample rate: %dHz", output_sample_rate_);
+
     i2s_std_config_t tx_std_cfg = {
         .clk_cfg = {
             .sample_rate_hz = (uint32_t)output_sample_rate_,
@@ -486,19 +525,24 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
         ESP_LOGE(TAG, "USB not initialized");
         return false;
     }
-    
+
     TickType_t start_time = xTaskGetTickCount();
     TickType_t timeout_ticks = pdMS_TO_TICKS(timeout_ms);
     int last_log_second = -1;
-    
+
     ESP_LOGI(TAG, "Waiting for USB audio device connection (%d seconds timeout)...", timeout_ms / 1000);
-    
+    ESP_LOGI(TAG, "Troubleshooting:");
+    ESP_LOGI(TAG, "  1. Ensure USB microphone is properly connected");
+    ESP_LOGI(TAG, "  2. Check USB cable supports data transfer (not power-only)");
+    ESP_LOGI(TAG, "  3. Try a different USB port if available");
+    ESP_LOGI(TAG, "  4. Ensure adequate power supply to the device");
+
     while ((xTaskGetTickCount() - start_time) < timeout_ticks) {
         int current_second = (xTaskGetTickCount() - start_time) / configTICK_RATE_HZ;
         if (current_second > last_log_second) {
             last_log_second = current_second;
             int remaining_seconds = (timeout_ticks - (xTaskGetTickCount() - start_time)) / configTICK_RATE_HZ;
-            
+
             // 检查是否有任何 USB 设备被枚举
             uint8_t dev_addr_list[8];
             int num_devices = 0;
@@ -514,7 +558,7 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
                         const usb_device_desc_t *desc;
                         ret = usb_host_get_device_descriptor(dev_handle, &desc);
                         if (ret == ESP_OK) {
-                            ESP_LOGW(TAG, "    VID: 0x%04X, PID: 0x%04X, Class: 0x%02X", 
+                            ESP_LOGW(TAG, "    VID: 0x%04X, PID: 0x%04X, Class: 0x%02X",
                                     desc->idVendor, desc->idProduct, desc->bDeviceClass);
                         }
                         usb_host_device_close(usb_client_handle_, dev_handle);
@@ -522,20 +566,24 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
                     }
                 }
                 return true;
+            } else if (ret != ESP_OK) {
+                ESP_LOGE(TAG, "USB host error: %s", esp_err_to_name(ret));
             }
 
-            ESP_LOGW(TAG, "No USB audio device found yet. Elapsed time: %d seconds, remaining: %d seconds", 
+            ESP_LOGW(TAG, "No USB audio device found yet. Elapsed time: %d seconds, remaining: %d seconds",
                     current_second, remaining_seconds);
         }
-        
+
         if (usb_microphone_ready_) {
             ESP_LOGI(TAG, "USB microphone detected and ready!");
             return true;
         }
-        
+
         vTaskDelay(pdMS_TO_TICKS(100)); // 每100ms检查一次
     }
-    
+
     ESP_LOGW(TAG, "No USB audio device found within %dms", timeout_ms);
+    ESP_LOGW(TAG, "System will continue without USB microphone input");
+    ESP_LOGW(TAG, "Audio input will be disabled until a USB microphone is connected");
     return false;
 }

@@ -41,15 +41,24 @@ void AudioService::Initialize(AudioCodec* codec) {
     // 验证采样率有效性（非零）
     int input_sample_rate = codec->input_sample_rate();
     int output_sample_rate = codec->output_sample_rate();
-    
+
+    ESP_LOGI(TAG, "Initial codec sample rates - Input: %dHz, Output: %dHz",
+             input_sample_rate, output_sample_rate);
+
     if (output_sample_rate <= 0) {
         ESP_LOGE(TAG, "Invalid output sample rate: %d, using fallback 16kHz", output_sample_rate);
         output_sample_rate = 16000;
+        ESP_LOGW(TAG, "Warning: Output audio may not work correctly with fallback sample rate");
+    } else {
+        ESP_LOGI(TAG, "Output sample rate validated: %dHz", output_sample_rate);
     }
-    
+
     if (input_sample_rate <= 0) {
         ESP_LOGE(TAG, "Invalid input sample rate: %d, using fallback 16kHz", input_sample_rate);
         input_sample_rate = 16000;
+        ESP_LOGW(TAG, "Warning: USB microphone may not be connected");
+    } else {
+        ESP_LOGI(TAG, "Input sample rate validated: %dHz", input_sample_rate);
     }
 
     // Setup the audio codec
@@ -366,7 +375,13 @@ void AudioService::AudioOutputTask() {
             codec_->EnableOutput(true);
             esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
         }
-        codec_->OutputData(task->pcm);
+
+        // 只有在输出启用时才写入数据
+        if (codec_->output_enabled()) {
+            codec_->OutputData(task->pcm);
+        } else {
+            ESP_LOGW(TAG, "Output not enabled, skipping audio playback");
+        }
 
         /* Update the last output time */
         last_output_time_ = std::chrono::steady_clock::now();
@@ -412,13 +427,17 @@ void AudioService::OpusCodecTask() {
                 // Resample if the sample rate is different
                 int output_sample_rate = codec_->output_sample_rate();
                 if (opus_decoder_->sample_rate() != output_sample_rate) {
-                    if (output_sample_rate > 0) {
+                    if (output_sample_rate > 0 && output_sample_rate != codec_->output_sample_rate()) {
                         int target_size = output_resampler_.GetOutputSamples(task->pcm.size());
                         std::vector<int16_t> resampled(target_size);
                         output_resampler_.Process(task->pcm.data(), task->pcm.size(), resampled.data());
                         task->pcm = std::move(resampled);
-                    } else {
-                        ESP_LOGE(TAG, "Invalid output sample rate: %d", output_sample_rate);
+                        ESP_LOGD(TAG, "Resampled audio from %dHz to %dHz",
+                                 opus_decoder_->sample_rate(), output_sample_rate);
+                    } else if (output_sample_rate == 0) {
+                        ESP_LOGW(TAG, "Output sample rate is 0, using decoder sample rate: %dHz",
+                                 opus_decoder_->sample_rate());
+                        // 当输出采样率为0时，不进行重采样，直接使用解码器的采样率
                     }
                 }
 
