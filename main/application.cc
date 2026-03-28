@@ -817,7 +817,9 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateIdle:
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
-            audio_service_.EnableVoiceProcessing(false);
+            // 在空闲状态下，同时启用唤醒词检测和AFE处理器作为后备
+            // AFE处理器会定期清空缓冲区，防止溢出
+            audio_service_.EnableVoiceProcessing(true);
             audio_service_.EnableWakeWordDetection(true);
             break;
         case kDeviceStateConnecting:

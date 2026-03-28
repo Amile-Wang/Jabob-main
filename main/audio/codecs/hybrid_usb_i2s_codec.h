@@ -20,18 +20,12 @@
  */
 class HybridUsbI2sCodec : public AudioCodec {
 public:
-    /**
-     * @brief 构造函数
-     * @param input_sample_rate USB 麦克风输入采样率（Hz）
-     * @param output_sample_rate I2S 扬声器输出采样率（Hz）
-     * @param spk_bclk I2S 扬声器位时钟引脚
-     * @param spk_ws I2S 扬声器左右时钟引脚  
-     * @param spk_dout I2S 扬声器数据输出引脚
-     */
-    HybridUsbI2sCodec(int input_sample_rate, int output_sample_rate, 
+    // 修改构造函数：移除 input_sample_rate 参数，使用默认值 0 表示未确定
+    HybridUsbI2sCodec(int output_sample_rate, 
                      gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout);
-    ~HybridUsbI2sCodec() override;
     
+    virtual ~HybridUsbI2sCodec() override;
+
     void Start() override;
     void EnableInput(bool enable) override;
     void EnableOutput(bool enable) override;
@@ -54,17 +48,22 @@ private:
     esp_err_t CloseI2sSpeaker();
     bool WaitForUsbDevice(int timeout_ms);  // 添加函数声明
     
+    // 添加辅助函数：根据设备能力选择最佳采样率
+    uint32_t SelectBestSampleRate(const uac_host_dev_alt_param_t& alt_params);
+    
     // I2S 扬声器相关
     
     // 成员变量
     EventGroupHandle_t usb_event_group_;
     
-    // USB 相关
-    uac_host_device_handle_t uac_rx_device_;
-    uint8_t usb_device_addr_;
-    uint8_t usb_iface_num_;
-    bool usb_microphone_ready_;
-    usb_host_client_handle_t usb_client_handle_;  // USB 客户端句柄
+    // USB 相关成员变量
+    bool usb_initialized_ = false;
+    usb_host_client_handle_t usb_client_handle_ = nullptr;
+    uac_host_device_handle_t uac_rx_device_ = nullptr;
+    TaskHandle_t usb_host_task_handle_ = nullptr;  // 添加 USB Host 任务句柄
+    uint8_t usb_device_addr_ = 0;        // USB 设备地址
+    uint8_t usb_iface_num_ = 0;          // USB 接口号
+    bool usb_microphone_ready_ = false;   // USB 麦克风就绪标志
     
     // I2S 相关
     i2s_chan_handle_t i2s_tx_handle_;
@@ -74,8 +73,8 @@ private:
     int output_sample_rate_;
     
     // 状态标志
-    bool usb_initialized_;
     bool i2s_initialized_;
+
 };
 
 #endif // HYBRID_USB_I2S_CODEC_H

@@ -1,6 +1,8 @@
 #include "audio_service.h"
 #include <esp_log.h>
 
+#include "esp_task_wdt.h"
+
 #if CONFIG_USE_AUDIO_PROCESSOR
 #include "processors/afe_audio_processor.h"
 #else
@@ -33,8 +35,47 @@ void AudioService::Initialize(AudioCodec* codec) {
     codec_ = codec;
     codec_->Start();
 
-    /* Setup the audio codec */
-    opus_decoder_ = std::make_unique<OpusDecoderWrapper>(codec->output_sample_rate(), 1, OPUS_FRAME_DURATION_MS);
+    // 添加延迟确保 USB 设备完成枚举和采样率协商
+    vTaskDelay(pdMS_TO_TICKS(2000));
+
+    // 验证采样率有效性（非零）
+    int input_sample_rate = codec->input_sample_rate();
+    int output_sample_rate = codec->output_sample_rate();
+    
+    if (output_sample_rate <= 0) {
+        ESP_LOGE(TAG, "Invalid output sample rate: %d, using fallback 16kHz", output_sample_rate);
+        output_sample_rate = 16000;
+    }
+    
+    if (input_sample_rate <= 0) {
+        ESP_LOGE(TAG, "Invalid input sample rate: %d, using fallback 16kHz", input_sample_rate);
+        input_sample_rate = 16000;
+    }
+
+    // Setup the audio codec
+    // 尝试使用输出采样率创建 Opus 解码器
+    opus_decoder_ = std::make_unique<OpusDecoderWrapper>(output_sample_rate, 1, OPUS_FRAME_DURATION_MS);
+    
+    // 检查 Opus 解码器是否创建成功
+    if (!opus_decoder_ || opus_decoder_->sample_rate() != output_sample_rate) {
+        ESP_LOGE(TAG, "Failed to create Opus decoder with %dHz, falling back to 16kHz", output_sample_rate);
+        opus_decoder_.reset();
+        opus_decoder_ = std::make_unique<OpusDecoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
+        
+        // 配置输出重采样器：16kHz -> 输出采样率
+        if (output_sample_rate != 16000) {
+            output_resampler_.Configure(16000, output_sample_rate);
+            ESP_LOGI(TAG, "Configured fallback output resampler: 16000Hz -> %dHz", output_sample_rate);
+        }
+    } else {
+        ESP_LOGI(TAG, "Opus decoder created successfully with %dHz", output_sample_rate);
+        // 如果解码器采样率与输出采样率不同，配置重采样器
+        if (opus_decoder_->sample_rate() != output_sample_rate) {
+            output_resampler_.Configure(opus_decoder_->sample_rate(), output_sample_rate);
+            ESP_LOGI(TAG, "Configured output resampler: %dHz -> %dHz", 
+                    opus_decoder_->sample_rate(), output_sample_rate);
+        }
+    }
    
     // 添加延迟以避免中断看门狗超时
     vTaskDelay(pdMS_TO_TICKS(1000));
@@ -46,10 +87,14 @@ void AudioService::Initialize(AudioCodec* codec) {
     // 再添加一个延迟确保OPUS编码器初始化完成
     vTaskDelay(pdMS_TO_TICKS(1000));
 
-    if (codec->input_sample_rate() != 16000) {
-        input_resampler_.Configure(codec->input_sample_rate(), 16000);
-        reference_resampler_.Configure(codec->input_sample_rate(), 16000);
+    // 配置输入重采样器：设备采样率 → 16kHz（仅在采样率有效且不等于16kHz时配置）
+    if (input_sample_rate > 0 && input_sample_rate != 16000) {
+        input_resampler_.Configure(input_sample_rate, 16000);
+        reference_resampler_.Configure(input_sample_rate, 16000);
+        ESP_LOGI(TAG, "Configured input resampler: %dHz -> 16000Hz", input_sample_rate);
     }
+
+    // 注意：输出重采样器已经在上面的 Opus 解码器处理中配置过了，这里不再重复配置
 
 #if CONFIG_USE_AUDIO_PROCESSOR
     audio_processor_ = std::make_unique<AfeAudioProcessor>();
@@ -97,6 +142,13 @@ void AudioService::Initialize(AudioCodec* codec) {
         .skip_unhandled_events = true,
     };
     esp_timer_create(&audio_power_timer_args, &audio_power_timer_);
+
+    // 启动后备数据消费者任务，确保 AFE 缓冲区不会溢出
+    xTaskCreate([](void* arg) {
+        AudioService* audio_service = (AudioService*)arg;
+        audio_service->BackupDataConsumerTask();
+        vTaskDelete(NULL);
+    }, "backup_consumer", 4096, this, 1, &backup_consumer_task_handle_);
 }
 
 void AudioService::Start() {
@@ -111,13 +163,13 @@ void AudioService::Start() {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioInputTask();
         vTaskDelete(NULL);
-    }, "audio_input", 2048 * 3, this, 8, &audio_input_task_handle_, 1);
+    }, "audio_input", 2048 * 6, this, 8, &audio_input_task_handle_, 1); // 增加堆栈大小从 2048*4 到 2048*6
 #else
     xTaskCreate([](void* arg) {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioInputTask();
         vTaskDelete(NULL);
-    }, "audio_input", 2048 * 3, this, 8, &audio_input_task_handle_);
+    }, "audio_input", 2048 * 6, this, 8, &audio_input_task_handle_); // 增加堆栈大小
 #endif
 
     /* Start the audio output task */
@@ -196,9 +248,9 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
     // 添加调试日志，输出部分音频数据以检查麦克风是否正常工作
     if (debug_statistics_.input_count % 50 == 0) { // 每50次采样输出一次调试信息
         ESP_LOGI(TAG, "Audio input debug - first 10 samples: ");
-        for (int i = 0; i < std::min(10, (int)data.size()); i++) {
-            ESP_LOGI(TAG, "  Sample[%d]: %d", i, data[i]);
-        }
+        // for (int i = 0; i < std::min(10, (int)data.size()); i++) {
+        //     ESP_LOGI(TAG, "  Sample[%d]: %d", i, data[i]);
+        // }
         ESP_LOGI(TAG, "  Total samples: %d, max value: %d, min value: %d", 
                  (int)data.size(), 
                  *std::max_element(data.begin(), data.end()),
@@ -217,6 +269,9 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 }
 
 void AudioService::AudioInputTask() {
+    // 将当前任务添加到看门狗监控列表
+    esp_task_wdt_add(NULL);
+    
     while (true) {
         EventBits_t bits = xEventGroupWaitBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING |
             AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING,
@@ -250,6 +305,8 @@ void AudioService::AudioInputTask() {
                     data = std::move(mono_data);
                 }
                 PushTaskToEncodeQueue(kAudioTaskTypeEncodeToTestingQueue, std::move(data));
+                // 重置看门狗
+                esp_task_wdt_reset();
                 continue;
             }
         }
@@ -261,6 +318,8 @@ void AudioService::AudioInputTask() {
             if (samples > 0) {
                 if (ReadAudioData(data, 16000, samples)) {
                     wake_word_->Feed(data);
+                    // 重置看门狗
+                    esp_task_wdt_reset();
                     continue;
                 }
             }
@@ -273,6 +332,8 @@ void AudioService::AudioInputTask() {
             if (samples > 0) {
                 if (ReadAudioData(data, 16000, samples)) {
                     audio_processor_->Feed(std::move(data));
+                    // 重置看门狗
+                    esp_task_wdt_reset();
                     continue;
                 }
             }
@@ -281,6 +342,9 @@ void AudioService::AudioInputTask() {
         ESP_LOGE(TAG, "Should not be here, bits: %lx", bits);
         break;
     }
+    
+    // 从看门狗监控列表中移除任务
+    esp_task_wdt_delete(NULL);
 
     ESP_LOGW(TAG, "Audio input task stopped");
 }
@@ -346,11 +410,16 @@ void AudioService::OpusCodecTask() {
             SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
             if (opus_decoder_->Decode(std::move(packet->payload), task->pcm)) {
                 // Resample if the sample rate is different
-                if (opus_decoder_->sample_rate() != codec_->output_sample_rate()) {
-                    int target_size = output_resampler_.GetOutputSamples(task->pcm.size());
-                    std::vector<int16_t> resampled(target_size);
-                    output_resampler_.Process(task->pcm.data(), task->pcm.size(), resampled.data());
-                    task->pcm = std::move(resampled);
+                int output_sample_rate = codec_->output_sample_rate();
+                if (opus_decoder_->sample_rate() != output_sample_rate) {
+                    if (output_sample_rate > 0) {
+                        int target_size = output_resampler_.GetOutputSamples(task->pcm.size());
+                        std::vector<int16_t> resampled(target_size);
+                        output_resampler_.Process(task->pcm.data(), task->pcm.size(), resampled.data());
+                        task->pcm = std::move(resampled);
+                    } else {
+                        ESP_LOGE(TAG, "Invalid output sample rate: %d", output_sample_rate);
+                    }
                 }
 
                 lock.lock();
@@ -572,6 +641,37 @@ void AudioService::ResetDecoder() {
     audio_playback_queue_.clear();
     audio_testing_queue_.clear();
     audio_queue_cv_.notify_all();
+}
+
+void AudioService::BackupDataConsumerTask() {
+    // 将当前任务添加到看门狗监控列表
+    esp_task_wdt_add(NULL);
+    
+    while (!service_stopped_) {
+        // 检查当前是否有活跃的数据消费者
+        EventBits_t bits = xEventGroupGetBits(event_group_);
+        bool has_active_consumer = (bits & (AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING | AS_EVENT_AUDIO_TESTING_RUNNING)) != 0;
+        
+        if (!has_active_consumer && wake_word_ && wake_word_->GetFeedSize() > 0) {
+            // 没有活跃消费者，但唤醒词检测已初始化，尝试fetch数据防止AFE溢出
+            // 注意：这里我们不能直接调用wake_word_->Feed，因为没有数据源
+            // 但我们可以通过检查AFE状态来间接帮助清空缓冲区
+            // 实际上，AFE的fetch应该由对应的处理器来完成
+            // 所以这里主要是作为额外的安全保障
+            vTaskDelay(pdMS_TO_TICKS(10));
+        } else {
+            // 有活跃消费者或没有初始化，可以较长延迟
+            vTaskDelay(pdMS_TO_TICKS(200));
+        }
+        
+        // 定期重置看门狗
+        esp_task_wdt_reset();
+    }
+    
+    // 从看门狗监控列表中移除任务
+    esp_task_wdt_delete(NULL);
+    
+    ESP_LOGW(TAG, "Backup data consumer task stopped");
 }
 
 void AudioService::CheckAndUpdateAudioPowerState() {

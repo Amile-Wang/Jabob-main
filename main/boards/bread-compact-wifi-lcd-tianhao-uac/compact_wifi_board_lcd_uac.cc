@@ -368,8 +368,8 @@ public:
 
     virtual AudioCodec* GetAudioCodec() override {
         // 混合模式：USB 麦克风输入 + I2S 扬声器输出
+        // 输入采样率将在运行时自动检测，无需预先指定
         static HybridUsbI2sCodec audio_codec(
-            AUDIO_INPUT_SAMPLE_RATE,   // USB 麦克风输入采样率 (16kHz)
             AUDIO_OUTPUT_SAMPLE_RATE,  // I2S 扬声器输出采样率 (24kHz)
             AUDIO_I2S_SPK_GPIO_BCLK,  // I2S 扬声器 BCLK 引脚
             AUDIO_I2S_SPK_GPIO_LRCK,  // I2S 扬声器 LRCK 引脚  
@@ -412,4 +412,5 @@ public:
     }
 };
 
+// 注册开发板
 DECLARE_BOARD(CompactWifiBoardLCDUAC);

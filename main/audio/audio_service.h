@@ -89,7 +89,18 @@ public:
     void EncodeWakeWord();
     std::unique_ptr<AudioStreamPacket> PopWakeWordPacket();
     const std::string& GetLastWakeWord() const;
+    
+    // 添加核心任务监控函数
+    void PrintCoreTaskInfo(int core_id);
+    
+    bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
+    
+    // 添加后备数据消费者任务声明
+    void BackupDataConsumerTask();
+    
+    // 添加 IsVoiceDetected 公共方法
     bool IsVoiceDetected() const { return voice_detected_; }
+    
     bool IsIdle();
     bool IsWakeWordRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_WAKE_WORD_RUNNING; }
     bool IsAudioProcessorRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_AUDIO_PROCESSOR_RUNNING; }
@@ -104,7 +115,6 @@ public:
     bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);
     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
     void PlaySound(const std::string_view& sound);
-    bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
 
 private:
@@ -126,6 +136,7 @@ private:
     TaskHandle_t audio_input_task_handle_ = nullptr;
     TaskHandle_t audio_output_task_handle_ = nullptr;
     TaskHandle_t opus_codec_task_handle_ = nullptr;
+    TaskHandle_t backup_consumer_task_handle_ = nullptr;
     std::mutex audio_queue_mutex_;
     std::condition_variable audio_queue_cv_;
     std::deque<std::unique_ptr<AudioStreamPacket>> audio_decode_queue_;

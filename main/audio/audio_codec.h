@@ -11,8 +11,11 @@
 
 #include "board.h"
 
-#define AUDIO_CODEC_DMA_DESC_NUM 6
-#define AUDIO_CODEC_DMA_FRAME_NUM 240
+// 增加缓冲区大小以适应高采样率（如48kHz）
+// 原值：AUDIO_CODEC_DMA_DESC_NUM 6, AUDIO_CODEC_DMA_FRAME_NUM 240
+// 新值：增加到支持48kHz采样率所需的缓冲区大小
+#define AUDIO_CODEC_DMA_DESC_NUM 8
+#define AUDIO_CODEC_DMA_FRAME_NUM 960
 #define AUDIO_CODEC_DEFAULT_MIC_GAIN 30.0
 
 class AudioCodec {

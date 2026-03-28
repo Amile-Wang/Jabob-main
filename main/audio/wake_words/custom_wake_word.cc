@@ -14,6 +14,7 @@
 #include "esp_mn_models.h"
 #include "esp_mn_speech_commands.h"
 #include <sstream>
+#include "esp_task_wdt.h" // 添加看门狗头文件
 
 
 #define DETECTION_RUNNING_EVENT 1
@@ -61,18 +62,19 @@ void CustomWakeWord::Initialize(AudioCodec* codec) {
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
     afe_config->aec_init = codec_->input_reference();
     afe_config->aec_mode = AEC_MODE_SR_HIGH_PERF;
-    afe_config->afe_perferred_core = 1;
+    afe_config->afe_perferred_core = 0; // 将AFE配置为使用CPU 0
     afe_config->afe_perferred_priority = 1;
     afe_config->memory_alloc_mode = AFE_MEMORY_ALLOC_MORE_PSRAM;
     
     afe_iface_ = esp_afe_handle_from_config(afe_config);
     afe_data_ = afe_iface_->create_from_config(afe_config);
 
-    xTaskCreate([](void* arg) {
+    // 将唤醒词检测任务固定到CPU 0
+    xTaskCreatePinnedToCore([](void* arg) {
         auto this_ = (CustomWakeWord*)arg;
         this_->AudioDetectionTask();
         vTaskDelete(NULL);
-    }, "audio_detection", 16384, this, 3, nullptr);
+    }, "audio_detection", 16384, this, 3, nullptr, 0); // 固定到CPU 0
 }
 
 void CustomWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
@@ -105,6 +107,9 @@ size_t CustomWakeWord::GetFeedSize() {
 }
 
 void CustomWakeWord::AudioDetectionTask() {
+    // 将当前任务添加到看门狗监控列表
+    esp_task_wdt_add(NULL);
+    
     auto fetch_size = afe_iface_->get_fetch_chunksize(afe_data_);
     auto feed_size = afe_iface_->get_feed_chunksize(afe_data_);
 
@@ -135,14 +140,22 @@ void CustomWakeWord::AudioDetectionTask() {
         auto res = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
         if (res == nullptr || res->ret_value == ESP_FAIL) {
             ESP_LOGW(TAG, "Fetch failed, continue");
+            // 重置看门狗以防超时
+            esp_task_wdt_reset();
             continue;
         }
 
         // 存储音频数据用于语音识别
         StoreWakeWordData(res->data, res->data_size / sizeof(int16_t));
 
+        // 在耗时操作前重置看门狗
+        esp_task_wdt_reset();
+        
         // 直接使用multinet检测自定义唤醒词
         esp_mn_state_t mn_state = multinet->detect(model_data, res->data);
+        
+        // 在耗时操作后重置看门狗
+        esp_task_wdt_reset();
         
         if (mn_state == ESP_MN_STATE_DETECTING) {
             // 仍在检测中，继续
@@ -175,7 +188,13 @@ void CustomWakeWord::AudioDetectionTask() {
             multinet->clean(model_data);
             continue;
         }
+        
+        // 在循环末尾重置看门狗
+        esp_task_wdt_reset();
     }
+    
+    // 从看门狗监控列表中移除任务
+    esp_task_wdt_delete(NULL);
     
     // 清理资源
     if (model_data) {

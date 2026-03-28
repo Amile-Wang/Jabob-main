@@ -1,5 +1,6 @@
 #include "afe_audio_processor.h"
 #include <esp_log.h>
+#include "esp_task_wdt.h"
 
 #define PROCESSOR_RUNNING 0x01
 
@@ -60,14 +61,19 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
     afe_config->vad_init = true;
 #endif
 
+    // 配置AFE使用CPU 1进行处理
+    afe_config->afe_perferred_core = 1;
+    afe_config->afe_perferred_priority = 20;
+
     afe_iface_ = esp_afe_handle_from_config(afe_config);
     afe_data_ = afe_iface_->create_from_config(afe_config);
     
-    xTaskCreate([](void* arg) {
+    // 将AFE音频处理器任务固定到CPU 1
+    xTaskCreatePinnedToCore([](void* arg) {
         auto this_ = (AfeAudioProcessor*)arg;
         this_->AudioProcessorTask();
         vTaskDelete(NULL);
-    }, "audio_communication", 8192, this, 20, NULL);
+    }, "audio_communication", 12288, this, 20, NULL, 1); // 固定到CPU 1
 }
 
 AfeAudioProcessor::~AfeAudioProcessor() {
@@ -78,17 +84,10 @@ AfeAudioProcessor::~AfeAudioProcessor() {
 }
 
 size_t AfeAudioProcessor::GetFeedSize() {
-    if (afe_data_ == nullptr) {
+    if (!afe_data_) {
         return 0;
     }
-    return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
-}
-
-void AfeAudioProcessor::Feed(std::vector<int16_t>&& data) {
-    if (afe_data_ == nullptr) {
-        return;
-    }
-    afe_iface_->feed(afe_data_, data.data());
+    return afe_iface_->get_feed_chunksize(afe_data_);
 }
 
 void AfeAudioProcessor::Start() {
@@ -97,33 +96,51 @@ void AfeAudioProcessor::Start() {
 
 void AfeAudioProcessor::Stop() {
     xEventGroupClearBits(event_group_, PROCESSOR_RUNNING);
-    if (afe_data_ != nullptr) {
-        afe_iface_->reset_buffer(afe_data_);
+}
+
+void AfeAudioProcessor::EnableDeviceAec(bool enable) {
+    if (enable) {
+        afe_iface_->enable_aec(afe_data_);
+    } else {
+        afe_iface_->disable_aec(afe_data_);
     }
 }
 
-bool AfeAudioProcessor::IsRunning() {
-    return xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING;
-}
-
-void AfeAudioProcessor::OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) {
-    output_callback_ = callback;
-}
-
-void AfeAudioProcessor::OnVadStateChange(std::function<void(bool speaking)> callback) {
-    vad_state_change_callback_ = callback;
+void AfeAudioProcessor::Feed(std::vector<int16_t>&& data) {
+    if (!afe_data_) {
+        return;
+    }
+    afe_iface_->feed(afe_data_, data.data());
 }
 
 void AfeAudioProcessor::AudioProcessorTask() {
+    // 将当前任务添加到看门狗监控列表
+    esp_task_wdt_add(NULL);
+    
     auto fetch_size = afe_iface_->get_fetch_chunksize(afe_data_);
     auto feed_size = afe_iface_->get_feed_chunksize(afe_data_);
     ESP_LOGI(TAG, "Audio communication task started, feed size: %d fetch size: %d",
         feed_size, fetch_size);
 
     while (true) {
-        xEventGroupWaitBits(event_group_, PROCESSOR_RUNNING, pdFALSE, pdTRUE, portMAX_DELAY);
+        // 检查是否应该运行
+        if ((xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING) == 0) {
+            // 在非运行状态下，适度地fetch数据以维持AFE缓冲区健康
+            // 使用非常短的超时（1ms）进行非阻塞尝试
+            auto res = afe_iface_->fetch_with_delay(afe_data_, pdMS_TO_TICKS(1));
+            if (res != nullptr && res->ret_value == ESP_OK) {
+                // 成功获取到数据，说明AFE有数据需要处理
+                // 丢弃数据，但这样可以防止缓冲区溢出
+                // 继续下一次循环
+            }
+            // 无论是否获取到数据，都短暂延迟避免忙等待
+            vTaskDelay(pdMS_TO_TICKS(20));
+            esp_task_wdt_reset();
+            continue;
+        }
 
-        auto res = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
+        // 正常运行模式：等待数据并处理
+        auto res = afe_iface_->fetch_with_delay(afe_data_, pdMS_TO_TICKS(100)); // 减少等待时间到100ms
         if ((xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING) == 0) {
             continue;
         }
@@ -131,6 +148,7 @@ void AfeAudioProcessor::AudioProcessorTask() {
             if (res != nullptr) {
                 ESP_LOGI(TAG, "Error code: %d", res->ret_value);
             }
+            vTaskDelay(pdMS_TO_TICKS(10)); // 短暂延迟避免忙等待
             continue;
         }
 
@@ -165,19 +183,23 @@ void AfeAudioProcessor::AudioProcessorTask() {
                 }
             }
         }
+        
+        // 定期重置看门狗
+        esp_task_wdt_reset();
     }
+    
+    // 从看门狗监控列表中移除任务
+    esp_task_wdt_delete(NULL);
 }
 
-void AfeAudioProcessor::EnableDeviceAec(bool enable) {
-    if (enable) {
-#if CONFIG_USE_DEVICE_AEC
-        afe_iface_->disable_vad(afe_data_);
-        afe_iface_->enable_aec(afe_data_);
-#else
-        ESP_LOGE(TAG, "Device AEC is not supported");
-#endif
-    } else {
-        afe_iface_->disable_aec(afe_data_);
-        afe_iface_->enable_vad(afe_data_);
-    }
+void AfeAudioProcessor::OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) {
+    output_callback_ = callback;
+}
+
+void AfeAudioProcessor::OnVadStateChange(std::function<void(bool speaking)> callback) {
+    vad_state_change_callback_ = callback;
+}
+
+bool AfeAudioProcessor::IsRunning() {
+    return xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING;
 }
