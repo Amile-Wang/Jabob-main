@@ -232,6 +232,12 @@ void HybridUsbI2sCodec::SetOutputVolume(int volume) {
 }
 
 int HybridUsbI2sCodec::Read(int16_t* dest, int samples) {
+    // 添加读取时间戳用于计算间隔
+    static TickType_t last_read_time = xTaskGetTickCount();
+    TickType_t current_read_time = xTaskGetTickCount();
+    uint32_t time_diff_ms = (current_read_time - last_read_time) * portTICK_PERIOD_MS;
+    last_read_time = current_read_time;
+    
     static uint32_t read_call_count = 0;
     static uint32_t empty_buffer_count = 0;
     static uint32_t last_warning_time = 0;
@@ -297,6 +303,14 @@ int HybridUsbI2sCodec::Read(int16_t* dest, int samples) {
 
     // 更新统计信息
     samples_processed_ += samples_read;
+
+    // 添加详细的读取监控日志（每50次读取输出一次）
+    static int read_log_count = 0;
+    if (++read_log_count >= 50) {
+        read_log_count = 0;
+        ESP_LOGI(TAG, "USB_INPUT_MONITOR: Interval=%" PRIu32 "ms, Requested=%d samples, Actual=%d samples, BufferSize=%u", 
+                 time_diff_ms, samples, (int)samples_read, (unsigned int)usb_audio_buffer_.size());
+    }
 
     return samples_read;
 }

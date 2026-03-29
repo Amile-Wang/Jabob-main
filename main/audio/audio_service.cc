@@ -1,5 +1,11 @@
 #include "audio_service.h"
+#include "board.h"
+#include "settings.h"
+#include "audio/codecs/hybrid_usb_i2s_codec.h"
+
 #include <esp_log.h>
+#include <cstring>
+#include <algorithm>
 #include <inttypes.h>
 
 #include "esp_task_wdt.h"
@@ -193,13 +199,13 @@ void AudioService::Start() {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioInputTask();
         vTaskDelete(NULL);
-    }, "audio_input", 2048 * 4, this, 8, &audio_input_task_handle_, 1); // 优化：从6减到4
+    }, "audio_input", 2048 * 4, this, 15, &audio_input_task_handle_, 1); // 提升优先级到15，高于监控任务
 #else
     xTaskCreate([](void* arg) {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioInputTask();
         vTaskDelete(NULL);
-    }, "audio_input", 2048 * 4, this, 8, &audio_input_task_handle_); // 优化：从6减到4
+    }, "audio_input", 2048 * 4, this, 15, &audio_input_task_handle_); // 提升优先级到15，高于监控任务
 #endif
 
     /* Start the audio output task */
@@ -378,7 +384,7 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 
         // 验证重采样结果
         if (data.size() != samples) {
-            ESP_LOGW(TAG, "Resampling size mismatch: expected %d, got %zu", samples, data.size());
+            ESP_LOGI(TAG, "Resampling size mismatch: expected %d, got %u", samples, data.size());
         }
     } else {
         // 不需要重采样，直接读取
@@ -399,16 +405,16 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 
     if (max_val == 0 && min_val == 0) {
         consecutive_zero_reads++;
-        ESP_LOGW(TAG, "Zero audio data detected (count: %d), USB microphone may not be connected",
+        ESP_LOGW(TAG, "Zero audio data detected (count: %d), audio buffer may be empty",
                  consecutive_zero_reads);
 
-        // 如果连续5次读到零数据，说明USB麦克风确实未连接
-        if (consecutive_zero_reads >= 5) {
-            ESP_LOGW(TAG, "Detected USB microphone disconnection, disabling audio input temporarily");
-            consecutive_zero_reads = 0; // 重置计数器
-            vTaskDelay(pdMS_TO_TICKS(1000)); // 等待1秒后重试
-            return false;
-        }
+        // // 如果连续5次读到零数据，说明USB麦克风确实未连接
+        // if (consecutive_zero_reads >= 5) {
+        //     ESP_LOGW(TAG, "Detected USB microphone disconnection, disabling audio input temporarily");
+        //     consecutive_zero_reads = 0; // 重置计数器
+        //     vTaskDelay(pdMS_TO_TICKS(1000)); // 等待1秒后重试
+        //     return false;
+        // }
     } else {
         consecutive_zero_reads = 0; // 有有效数据，重置计数器
     }
@@ -441,9 +447,6 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 }
 
 void AudioService::AudioInputTask() {
-    // 将当前任务添加到看门狗监控列表
-    esp_task_wdt_add(NULL);
-    
     while (true) {
         EventBits_t bits = xEventGroupWaitBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING |
             AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING,
@@ -476,59 +479,59 @@ void AudioService::AudioInputTask() {
                     }
                     data = std::move(mono_data);
                 }
-                PushTaskToEncodeQueue(kAudioTaskTypeEncodeToTestingQueue, std::move(data));
-                // 重置看门狗
-                esp_task_wdt_reset();
+                // Create an AudioTask and encode it to AudioStreamPacket for testing queue
+                auto task = std::make_unique<AudioTask>();
+                task->type = kAudioTaskTypeEncodeToTestingQueue;
+                task->pcm = std::move(data);
+                {
+                    std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+                    audio_encode_queue_.push_back(std::move(task));
+                }
+            }
+        }
+
+#if CONFIG_USE_WAKE_WORD
+        /* Used for wake word detection */
+        if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
+            if (!wake_word_) {
                 continue;
             }
-        }
-
-        /* Feed the wake word */
-        if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
             std::vector<int16_t> data;
             int samples = wake_word_->GetFeedSize();
-            if (samples > 0) {
-                if (ReadAudioData(data, 16000, samples)) {
-                    wake_word_->Feed(data);
-                    // 重置看门狗
-                    esp_task_wdt_reset();
-                    continue;
+            if (ReadAudioData(data, 16000, samples)) {
+                // If input channels is 2, we need to fetch the left channel data
+                if (codec_->input_channels() == 2) {
+                    auto mono_data = std::vector<int16_t>(data.size() / 2);
+                    for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
+                        mono_data[i] = data[j];
+                    }
+                    data = std::move(mono_data);
                 }
+                wake_word_->Feed(data);
             }
         }
+#endif
 
-        /* Feed the audio processor */
+#if CONFIG_USE_AUDIO_PROCESSOR
+        /* Used for audio processor */
         if (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
             std::vector<int16_t> data;
-            int samples = audio_processor_->GetFeedSize();
-            if (samples > 0) {
-                if (ReadAudioData(data, 16000, samples)) {
-                    audio_processor_->Feed(std::move(data));
-                    // 重置看门狗
-                    esp_task_wdt_reset();
-                    continue;
-                } else {
-                    // 读取失败，减少延迟以防止USB缓冲区溢出
-                    // 原延迟10ms改为2ms，提高响应速度
-                    vTaskDelay(pdMS_TO_TICKS(2));
-                    esp_task_wdt_reset();
+            int samples = OPUS_FRAME_DURATION_MS * 16000 / 1000;
+            if (ReadAudioData(data, 16000, samples)) {
+                // If input channels is 2, we need to fetch the left channel data
+                if (codec_->input_channels() == 2) {
+                    auto mono_data = std::vector<int16_t>(data.size() / 2);
+                    for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
+                        mono_data[i] = data[j];
+                    }
+                    data = std::move(mono_data);
                 }
-            } else {
-                // 获取的samples为0，减少延迟以防止USB缓冲区溢出
-                // 原延迟10ms改为2ms，提高响应速度
-                vTaskDelay(pdMS_TO_TICKS(2));
-                esp_task_wdt_reset();
+                // Feed data directly to audio processor instead of using non-existent queue
+                audio_processor_->Feed(std::move(data));
             }
         }
-
-        ESP_LOGE(TAG, "Should not be here, bits: %lx", bits);
-        break;
+#endif
     }
-    
-    // 从看门狗监控列表中移除任务
-    esp_task_wdt_delete(NULL);
-
-    ESP_LOGW(TAG, "Audio input task stopped");
 }
 
 void AudioService::AudioOutputTask() {
@@ -913,22 +916,16 @@ void AudioService::BackupDataConsumerTask() {
 }
 
 void AudioService::CheckAndUpdateAudioPowerState() {
-    auto now = std::chrono::steady_clock::now();
-    auto input_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_input_time_).count();
-    auto output_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_output_time_).count();
-    
-    // 移除USB输入的自动禁用逻辑，因为USB麦克风无法真正关闭
-    // if (input_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->input_enabled()) {
-    //     codec_->EnableInput(false);
-    // }
-    
-    // 保留I2S输出的自动禁用逻辑（如果编解码器支持）
-    if (output_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->output_enabled()) {
-        codec_->EnableOutput(false);
+    if (!codec_ || !codec_->input_enabled()) {
+        return;
     }
-    
-    // 如果输出已禁用且没有其他活动，停止电源管理定时器
-    if (!codec_->output_enabled()) {
+
+    auto now = std::chrono::steady_clock::now();
+
+    // 检查是否需要关闭音频电源（5秒无输入）
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - last_input_time_).count() > 5000) {
+        ESP_LOGI(TAG, "No audio input for 5 seconds, disabling audio input to save power");
+        codec_->EnableInput(false);
         esp_timer_stop(audio_power_timer_);
     }
 }

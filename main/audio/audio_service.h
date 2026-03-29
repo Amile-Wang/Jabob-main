@@ -34,7 +34,7 @@
  * 
  */
 
-#define OPUS_FRAME_DURATION_MS 60
+#define OPUS_FRAME_DURATION_MS 100
 #define MAX_ENCODE_TASKS_IN_QUEUE 2
 #define MAX_PLAYBACK_TASKS_IN_QUEUE 2
 #define MAX_DECODE_PACKETS_IN_QUEUE (1200 / OPUS_FRAME_DURATION_MS)  // 优化：从2400减到1200
@@ -104,6 +104,9 @@ public:
     bool IsIdle();
     bool IsWakeWordRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_WAKE_WORD_RUNNING; }
     bool IsAudioProcessorRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_AUDIO_PROCESSOR_RUNNING; }
+    
+    // 添加 USB 设备就绪状态检查方法
+    bool IsUsbDeviceReady() const { return usb_device_ready_; }
 
     void EnableWakeWordDetection(bool enable);
     void EnableVoiceProcessing(bool enable);

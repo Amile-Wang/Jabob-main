@@ -2,34 +2,16 @@
 #define HYBRID_USB_I2S_CODEC_H
 
 #include "audio_codec.h"
-#include <driver/i2s_std.h>
-#include <driver/i2s_pdm.h>
-#include <usb/uac_host.h>
 #include <usb/usb_host.h>
-#include <freertos/event_groups.h>
-#include <freertos/queue.h>
+#include "usb/uac_host.h"
 #include <deque>
-#include <mutex>
 
-#define USB_EVENT_CONNECTED    (1 << 0)
+// USB音频缓冲区大小定义
+#define USB_AUDIO_BUFFER_SIZE  (16 * 1024)  // 调整为16KB，支持48kHz采样率和60ms帧长
 
-// USB音频数据缓冲区配置
-// 原值：48KB (约500ms @ 48kHz mono 16bit)
-// 增加到96KB以提供更好的溢出保护
-#define USB_AUDIO_BUFFER_SIZE  (96 * 1024)  // 96KB缓冲区，约1000ms @ 48kHz mono 16bit
+// USB事件标志
+#define USB_EVENT_CONNECTED     (1 << 0)
 
-/**
- * @brief 混合 USB-I2S 音频编解码器
- *
- * 直接基于 ESP-IDF USB Host UAC 组件和 I2S 组件实现
- * - 麦克风: 通过 USB UAC Host 从 USB 麦克风设备获取音频（使用直接回调读取模式）
- * - 扬声器: 通过 I2S 接口输出到扬声器
- *
- * 重要特性：
- * - 参考官方示例实现，在UAC回调中直接读取USB数据
- * - 使用0超时的uac_host_device_read调用，避免"RX Ringbuffer read failed"
- * - 采用官方推荐的缓冲区配置：19.2KB buffer, 4.8KB threshold
- */
 class HybridUsbI2sCodec : public AudioCodec {
 public:
     // 修改构造函数：移除 input_sample_rate 参数，使用默认值 0 表示未确定
@@ -88,10 +70,10 @@ private:
     uint8_t usb_iface_num_ = 0;          // USB 接口号
     bool usb_microphone_ready_ = false;   // USB 麦克风就绪标志
 
-    // USB音频数据缓冲区（循环缓冲区）
+    // USB音频数据缓冲区，用于暂存从USB读取的原始音频数据
     std::deque<int16_t> usb_audio_buffer_;
-    std::mutex buffer_mutex_;  // 缓冲区保护互斥锁
     size_t buffer_capacity_;   // 缓冲区容量
+    mutable std::mutex buffer_mutex_;  // 缓冲区保护互斥锁，声明为mutable
     bool buffer_overflowed_;  // 缓冲区溢出标志
 
     // 统计信息
@@ -107,6 +89,12 @@ private:
 
     // 状态标志
     bool i2s_initialized_;
+
+    // 添加获取USB缓冲区大小的方法，用于监控
+    size_t GetUsbBufferSize() const {
+        std::lock_guard<std::mutex> lock(buffer_mutex_);
+        return usb_audio_buffer_.size();
+    }
 
 };
 
