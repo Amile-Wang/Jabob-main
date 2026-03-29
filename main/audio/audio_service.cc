@@ -220,7 +220,7 @@ void AudioService::Start() {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->OpusCodecTask();
         vTaskDelete(NULL);
-    }, "opus_codec", 4096 * 5, this, 2, &opus_codec_task_handle_); // 优化：从7减到5
+    }, "opus_codec", 8192 * 4, this, 2, &opus_codec_task_handle_); // 增加栈大小到32KB以解决栈溢出问题
 }
 
 void AudioService::Stop() {
@@ -410,7 +410,7 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 
     if (max_val == 0 && min_val == 0) {
         consecutive_zero_reads++;
-        ESP_LOGW(TAG, "Zero audio data detected (count: %d), audio buffer may be empty",
+        ESP_LOGD(TAG, "Zero audio data detected (count: %d), audio buffer may be empty",
                  consecutive_zero_reads);
 
         // // 如果连续5次读到零数据，说明USB麦克风确实未连接

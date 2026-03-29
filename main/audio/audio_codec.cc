@@ -30,10 +30,10 @@ bool AudioCodec::InputData(std::vector<int16_t>& data) {
         // 如果读取的样本数少于vector的大小，调整vector大小以匹配实际读取的数据
         if (samples < data.size()) {
             data.resize(samples);
-            ESP_LOGI(TAG, "InputData: Read %d samples, adjusted vector size from %u to %d",
+            ESP_LOGD(TAG, "InputData: Read %d samples, adjusted vector size from %u to %d",
                      samples, data.size() + (samples < data.size() ? (data.size() - samples) : 0), samples);
             // 增加延时防止频繁获取空数据
-            ESP_LOGI(TAG, "InputData: Adding delay of 50ms after reading data to prevent rapid empty reads");
+            ESP_LOGD(TAG, "InputData: Adding delay of 50ms after reading data to prevent rapid empty reads");
             vTaskDelay(pdMS_TO_TICKS(50));
         }
         return true;
