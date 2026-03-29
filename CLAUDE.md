@@ -4,19 +4,32 @@
 
 **项目名称**: 捷宝宝 (Jabob) AI 聊天机器人
 **平台**: ESP32S3嵌入式设备
-**当前版本分支**: 2.0.5
+**当前版本分支**: 2.0.5 **(Beta版本 - 新功能开发中，稳定性不保证)**
+**稳定版本计划**: 2.0.6
 **主控芯片**: ESP32S3双核处理器
 **推荐开发板**: bread-compact-wifi-lcd-tianhao (定制版)
+**🆕 新增开发板**: bread-compact-wifi-lcd-tianhao-uac (USB音频输入版本)
+
+## 🚨 Beta版本重要提示
+
+这是一个 **Beta版本**，主要实现 **USB音频支持** 新功能，但 **不保证其他原有功能的稳定性**。生产环境请等待 **2.0.6稳定版本**。
+
+### Beta版本核心特性
+- **USB Audio Class (UAC) 支持**: 支持USB麦克风和扬声器
+- **混合音频架构**: USB输入 + I2S输出
+- **即插即用**: 自动检测和配置USB音频设备
+- **热插拔支持**: USB设备可动态连接/断开
 
 ## Core Functionality Modules
 
 ### Audio System (main/audio)
-- Support for multiple audio codecs (including USB audio)
+- Support for multiple audio codecs (**including USB audio - NEW in 2.0.5 Beta**)
 - Opus codec (high compression, low latency)
 - Real-time audio processing (AEC echo cancellation, VAD voice activity detection)
 - Wake word detection (AFE WakeNet, ESP WakeNet)
 - Dual audio stream processing (microphone input + speaker output)
 - Three-task concurrent architecture (AudioInputTask, AudioOutputTask, OpusCodecTask)
+- **USB Host UAC integration with automatic sample rate negotiation**
 
 ### Display System (main/display)
 - LVGL graphics library support

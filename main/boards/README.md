@@ -119,7 +119,7 @@ mkdir main/boards/my-custom-board
 3. **虚函数重写**：如`GetAudioCodec()`、`GetDisplay()`、`GetBacklight()`等
 4. **注册开发板**：使用`DECLARE_BOARD`宏注册开发板
 
-```cpp
+``cpp
 #include "wifi_board.h"
 #include "codecs/es8311_audio_codec.h"
 #include "display/lcd_display.h"
@@ -330,6 +330,28 @@ DECLARE_BOARD(MyCustomBoard);
 2. **音频无输出**：检查I2S配置、PA使能引脚和编解码器地址
 3. **无法连接网络**：检查Wi-Fi凭据和网络配置
 4. **无法与服务器通信**：检查MQTT或WebSocket配置
+
+## 支持的硬件平台
+
+### 面包板紧凑型系列
+- **bread-compact-esp32**: 基础ESP32版本
+- **bread-compact-esp32-lcd**: 带LCD显示的ESP32版本
+- **bread-compact-ml307**: 支持ML307 4G模块
+- **bread-compact-wifi**: WiFi连接版本
+- **bread-compact-wifi-lcd**: WiFi+LCD版本
+- **bread-compact-wifi-lcd-tianhao**: 捷宝宝定制版本
+- **bread-compact-wifi-s3cam**: 带摄像头的S3版本
+- **🆕 bread-compact-wifi-lcd-tianhao-uac**: **USB音频输入 + I2S扬声器输出版本 (2.0.5 Beta)**
+
+### USB音频平台特性 (bread-compact-wifi-lcd-tianhao-uac)
+- **音频输入**: USB Audio Class (UAC) 麦克风，支持即插即用和热插拔
+- **音频输出**: 传统I2S扬声器，保持稳定输出
+- **采样率**: 自动协商USB麦克风采样率（16kHz/48kHz等）
+- **兼容性**: 支持UAC 1.0/2.0标准设备
+- **RAM占用**: 额外约20KB用于USB协议栈
+- **启动时间**: 增加1-2秒用于USB设备枚举
+
+> **注意**: USB音频功能是2.0.5 Beta版本的新特性，仅在支持USB OTG的ESP32S3开发板上可用。
 
 ## 参考资料
 
