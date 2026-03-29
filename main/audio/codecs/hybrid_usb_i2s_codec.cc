@@ -269,7 +269,7 @@ int HybridUsbI2sCodec::Read(int16_t* dest, int samples) {
         empty_buffer_count++;
 
         if ((empty_buffer_count % 100) == 0) {  // 每100次空缓冲区读取向警告一次
-            ESP_LOGW(TAG, "Read() returning empty buffer for %" PRIu32 " time (Total calls: %" PRIu32 ", USB reads: %" PRIu32 ")",
+            ESP_LOGD(TAG, "Read() returning empty buffer for %" PRIu32 " time (Total calls: %" PRIu32 ", USB reads: %" PRIu32 ")",
                     empty_buffer_count, read_call_count, usb_read_count_);
         }
         return 0;
@@ -295,7 +295,7 @@ int HybridUsbI2sCodec::Read(int16_t* dest, int samples) {
     if (buffer_overflowed_) {
         static int overflow_warning_count = 0;
         if (overflow_warning_count++ < 5) {  // 只警告5次
-            ESP_LOGW(TAG, "Buffer overflow detected! Audio data may have been lost. Total overflows: %" PRIu32,
+            ESP_LOGD(TAG, "Buffer overflow detected! Audio data may have been lost. Total overflows: %" PRIu32,
                      usb_overflow_count_);
         }
         buffer_overflowed_ = false;  // 重置溢出标志
@@ -412,7 +412,7 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                         codec->buffer_overflowed_ = true;
                         codec->usb_overflow_count_++;
 
-                        ESP_LOGW(TAG, "Buffer overflow! Dropping old data, keeping %u samples",
+                        ESP_LOGD(TAG, "Buffer overflow! Dropping old data, keeping %u samples",
                                 (unsigned int)(codec->buffer_capacity_ / 2));
 
                         size_t keep_size = codec->buffer_capacity_ / 2;
@@ -897,7 +897,7 @@ void HybridUsbI2sCodec::UsbDataProcessingTask(void* arg) {
 
             // 检测缓冲区溢出
             if (overflowed) {
-                ESP_LOGW(TAG, "Buffer overflow detected! Usage: %u/%u (%.1f%%)",
+                ESP_LOGD(TAG, "Buffer overflow detected! Usage: %u/%u (%.1f%%)",
                          (unsigned int)buffer_usage, (unsigned int)codec->buffer_capacity_,
                          (buffer_usage * 100.0) / codec->buffer_capacity_);
 

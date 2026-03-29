@@ -32,6 +32,9 @@ bool AudioCodec::InputData(std::vector<int16_t>& data) {
             data.resize(samples);
             ESP_LOGI(TAG, "InputData: Read %d samples, adjusted vector size from %u to %d",
                      samples, data.size() + (samples < data.size() ? (data.size() - samples) : 0), samples);
+            // 增加延时防止频繁获取空数据
+            ESP_LOGI(TAG, "InputData: Adding delay of 50ms after reading data to prevent rapid empty reads");
+            vTaskDelay(pdMS_TO_TICKS(50));
         }
         return true;
     }
