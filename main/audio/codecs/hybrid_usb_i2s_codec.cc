@@ -3,6 +3,7 @@
 
 #include <esp_log.h>
 #include <cstring>
+#include <algorithm>
 #include <usb/usb_host.h>
 
 #define TAG "HybridUsbI2sCodec"
@@ -31,16 +32,16 @@ static void usb_host_task(void *arg) {
     vTaskDelete(NULL);
 }
 
-HybridUsbI2sCodec::HybridUsbI2sCodec(int output_sample_rate, 
+HybridUsbI2sCodec::HybridUsbI2sCodec(int output_sample_rate,
                                    gpio_num_t spk_bclk, gpio_num_t spk_ws, gpio_num_t spk_dout)
-    : spk_bclk_(spk_bclk), spk_ws_(spk_ws), spk_dout_(spk_dout), output_sample_rate_(output_sample_rate) {
-    
+    : spk_bclk_(spk_bclk), spk_ws_(spk_ws), spk_dout_(spk_dout) {
+
     // 设置基类属性 - 输入采样率初始化为 0，表示尚未确定
     duplex_ = true;
     input_reference_ = false;
     input_enabled_ = false;
     output_enabled_ = false;
-    input_sample_rate_ = 0;  // 动态确定
+    input_sample_rate_ = 48000;  // 动态确定
     output_sample_rate_ = output_sample_rate;
     input_channels_ = 1;
     output_channels_ = 1;
@@ -54,50 +55,91 @@ HybridUsbI2sCodec::HybridUsbI2sCodec(int output_sample_rate,
     i2s_tx_handle_ = nullptr;
     usb_initialized_ = false;
     i2s_initialized_ = false;
-    
-    ESP_LOGI(TAG, "HybridUsbI2sCodec created - Input: Dynamic (USB), Output: %dHz (I2S)", 
+
+    // 初始化异步数据处理相关变量
+    usb_data_ready_queue_ = nullptr;
+    usb_host_task_handle_ = nullptr;
+    usb_data_task_handle_ = nullptr;
+    buffer_capacity_ = USB_AUDIO_BUFFER_SIZE / sizeof(int16_t);
+    buffer_overflowed_ = false;
+
+    // 初始化统计信息
+    usb_read_count_ = 0;
+    usb_overflow_count_ = 0;
+    samples_processed_ = 0;
+
+    ESP_LOGI(TAG, "HybridUsbI2sCodec created - Input: Dynamic (USB), Output: %dHz (I2S)",
              output_sample_rate_);
 }
 
 HybridUsbI2sCodec::~HybridUsbI2sCodec() {
+    ESP_LOGI(TAG, "Destroying HybridUsbI2sCodec with async cleanup...");
+
     // 关闭 USB 麦克风
     CloseUsbMicrophone();
-    
-    // 关闭 I2S 扬声器  
+
+    // 关闭 I2S 扬声器
     CloseI2sSpeaker();
-    
+
     // 清理 USB Host 资源
     if (usb_initialized_) {
         // 卸载 UAC 驱动
         uac_host_uninstall();
-        
+
         // 等待 USB Host 任务退出
         if (usb_host_task_handle_) {
             vTaskDelete(usb_host_task_handle_);
             usb_host_task_handle_ = nullptr;
         }
-        
+
+        // 等待 USB 数据处理任务退出
+        if (usb_data_task_handle_) {
+            vTaskDelete(usb_data_task_handle_);
+            usb_data_task_handle_ = nullptr;
+        }
+
         // 卸载 USB Host
         usb_host_uninstall();
         usb_initialized_ = false;
     }
-    
+
+    // 删除数据就绪队列
+    if (usb_data_ready_queue_) {
+        vQueueDelete(usb_data_ready_queue_);
+        usb_data_ready_queue_ = nullptr;
+        ESP_LOGI(TAG, "USB data ready queue deleted");
+    }
+
     // 删除事件组
     if (usb_event_group_) {
         vEventGroupDelete(usb_event_group_);
         usb_event_group_ = nullptr;
     }
+
+    // 打印统计信息
+    ESP_LOGI(TAG, "USB statistics - Reads: %" PRIu32 ", Overflows: %" PRIu32 ", Samples: %" PRIu32,
+             usb_read_count_, usb_overflow_count_, samples_processed_);
+
+    ESP_LOGI(TAG, "HybridUsbI2sCodec destroyed");
 }
 
 void HybridUsbI2sCodec::Start() {
-    ESP_LOGI(TAG, "Starting Hybrid USB-I2S Audio codec...");
-    
+    ESP_LOGI(TAG, "Starting Hybrid USB-I2S Audio codec with async event-driven mode...");
+
     // 创建事件组
     usb_event_group_ = xEventGroupCreate();
     if (usb_event_group_ == nullptr) {
         ESP_LOGE(TAG, "Failed to create event group");
         return;
     }
+
+    // 创建USB数据就绪队列（异步事件驱动核心）
+    usb_data_ready_queue_ = xQueueCreate(USB_AUDIO_READY_QUEUE_SIZE, sizeof(uint8_t));
+    if (usb_data_ready_queue_ == nullptr) {
+        ESP_LOGE(TAG, "Failed to create USB data ready queue");
+        return;
+    }
+    ESP_LOGI(TAG, "USB data ready queue created with depth %d", USB_AUDIO_READY_QUEUE_SIZE);
     
     // 初始化 USB Host
     if (InitializeUsbHost() != ESP_OK) {
@@ -120,11 +162,31 @@ void HybridUsbI2sCodec::Start() {
     } else {
         usb_microphone_ready_ = true;
     }
-    
-    // 只有在USB麦克风就绪时才启用输入
+
+    // 只有在USB麦克风就绪时才启用输入和数据处理任务
     if (usb_microphone_ready_) {
         input_enabled_ = true;
         ESP_LOGI(TAG, "USB microphone input enabled");
+
+        // 创建USB数据处理任务（异步事件驱动的核心）
+        // 优化栈大小和优先级，平衡性能和内存使用
+        BaseType_t ret = xTaskCreatePinnedToCore(
+            UsbDataProcessingTask,
+            "usb_data_task",
+            4096 * 2,  // 优化堆栈大小到8KB（内存优化）
+            this,
+            12,  // 使用优先级12，平衡实时性和其他任务
+            &usb_data_task_handle_,
+            0   // 核心0，与USB Host任务一致减少上下文切换
+        );
+
+        if (ret != pdTRUE) {
+            ESP_LOGE(TAG, "Failed to create USB data processing task");
+            input_enabled_ = false;
+            usb_microphone_ready_ = false;
+        } else {
+            ESP_LOGI(TAG, "USB data processing task created successfully with priority 12");
+        }
     } else {
         input_enabled_ = false;
         ESP_LOGW(TAG, "USB microphone not connected, input disabled");
@@ -142,7 +204,7 @@ void HybridUsbI2sCodec::Start() {
         ESP_LOGW(TAG, "I2S speaker not initialized, output disabled");
     }
 
-    ESP_LOGI(TAG, "Hybrid USB-I2S Audio codec started - Input: %s, Output: %s",
+    ESP_LOGI(TAG, "Hybrid USB-I2S Audio codec started with async mode - Input: %s, Output: %s",
              input_enabled_ ? "enabled" : "disabled", output_enabled_ ? "enabled" : "disabled");
 }
 
@@ -181,19 +243,43 @@ int HybridUsbI2sCodec::Read(int16_t* dest, int samples) {
         return 0;
     }
 
-    uint32_t bytes_read = 0;
-    // 使用更长的超时时间以适应USB音频传输
-    esp_err_t ret = uac_host_device_read(uac_rx_device_, (uint8_t*)dest, samples * sizeof(int16_t), &bytes_read, pdMS_TO_TICKS(100));
-    if (ret == ESP_OK && bytes_read > 0) {
-        return bytes_read / sizeof(int16_t);
-    } else if (ret == ESP_ERR_TIMEOUT) {
-        // 超时是正常的，只是暂时没有数据
-        return 0;
-    } else if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "USB read error: %s, bytes_read: %u", esp_err_to_name(ret), bytes_read);
+    if (dest == nullptr || samples <= 0) {
+        ESP_LOGW(TAG, "Invalid read parameters: dest=%p, samples=%d", dest, samples);
         return 0;
     }
-    return 0;
+
+    // 直接从循环缓冲区读取数据（不再等待信号，信号由底层任务处理）
+    std::lock_guard<std::mutex> lock(buffer_mutex_);
+
+    if (usb_audio_buffer_.empty()) {
+        // 缓冲区为空，返回0（让上层短暂休眠后重试）
+        return 0;
+    }
+
+    size_t available_samples = std::min((size_t)samples, usb_audio_buffer_.size());
+    size_t samples_read = 0;
+
+    // 从缓冲区前端读取数据
+    for (size_t i = 0; i < available_samples; i++) {
+        dest[i] = usb_audio_buffer_.front();
+        usb_audio_buffer_.pop_front();
+        samples_read++;
+    }
+
+    // 检查缓冲区溢出状态
+    if (buffer_overflowed_) {
+        static int overflow_warning_count = 0;
+        if (overflow_warning_count++ < 5) {  // 只警告5次
+            ESP_LOGW(TAG, "Buffer overflow detected! Audio data may have been lost. Total overflows: %" PRIu32,
+                     usb_overflow_count_);
+        }
+        buffer_overflowed_ = false;  // 重置溢出标志
+    }
+
+    // 更新统计信息
+    samples_processed_ += samples_read;
+
+    return samples_read;
 }
 
 int HybridUsbI2sCodec::Write(const int16_t* data, int samples) {
@@ -215,7 +301,7 @@ int HybridUsbI2sCodec::Write(const int16_t* data, int samples) {
         ESP_LOGD(TAG, "I2S write timeout, samples: %d", samples);
         return 0;
     } else if (ret != ESP_OK) {
-        ESP_LOGE(TAG, "I2S write error: %s, bytes_written: %u", esp_err_to_name(ret), bytes_written);
+        ESP_LOGE(TAG, "I2S write error: %s, bytes_written: %zu", esp_err_to_name(ret), bytes_written);
         return 0;
     }
     return 0;
@@ -245,21 +331,45 @@ void HybridUsbI2sCodec::UacDriverEventCallback(uint8_t addr, uint8_t iface_num,
 void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_device_handle,
                                              const uac_host_device_event_t event, void* arg) {
     auto codec = reinterpret_cast<HybridUsbI2sCodec*>(arg);
-    
+
     switch (event) {
         case UAC_HOST_DEVICE_EVENT_RX_DONE:
-            // 数据已准备好，Read 方法会处理
+            // USB数据到达，发送数据就绪信号（异步事件驱动核心）
+            if (codec->usb_data_ready_queue_ != nullptr) {
+                uint8_t signal = 1;
+
+                // 如果队列满了，立即发送多个信号（而不是阻塞）
+                // 这样可以确保数据处理任务被及时唤醒
+                BaseType_t ret = xQueueSend(codec->usb_data_ready_queue_, &signal, 0);  // 非阻塞
+
+                if (ret != pdTRUE) {
+                    // 队列满了，这很糟糕，说明数据处理太慢
+                    codec->usb_overflow_count_++;
+
+                    static int queue_full_warning = 0;
+                    if (queue_full_warning++ < 5) {  // 增加到5次警告
+                        ESP_LOGW(TAG, "USB data ready queue full! USB data may be lost. Overflow count: %" PRIu32,
+                                 codec->usb_overflow_count_);
+                    }
+
+                    // 尝试立即发送多个信号来唤醒数据处理任务
+                    for (int i = 0; i < 5; i++) {
+                        xQueueSend(codec->usb_data_ready_queue_, &signal, 0);
+                    }
+                }
+            }
             break;
-            
+
         case UAC_HOST_DEVICE_EVENT_TX_DONE:
             // TX 事件，但我们只使用 RX（麦克风），所以忽略
             break;
-            
+
         case UAC_HOST_DRIVER_EVENT_DISCONNECTED:
             ESP_LOGW(TAG, "USB audio device disconnected");
             codec->usb_microphone_ready_ = false;
+            codec->input_enabled_ = false;
             break;
-            
+
         case UAC_HOST_DEVICE_EVENT_TRANSFER_ERROR:
             ESP_LOGE(TAG, "USB audio transfer error");
             break;
@@ -270,14 +380,14 @@ esp_err_t HybridUsbI2sCodec::InitializeUsbHost() {
     ESP_LOGI(TAG, "Initializing USB Host with enhanced debug logging...");
     
     // 设置 USB Host 日志级别为 DEBUG
-    // esp_log_level_set("uac-host", ESP_LOG_DEBUG);
-    // esp_log_level_set("usb", ESP_LOG_DEBUG);
-    // esp_log_level_set("usb_host", ESP_LOG_DEBUG);
+    esp_log_level_set("uac-host", ESP_LOG_DEBUG);
+    esp_log_level_set("usb", ESP_LOG_DEBUG);
+    esp_log_level_set("usb_host", ESP_LOG_DEBUG);
     
     // 安装 USB Host
     const usb_host_config_t host_config = {
         .skip_phy_setup = false,
-        .intr_flags = ESP_INTR_FLAG_LEVEL1,
+        .intr_flags = ESP_INTR_FLAG_LOWMED,
     };
     esp_err_t ret = usb_host_install(&host_config);
     if (ret != ESP_OK) {
@@ -374,13 +484,15 @@ esp_err_t HybridUsbI2sCodec::OpenUsbMicrophone() {
     }
     
     ESP_LOGI(TAG, "Opening USB microphone with dynamic sample rate detection...");
-    
-    // 设置 UAC 设备配置
+
+    // 设置 UAC 设备配置 - 增大缓冲区以防止溢出
+    // 优化配置：增大USB内部Ringbuffer，减少溢出
+    // 48kHz数据流：96000字节/秒，24576字节可容纳约256ms数据（内存优化）
     const uac_host_device_config_t dev_config = {
         .addr = usb_device_addr_,           // USB 设备地址
         .iface_num = usb_iface_num_,        // USB 接口号
-        .buffer_size = 8192*10,                // 增加缓冲区大小以避免溢出（48kHz 需要更大缓冲区）
-        .buffer_threshold = 4096*10,           // 相应增加缓冲区阈值
+        .buffer_size = 24576,              // 优化到24KB以平衡内存和性能
+        .buffer_threshold = 6144,         // 优化阈值到6KB
         .callback = UacDeviceEventCallback, // 事件回调
         .callback_arg = this,               // 回调参数
     };
@@ -586,4 +698,202 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
     ESP_LOGW(TAG, "System will continue without USB microphone input");
     ESP_LOGW(TAG, "Audio input will be disabled until a USB microphone is connected");
     return false;
+}
+
+// ==================== 异步事件驱动数据处理 ====================
+
+/**
+ * @brief USB数据处理任务（异步事件驱动的核心）
+ *
+ * 这个任务专门负责从USB设备读取数据并填充到循环缓冲区中
+ * 当USB数据到达时，UAC驱动会调用事件回调，发送数据就绪信号
+ * 该任务持续监听数据就绪信号，及时读取USB数据防止缓冲区溢出
+ */
+void HybridUsbI2sCodec::UsbDataProcessingTask(void* arg) {
+    auto codec = static_cast<HybridUsbI2sCodec*>(arg);
+    ESP_LOGI(TAG, "USB data processing task started");
+
+    // 临时缓冲区用于从USB读取数据 - 优化内存使用
+    const size_t temp_buffer_size = 2048;  // 每次读取的最大样本数（优化到2048）
+    std::vector<int16_t> temp_buffer(temp_buffer_size);
+
+    // 统计变量
+    uint32_t idle_count = 0;
+    uint32_t active_count = 0;
+    uint32_t last_stats_time = xTaskGetTickCount();
+
+    while (codec->usb_microphone_ready_ && codec->input_enabled_) {
+        // 检查是否有USB数据可读 - 使用Receive而不是Peek确保及时响应
+        uint8_t data_ready_signal = 0;
+
+        // 使用较短的超时时间确保及时响应USB数据
+        TickType_t wait_time = pdMS_TO_TICKS(10);
+        BaseType_t queue_result = xQueueReceive(codec->usb_data_ready_queue_, &data_ready_signal, wait_time);
+
+        if (queue_result == pdTRUE) {
+            // 有数据就绪信号，立即开始读取
+            active_count++;
+            size_t samples_read = 0;
+
+            // 循环读取直到USB缓冲区为空（关键：连续读取清空USB Ringbuffer）
+            int consecutive_timeouts = 0;
+            while (consecutive_timeouts < 3) {  // 最多连续3次超时就停止
+                esp_err_t ret = codec->ReadUsbData(temp_buffer.data(), temp_buffer_size, samples_read);
+
+                if (ret == ESP_OK && samples_read > 0) {
+                    // 成功读取数据，添加到循环缓冲区
+                    std::lock_guard<std::mutex> lock(codec->buffer_mutex_);
+
+                    // 检查缓冲区是否有足够空间
+                    size_t free_space = codec->buffer_capacity_ - codec->usb_audio_buffer_.size();
+                    size_t samples_to_add = std::min(samples_read, free_space);
+
+                    if (samples_to_add < samples_read) {
+                        // 缓冲区空间不足，标记溢出
+                        codec->buffer_overflowed_ = true;
+                        codec->usb_overflow_count_++;
+
+                        static int buffer_full_warning = 0;
+                        if (buffer_full_warning++ < 5) {
+                            ESP_LOGW(TAG, "Audio buffer overflow! Available: %zu, To add: %zu, Buffer size: %zu",
+                                     free_space, samples_read, codec->usb_audio_buffer_.size());
+                        }
+
+                        // 丢弃旧数据为新数据腾出空间（保留最后50%的数据）
+                        size_t keep_size = codec->buffer_capacity_ / 2;
+                        while (codec->usb_audio_buffer_.size() > keep_size) {
+                            codec->usb_audio_buffer_.pop_front();
+                        }
+
+                        // 添加新数据
+                        for (size_t i = 0; i < samples_to_add; i++) {
+                            codec->usb_audio_buffer_.push_back(temp_buffer[i]);
+                        }
+                    } else {
+                        // 有足够空间，全部添加
+                        for (size_t i = 0; i < samples_read; i++) {
+                            codec->usb_audio_buffer_.push_back(temp_buffer[i]);
+                        }
+                    }
+
+                    // 重置超时计数器
+                    consecutive_timeouts = 0;
+
+                    // 更新统计
+                    codec->usb_read_count_++;
+
+                    // 如果缓冲区有足够数据，发送就绪信号给上层
+                    if (codec->usb_audio_buffer_.size() >= temp_buffer_size / 2) {
+                        // 有足够数据可供上层读取
+                        // 这里不需要发送信号，上层Read方法会检查缓冲区
+                    }
+
+                } else if (ret == ESP_ERR_TIMEOUT) {
+                    // USB缓冲区已空，增加超时计数
+                    consecutive_timeouts++;
+
+                } else if (ret != ESP_OK) {
+                    // USB读取错误
+                    static int error_count = 0;
+                    if (error_count++ < 3) {
+                        ESP_LOGE(TAG, "USB read error in data task: %s", esp_err_to_name(ret));
+                    }
+                    vTaskDelay(pdMS_TO_TICKS(50));  // 错误后短暂延迟
+                    break;
+                } else {
+                    // 读取了0字节，缓冲区已空
+                    break;
+                }
+            }
+
+            idle_count = 0;  // 重置空闲计数
+
+        } else {
+            // 暂时没有数据，短暂休眠
+            idle_count++;
+            vTaskDelay(pdMS_TO_TICKS(2));  // 减少延迟时间
+
+            // 如果长时间没有数据，检查USB状态
+            if (idle_count > 1000) {  // 约2秒
+                idle_count = 0;
+                static int idle_warning_count = 0;
+                if (idle_warning_count++ < 3) {
+                    ESP_LOGW(TAG, "USB data processing task idle for too long, checking USB status");
+                }
+            }
+        }
+
+        // 定期输出统计信息
+        TickType_t current_time = xTaskGetTickCount();
+        if ((current_time - last_stats_time) > pdMS_TO_TICKS(5000)) {  // 每5秒
+            last_stats_time = current_time;
+            size_t buffer_usage = 0;
+            {
+                std::lock_guard<std::mutex> lock(codec->buffer_mutex_);
+                buffer_usage = codec->usb_audio_buffer_.size();
+            }
+            ESP_LOGI(TAG, "USB Task Stats - Buffer: %zu/%zu samples (%.1f%%), Active: %" PRIu32 ", Idle: %" PRIu32,
+                     buffer_usage, codec->buffer_capacity_,
+                     (buffer_usage * 100.0) / codec->buffer_capacity_,
+                     active_count, idle_count);
+
+            active_count = 0;
+            idle_count = 0;
+        }
+    }
+
+    ESP_LOGI(TAG, "USB data processing task exiting");
+    vTaskDelete(NULL);
+}
+
+/**
+ * @brief 从USB设备读取数据
+ *
+ * 这个方法封装了uac_host_device_read调用，提供统一的错误处理
+ *
+ * @param buffer 接收数据的缓冲区
+ * @param requested_samples 请求的样本数
+ * @param samples_read 实际读取的样本数
+ * @return ESP_OK 成功, ESP_ERR_TIMEOUT 超时, 其他错误码
+ */
+esp_err_t HybridUsbI2sCodec::ReadUsbData(int16_t* buffer, size_t requested_samples, size_t& samples_read) {
+    if (uac_rx_device_ == nullptr || buffer == nullptr || requested_samples == 0) {
+        samples_read = 0;
+        return ESP_ERR_INVALID_ARG;
+    }
+
+    uint32_t bytes_read = 0;
+    size_t bytes_to_read = requested_samples * sizeof(int16_t);
+
+    // 限制单次读取大小，避免超过USB缓冲区
+    const size_t max_usb_buffer = 38400;  // USB内部缓冲区大小
+    if (bytes_to_read > max_usb_buffer) {
+        bytes_to_read = max_usb_buffer;
+    }
+
+    // 使用更短的超时时间（2ms），立即响应USB数据
+    // 这样可以更及时地清空USB Ringbuffer，防止溢出
+    esp_err_t ret = uac_host_device_read(uac_rx_device_, (uint8_t*)buffer,
+                                        bytes_to_read, &bytes_read, pdMS_TO_TICKS(2));
+
+    if (ret == ESP_OK) {
+        samples_read = bytes_read / sizeof(int16_t);
+        if (samples_read > requested_samples) {
+            samples_read = requested_samples;
+        }
+    } else {
+        samples_read = 0;
+    }
+
+    return ret;
+}
+
+/**
+ * @brief 处理USB数据（内部方法）
+ *
+ * 这个方法由数据处理任务调用，负责将USB数据填充到缓冲区
+ */
+void HybridUsbI2sCodec::ProcessUsbData() {
+    // 这个方法已由UsbDataProcessingTask实现
+    // 保留函数声明以兼容可能的未来扩展
 }

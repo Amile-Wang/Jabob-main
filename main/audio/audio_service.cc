@@ -1,5 +1,6 @@
 #include "audio_service.h"
 #include <esp_log.h>
+#include <inttypes.h>
 
 #include "esp_task_wdt.h"
 
@@ -45,6 +46,15 @@ void AudioService::Initialize(AudioCodec* codec) {
     ESP_LOGI(TAG, "Initial codec sample rates - Input: %dHz, Output: %dHz",
              input_sample_rate, output_sample_rate);
 
+    // 初始化状态变量
+    usb_device_ready_ = false;
+    last_detected_input_sample_rate_ = input_sample_rate > 0 ? input_sample_rate : 0;
+    last_configured_input_sample_rate_ = 0;
+    last_configured_output_sample_rate_ = 0;
+    sample_rate_change_count_ = 0;
+    output_sample_rate_locked_ = false;
+    locked_output_sample_rate_ = 0;
+
     if (output_sample_rate <= 0) {
         ESP_LOGE(TAG, "Invalid output sample rate: %d, using fallback 16kHz", output_sample_rate);
         output_sample_rate = 16000;
@@ -54,11 +64,13 @@ void AudioService::Initialize(AudioCodec* codec) {
     }
 
     if (input_sample_rate <= 0) {
-        ESP_LOGE(TAG, "Invalid input sample rate: %d, using fallback 16kHz", input_sample_rate);
-        input_sample_rate = 16000;
-        ESP_LOGW(TAG, "Warning: USB microphone may not be connected");
+        ESP_LOGE(TAG, "Invalid input sample rate: %d, USB device may not be ready", input_sample_rate);
+        ESP_LOGI(TAG, "System will use fallback %dHz and retry detection", fallback_input_sample_rate_);
+        // 不设置input_sample_rate，让ReadAudioData动态处理
     } else {
         ESP_LOGI(TAG, "Input sample rate validated: %dHz", input_sample_rate);
+        last_detected_input_sample_rate_ = input_sample_rate;
+        last_configured_input_sample_rate_ = input_sample_rate;
     }
 
     // Setup the audio codec
@@ -81,9 +93,17 @@ void AudioService::Initialize(AudioCodec* codec) {
         // 如果解码器采样率与输出采样率不同，配置重采样器
         if (opus_decoder_->sample_rate() != output_sample_rate) {
             output_resampler_.Configure(opus_decoder_->sample_rate(), output_sample_rate);
-            ESP_LOGI(TAG, "Configured output resampler: %dHz -> %dHz", 
+            ESP_LOGI(TAG, "Configured output resampler: %dHz -> %dHz",
                     opus_decoder_->sample_rate(), output_sample_rate);
+            last_configured_output_sample_rate_ = output_sample_rate;
         }
+    }
+
+    // 锁定输出采样率以防止回滚
+    if (output_sample_rate > 0) {
+        locked_output_sample_rate_ = output_sample_rate;
+        output_sample_rate_locked_ = true;
+        ESP_LOGI(TAG, "Output sample rate locked to %dHz (prevents rollback)", locked_output_sample_rate_);
     }
    
     // 添加延迟以避免中断看门狗超时
@@ -96,11 +116,12 @@ void AudioService::Initialize(AudioCodec* codec) {
     // 再添加一个延迟确保OPUS编码器初始化完成
     vTaskDelay(pdMS_TO_TICKS(1000));
 
-    // 配置输入重采样器：设备采样率 → 16kHz（仅在采样率有效且不等于16kHz时配置）
-    if (input_sample_rate > 0 && input_sample_rate != 16000) {
-        input_resampler_.Configure(input_sample_rate, 16000);
-        reference_resampler_.Configure(input_sample_rate, 16000);
-        ESP_LOGI(TAG, "Configured input resampler: %dHz -> 16000Hz", input_sample_rate);
+    // 重采样器配置移到ReadAudioData中动态处理，避免fallback逻辑问题
+    // 如果输入采样率有效且不等于16kHz，会在首次读取时自动配置
+    if (input_sample_rate > 0) {
+        ESP_LOGI(TAG, "Input resampler will be configured on first read: %dHz -> 16kHz", input_sample_rate);
+    } else {
+        ESP_LOGI(TAG, "Input resampler will be configured when USB device is ready");
     }
 
     // 注意：输出重采样器已经在上面的 Opus 解码器处理中配置过了，这里不再重复配置
@@ -172,13 +193,13 @@ void AudioService::Start() {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioInputTask();
         vTaskDelete(NULL);
-    }, "audio_input", 2048 * 6, this, 8, &audio_input_task_handle_, 1); // 增加堆栈大小从 2048*4 到 2048*6
+    }, "audio_input", 2048 * 4, this, 8, &audio_input_task_handle_, 1); // 优化：从6减到4
 #else
     xTaskCreate([](void* arg) {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->AudioInputTask();
         vTaskDelete(NULL);
-    }, "audio_input", 2048 * 6, this, 8, &audio_input_task_handle_); // 增加堆栈大小
+    }, "audio_input", 2048 * 4, this, 8, &audio_input_task_handle_); // 优化：从6减到4
 #endif
 
     /* Start the audio output task */
@@ -193,7 +214,7 @@ void AudioService::Start() {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->OpusCodecTask();
         vTaskDelete(NULL);
-    }, "opus_codec", 4096 * 7, this, 2, &opus_codec_task_handle_);
+    }, "opus_codec", 4096 * 5, this, 2, &opus_codec_task_handle_); // 优化：从7减到5
 }
 
 void AudioService::Stop() {
@@ -217,37 +238,179 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
         esp_timer_start_periodic(audio_power_timer_, AUDIO_POWER_CHECK_INTERVAL_MS * 1000);
     }
 
-    if (codec_->input_sample_rate() != sample_rate) {
-        data.resize(samples * codec_->input_sample_rate() / sample_rate);
+    // 获取实际输入采样率
+    int actual_input_rate = codec_->input_sample_rate();
+
+    // 检测USB设备就绪状态
+    if (actual_input_rate > 0 && !usb_device_ready_) {
+        usb_device_ready_ = true;
+        ESP_LOGI(TAG, "USB device ready, detected sample rate: %dHz", actual_input_rate);
+        last_detected_input_sample_rate_ = actual_input_rate;
+    }
+
+    // 处理采样率为0的情况（USB设备未完全初始化）
+    if (actual_input_rate <= 0) {
+        if (last_detected_input_sample_rate_ > 0) {
+            // 之前检测到过采样率，现在为0，可能是设备断开
+            ESP_LOGW(TAG, "USB device may have disconnected (sample rate became 0)");
+            // 保持最后已知的采样率，避免fallback导致的音频质量下降
+            actual_input_rate = last_detected_input_sample_rate_;
+        } else {
+            // 从未检测到有效采样率，使用fallback
+            if (!usb_device_ready_) {
+                static int fallback_warning_count = 0;
+                if (fallback_warning_count++ < 3) {  // 只警告3次，避免日志泛滥
+                    ESP_LOGW(TAG, "Input sample rate is 0, using fallback %dHz (warning %d/3)",
+                             fallback_input_sample_rate_, fallback_warning_count);
+                }
+                actual_input_rate = fallback_input_sample_rate_;
+            } else {
+                // 设备曾经就绪，现在采样率为0，可能是临时问题
+                ESP_LOGW(TAG, "USB device was ready but sample rate is now 0, retrying...");
+                actual_input_rate = fallback_input_sample_rate_;
+            }
+        }
+    }
+
+    // 检测采样率变化
+    if (actual_input_rate != last_detected_input_sample_rate_) {
+        sample_rate_change_count_++;
+        if (sample_rate_change_count_ <= MAX_SAMPLE_RATE_CHANGES) {
+            ESP_LOGI(TAG, "Input sample rate changed: %dHz -> %dHz (change count: %" PRIu32 ")",
+                     last_detected_input_sample_rate_, actual_input_rate, sample_rate_change_count_);
+            last_detected_input_sample_rate_ = actual_input_rate;
+        } else {
+            // 变化次数过多，可能是设备问题，锁定到fallback
+            ESP_LOGW(TAG, "Too many sample rate changes (%" PRIu32 "), locking to fallback %dHz",
+                     sample_rate_change_count_, fallback_input_sample_rate_);
+            actual_input_rate = fallback_input_sample_rate_;
+        }
+    }
+
+    // 验证采样率合理性
+    if (actual_input_rate < 8000 || actual_input_rate > 96000) {
+        ESP_LOGE(TAG, "Invalid input sample rate: %dHz, falling back to %dHz",
+                 actual_input_rate, fallback_input_sample_rate_);
+        actual_input_rate = fallback_input_sample_rate_;
+    }
+
+    // 重采样器配置检查和更新
+    bool need_reconfigure = false;
+    if (input_resampler_.input_sample_rate() == 0) {
+        // 重采样器未配置
+        need_reconfigure = true;
+        ESP_LOGI(TAG, "Resampler not configured, initializing with %dHz", actual_input_rate);
+    } else if (input_resampler_.input_sample_rate() != actual_input_rate) {
+        // 输入采样率变化
+        need_reconfigure = true;
+        ESP_LOGI(TAG, "Resampler input rate changed: %dHz -> %dHz",
+                 input_resampler_.input_sample_rate(), actual_input_rate);
+    } else if (input_resampler_.output_sample_rate() != sample_rate) {
+        // 输出采样率变化（理论上不应该发生）
+        need_reconfigure = true;
+        ESP_LOGW(TAG, "Resampler output rate mismatch: expected %dHz, got %dHz",
+                 sample_rate, input_resampler_.output_sample_rate());
+    }
+
+    if (need_reconfigure) {
+        ESP_LOGI(TAG, "Reconfiguring input resampler: %dHz -> %dHz",
+                 actual_input_rate, sample_rate);
+        input_resampler_.Configure(actual_input_rate, sample_rate);
+        reference_resampler_.Configure(actual_input_rate, sample_rate);
+        last_configured_input_sample_rate_ = actual_input_rate;
+
+        // 验证配置是否成功
+        if (input_resampler_.input_sample_rate() != actual_input_rate ||
+            input_resampler_.output_sample_rate() != sample_rate) {
+            ESP_LOGE(TAG, "Resampler configuration failed! Expected %dHz->%dHz, got %dHz->%dHz",
+                     actual_input_rate, sample_rate,
+                     input_resampler_.input_sample_rate(), input_resampler_.output_sample_rate());
+            return false;
+        }
+    }
+
+    // 数据读取和重采样
+    if (actual_input_rate != sample_rate) {
+        // 需要重采样
+        size_t required_samples = samples * actual_input_rate / sample_rate;
+        if (required_samples == 0) {
+            ESP_LOGE(TAG, "Invalid sample calculation: samples=%d, input_rate=%d, target_rate=%d",
+                     samples, actual_input_rate, sample_rate);
+            return false;
+        }
+
+        data.resize(required_samples);
         if (!codec_->InputData(data)) {
             return false;
         }
+
+        if (data.empty()) {
+            ESP_LOGW(TAG, "No audio data read from codec");
+            return false;
+        }
+
         if (codec_->input_channels() == 2) {
+            // 双声道处理
             auto mic_channel = std::vector<int16_t>(data.size() / 2);
             auto reference_channel = std::vector<int16_t>(data.size() / 2);
             for (size_t i = 0, j = 0; i < mic_channel.size(); ++i, j += 2) {
                 mic_channel[i] = data[j];
                 reference_channel[i] = data[j + 1];
             }
+
             auto resampled_mic = std::vector<int16_t>(input_resampler_.GetOutputSamples(mic_channel.size()));
             auto resampled_reference = std::vector<int16_t>(reference_resampler_.GetOutputSamples(reference_channel.size()));
+
             input_resampler_.Process(mic_channel.data(), mic_channel.size(), resampled_mic.data());
             reference_resampler_.Process(reference_channel.data(), reference_channel.size(), resampled_reference.data());
+
             data.resize(resampled_mic.size() + resampled_reference.size());
             for (size_t i = 0, j = 0; i < resampled_mic.size(); ++i, j += 2) {
                 data[j] = resampled_mic[i];
                 data[j + 1] = resampled_reference[i];
             }
         } else {
+            // 单声道处理
             auto resampled = std::vector<int16_t>(input_resampler_.GetOutputSamples(data.size()));
             input_resampler_.Process(data.data(), data.size(), resampled.data());
             data = std::move(resampled);
         }
+
+        // 验证重采样结果
+        if (data.size() != samples) {
+            ESP_LOGW(TAG, "Resampling size mismatch: expected %d, got %zu", samples, data.size());
+        }
     } else {
+        // 不需要重采样，直接读取
         data.resize(samples);
         if (!codec_->InputData(data)) {
             return false;
         }
+        if (data.empty()) {
+            ESP_LOGW(TAG, "No audio data read from codec");
+            return false;
+        }
+    }
+
+    // 检查是否所有数据都是0（USB麦克风未连接的迹象）
+    int16_t max_val = *std::max_element(data.begin(), data.end());
+    int16_t min_val = *std::min_element(data.begin(), data.end());
+    static int consecutive_zero_reads = 0; // 静态变量跟踪连续零读取
+
+    if (max_val == 0 && min_val == 0) {
+        consecutive_zero_reads++;
+        ESP_LOGW(TAG, "Zero audio data detected (count: %d), USB microphone may not be connected",
+                 consecutive_zero_reads);
+
+        // 如果连续5次读到零数据，说明USB麦克风确实未连接
+        if (consecutive_zero_reads >= 5) {
+            ESP_LOGW(TAG, "Detected USB microphone disconnection, disabling audio input temporarily");
+            consecutive_zero_reads = 0; // 重置计数器
+            vTaskDelay(pdMS_TO_TICKS(1000)); // 等待1秒后重试
+            return false;
+        }
+    } else {
+        consecutive_zero_reads = 0; // 有有效数据，重置计数器
     }
 
     /* Update the last input time */
@@ -344,7 +507,17 @@ void AudioService::AudioInputTask() {
                     // 重置看门狗
                     esp_task_wdt_reset();
                     continue;
+                } else {
+                    // 读取失败，减少延迟以防止USB缓冲区溢出
+                    // 原延迟10ms改为2ms，提高响应速度
+                    vTaskDelay(pdMS_TO_TICKS(2));
+                    esp_task_wdt_reset();
                 }
+            } else {
+                // 获取的samples为0，减少延迟以防止USB缓冲区溢出
+                // 原延迟10ms改为2ms，提高响应速度
+                vTaskDelay(pdMS_TO_TICKS(2));
+                esp_task_wdt_reset();
             }
         }
 
@@ -492,13 +665,59 @@ void AudioService::SetDecodeSampleRate(int sample_rate, int frame_duration) {
         return;
     }
 
+    // 防止频繁重配置导致的不稳定性
+    static int last_reconfigure_sample_rate = 0;
+    static uint32_t reconfigure_counter = 0;
+    const uint32_t MAX_RECONFIGURES = 5;
+
+    // 如果采样率变化过于频繁，锁定到当前配置
+    if (sample_rate != last_reconfigure_sample_rate) {
+        reconfigure_counter++;
+        if (reconfigure_counter > MAX_RECONFIGURES) {
+            ESP_LOGW(TAG, "Too many sample rate reconfigures (%" PRIu32 "), skipping change from %d to %d",
+                     reconfigure_counter, last_reconfigure_sample_rate, sample_rate);
+            return;  // 拒绝这次变化，防止回滚
+        }
+    } else {
+        reconfigure_counter = 0;  // 采样率稳定，重置计数器
+    }
+
+    last_reconfigure_sample_rate = sample_rate;
+
     opus_decoder_.reset();
     opus_decoder_ = std::make_unique<OpusDecoderWrapper>(sample_rate, 1, frame_duration);
 
     auto codec = Board::GetInstance().GetAudioCodec();
-    if (opus_decoder_->sample_rate() != codec->output_sample_rate()) {
-        ESP_LOGI(TAG, "Resampling audio from %d to %d", opus_decoder_->sample_rate(), codec->output_sample_rate());
-        output_resampler_.Configure(opus_decoder_->sample_rate(), codec->output_sample_rate());
+    int target_output_rate = codec->output_sample_rate();
+
+    // 使用锁定的输出采样率防止回滚
+    if (output_sample_rate_locked_ && locked_output_sample_rate_ > 0) {
+        target_output_rate = locked_output_sample_rate_;
+        ESP_LOGI(TAG, "Using locked output sample rate %dHz instead of codec's %dHz",
+                 target_output_rate, codec->output_sample_rate());
+    }
+
+    // 验证目标输出采样率的有效性
+    if (target_output_rate <= 0) {
+        ESP_LOGE(TAG, "Invalid target output sample rate: %d, using locked %dHz",
+                 target_output_rate, locked_output_sample_rate_);
+        target_output_rate = locked_output_sample_rate_;
+    }
+
+    if (opus_decoder_->sample_rate() != target_output_rate) {
+        ESP_LOGI(TAG, "Resampling audio from %d to %d", opus_decoder_->sample_rate(), target_output_rate);
+        output_resampler_.Configure(opus_decoder_->sample_rate(), target_output_rate);
+
+        // 验证配置是否成功
+        if (output_resampler_.input_sample_rate() != opus_decoder_->sample_rate() ||
+            output_resampler_.output_sample_rate() != target_output_rate) {
+            ESP_LOGE(TAG, "Output resampler configuration failed! Expected %dHz->%dHz, got %dHz->%dHz",
+                     opus_decoder_->sample_rate(), target_output_rate,
+                     output_resampler_.input_sample_rate(), output_resampler_.output_sample_rate());
+            // 配置失败，锁定到已知良好状态
+            target_output_rate = locked_output_sample_rate_;
+            output_resampler_.Configure(opus_decoder_->sample_rate(), target_output_rate);
+        }
     }
 }
 

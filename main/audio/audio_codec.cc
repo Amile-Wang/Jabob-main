@@ -19,10 +19,21 @@ void AudioCodec::OutputData(std::vector<int16_t>& data) {
 }
 
 bool AudioCodec::InputData(std::vector<int16_t>& data) {
+    if (data.empty()) {
+        return false;
+    }
+
     int samples = Read(data.data(), data.size());
     if (samples > 0) {
+        // 如果读取的样本数少于vector的大小，调整vector大小以匹配实际读取的数据
+        if (samples < data.size()) {
+            data.resize(samples);
+            ESP_LOGD(TAG, "InputData: Read %d samples, adjusted vector size from %zu to %d",
+                     samples, data.size() + (samples < data.size() ? (data.size() - samples) : 0), samples);
+        }
         return true;
     }
+    data.clear();
     return false;
 }
 

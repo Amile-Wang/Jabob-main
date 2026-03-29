@@ -116,13 +116,19 @@ void AfeAudioProcessor::Feed(std::vector<int16_t>&& data) {
 void AfeAudioProcessor::AudioProcessorTask() {
     // 将当前任务添加到看门狗监控列表
     esp_task_wdt_add(NULL);
-    
+
     auto fetch_size = afe_iface_->get_fetch_chunksize(afe_data_);
     auto feed_size = afe_iface_->get_feed_chunksize(afe_data_);
     ESP_LOGI(TAG, "Audio communication task started, feed size: %d fetch size: %d",
         feed_size, fetch_size);
 
+    int error_count = 0;
+    const int MAX_ERRORS = 10; // 最大连续错误次数
+
     while (true) {
+        // 在每次循环开始时重置看门狗
+        esp_task_wdt_reset();
+
         // 检查是否应该运行
         if ((xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING) == 0) {
             // 在非运行状态下，适度地fetch数据以维持AFE缓冲区健康
@@ -135,7 +141,6 @@ void AfeAudioProcessor::AudioProcessorTask() {
             }
             // 无论是否获取到数据，都短暂延迟避免忙等待
             vTaskDelay(pdMS_TO_TICKS(20));
-            esp_task_wdt_reset();
             continue;
         }
 
@@ -144,13 +149,24 @@ void AfeAudioProcessor::AudioProcessorTask() {
         if ((xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING) == 0) {
             continue;
         }
+
         if (res == nullptr || res->ret_value == ESP_FAIL) {
             if (res != nullptr) {
                 ESP_LOGI(TAG, "Error code: %d", res->ret_value);
             }
-            vTaskDelay(pdMS_TO_TICKS(10)); // 短暂延迟避免忙等待
+            error_count++;
+            if (error_count >= MAX_ERRORS) {
+                ESP_LOGW(TAG, "Too many errors (%d), stopping audio processing temporarily", error_count);
+                vTaskDelay(pdMS_TO_TICKS(1000)); // 长延迟以让系统恢复
+                error_count = 0;
+            } else {
+                vTaskDelay(pdMS_TO_TICKS(10)); // 短暂延迟避免忙等待
+            }
             continue;
         }
+
+        // 成功获取数据，重置错误计数
+        error_count = 0;
 
         // VAD state change
         if (vad_state_change_callback_) {
@@ -165,10 +181,10 @@ void AfeAudioProcessor::AudioProcessorTask() {
 
         if (output_callback_) {
             size_t samples = res->data_size / sizeof(int16_t);
-            
+
             // Add data to buffer
             output_buffer_.insert(output_buffer_.end(), res->data, res->data + samples);
-            
+
             // Output complete frames when buffer has enough data
             while (output_buffer_.size() >= frame_samples_) {
                 if (output_buffer_.size() == frame_samples_) {
@@ -183,11 +199,11 @@ void AfeAudioProcessor::AudioProcessorTask() {
                 }
             }
         }
-        
-        // 定期重置看门狗
+
+        // 成功处理数据后，再重置一次看门狗
         esp_task_wdt_reset();
     }
-    
+
     // 从看门狗监控列表中移除任务
     esp_task_wdt_delete(NULL);
 }

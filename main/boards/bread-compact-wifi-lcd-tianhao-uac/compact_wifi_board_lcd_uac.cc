@@ -312,7 +312,8 @@ public:
             Application::GetInstance().Schedule([&board]() {
                 auto& board = Board::GetInstance();
                 auto display = board.GetDisplay();
-                
+                auto codec = board.GetAudioCodec();
+
                 ESP_LOGI(TAG, "Updating exit sleep mode UI");
                 if (display) {
                     ESP_LOGI(TAG, "Calling SetEmotion with 'neutral'");
@@ -321,6 +322,12 @@ public:
                     ESP_LOGI(TAG, "Exit sleep mode UI updated");
                 } else {
                     ESP_LOGW(TAG, "Display is null");
+                }
+
+                // 重新启用 I2S 输出
+                if (codec && codec->output_enabled() == false) {
+                    ESP_LOGI(TAG, "Re-enabling I2S output after sleep");
+                    codec->EnableOutput(true);
                 }
             });
         });

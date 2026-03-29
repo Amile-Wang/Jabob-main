@@ -11,11 +11,11 @@
 
 #include "board.h"
 
-// 增加缓冲区大小以适应高采样率（如48kHz）
+// 优化DMA缓冲区配置，平衡性能和内存使用
 // 原值：AUDIO_CODEC_DMA_DESC_NUM 6, AUDIO_CODEC_DMA_FRAME_NUM 240
-// 新值：增加到支持48kHz采样率所需的缓冲区大小
-#define AUDIO_CODEC_DMA_DESC_NUM 8
-#define AUDIO_CODEC_DMA_FRAME_NUM 960
+// 优化值：增加DMA描述符数量以减少中断频率，同时控制内存使用
+#define AUDIO_CODEC_DMA_DESC_NUM 12  // 优化：从8增加到12
+#define AUDIO_CODEC_DMA_FRAME_NUM 1920  // 优化：从960增加到1920（平衡性能和内存）
 #define AUDIO_CODEC_DEFAULT_MIC_GAIN 30.0
 
 class AudioCodec {

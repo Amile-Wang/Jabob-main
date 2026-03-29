@@ -37,8 +37,8 @@
 #define OPUS_FRAME_DURATION_MS 60
 #define MAX_ENCODE_TASKS_IN_QUEUE 2
 #define MAX_PLAYBACK_TASKS_IN_QUEUE 2
-#define MAX_DECODE_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
-#define MAX_SEND_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
+#define MAX_DECODE_PACKETS_IN_QUEUE (1200 / OPUS_FRAME_DURATION_MS)  // 优化：从2400减到1200
+#define MAX_SEND_PACKETS_IN_QUEUE (1200 / OPUS_FRAME_DURATION_MS)  // 优化：从2400减到1200
 #define AUDIO_TESTING_MAX_DURATION_MS 10000
 #define MAX_TIMESTAMPS_IN_QUEUE 3
 
@@ -154,6 +154,19 @@ private:
     bool voice_detected_ = false;
     bool service_stopped_ = true;
     bool audio_input_need_warmup_ = false;
+
+    // 采样率状态跟踪
+    int last_configured_input_sample_rate_ = 0;   // 最后配置的输入采样率
+    int last_detected_input_sample_rate_ = 0;      // 最后检测到的实际输入采样率
+    uint32_t sample_rate_change_count_ = 0;        // 采样率变化计数
+    const uint32_t MAX_SAMPLE_RATE_CHANGES = 10;   // 最大允许的采样率变化次数
+    int fallback_input_sample_rate_ = 16000;        // Fallback采样率
+    bool usb_device_ready_ = false;                 // USB设备就绪标志
+
+    // 输出采样率状态跟踪
+    int last_configured_output_sample_rate_ = 0;  // 最后配置的输出采样率
+    int locked_output_sample_rate_ = 0;            // 锁定的输出采样率（防止回滚）
+    bool output_sample_rate_locked_ = false;          // 输出采样率锁定标志
 
     esp_timer_handle_t audio_power_timer_ = nullptr;
     std::chrono::steady_clock::time_point last_input_time_;
