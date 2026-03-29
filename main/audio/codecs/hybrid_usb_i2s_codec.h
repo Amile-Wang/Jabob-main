@@ -12,19 +12,23 @@
 #include <mutex>
 
 #define USB_EVENT_CONNECTED    (1 << 0)
-#define USB_EVENT_RX_READY     (1 << 1)
-#define USB_DATA_READY_SIGNAL  (1 << 2)
 
-// USB音频数据缓冲区配置 - 优化后的内存使用
-#define USB_AUDIO_BUFFER_SIZE  (32 * 1024)  // 32KB缓冲区，约333ms @ 48kHz mono 16bit (优化)
-#define USB_AUDIO_READY_QUEUE_SIZE 10  // 数据就绪队列大小（优化为10个足够）
+// USB音频数据缓冲区配置
+// 原值：48KB (约500ms @ 48kHz mono 16bit)
+// 增加到96KB以提供更好的溢出保护
+#define USB_AUDIO_BUFFER_SIZE  (96 * 1024)  // 96KB缓冲区，约1000ms @ 48kHz mono 16bit
 
 /**
  * @brief 混合 USB-I2S 音频编解码器
- * 
+ *
  * 直接基于 ESP-IDF USB Host UAC 组件和 I2S 组件实现
- * - 麦克风: 通过 USB UAC Host 从 USB 麦克风设备获取音频
+ * - 麦克风: 通过 USB UAC Host 从 USB 麦克风设备获取音频（使用直接回调读取模式）
  * - 扬声器: 通过 I2S 接口输出到扬声器
+ *
+ * 重要特性：
+ * - 参考官方示例实现，在UAC回调中直接读取USB数据
+ * - 使用0超时的uac_host_device_read调用，避免"RX Ringbuffer read failed"
+ * - 采用官方推荐的缓冲区配置：19.2KB buffer, 4.8KB threshold
  */
 class HybridUsbI2sCodec : public AudioCodec {
 public:
@@ -60,6 +64,9 @@ private:
     esp_err_t CloseI2sSpeaker();
     bool WaitForUsbDevice(int timeout_ms);
 
+    // 添加USB设备状态检查函数
+    void CheckUsbDeviceStatus();
+
     // 添加辅助函数：根据设备能力选择最佳采样率
     uint32_t SelectBestSampleRate(const uac_host_dev_alt_param_t& alt_params);
 
@@ -74,16 +81,12 @@ private:
 
     // USB 相关成员变量
     bool usb_initialized_ = false;
-    usb_host_client_handle_t usb_client_handle_ = nullptr;
     uac_host_device_handle_t uac_rx_device_ = nullptr;
     TaskHandle_t usb_host_task_handle_ = nullptr;  // USB Host 任务句柄
     TaskHandle_t usb_data_task_handle_ = nullptr;  // USB数据处理任务句柄
     uint8_t usb_device_addr_ = 0;        // USB 设备地址
     uint8_t usb_iface_num_ = 0;          // USB 接口号
     bool usb_microphone_ready_ = false;   // USB 麦克风就绪标志
-
-    // 异步数据队列
-    QueueHandle_t usb_data_ready_queue_;  // 数据就绪信号队列
 
     // USB音频数据缓冲区（循环缓冲区）
     std::deque<int16_t> usb_audio_buffer_;

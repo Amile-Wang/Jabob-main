@@ -916,13 +916,19 @@ void AudioService::CheckAndUpdateAudioPowerState() {
     auto now = std::chrono::steady_clock::now();
     auto input_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_input_time_).count();
     auto output_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - last_output_time_).count();
-    if (input_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->input_enabled()) {
-        codec_->EnableInput(false);
-    }
+    
+    // 移除USB输入的自动禁用逻辑，因为USB麦克风无法真正关闭
+    // if (input_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->input_enabled()) {
+    //     codec_->EnableInput(false);
+    // }
+    
+    // 保留I2S输出的自动禁用逻辑（如果编解码器支持）
     if (output_elapsed > AUDIO_POWER_TIMEOUT_MS && codec_->output_enabled()) {
         codec_->EnableOutput(false);
     }
-    if (!codec_->input_enabled() && !codec_->output_enabled()) {
+    
+    // 如果输出已禁用且没有其他活动，停止电源管理定时器
+    if (!codec_->output_enabled()) {
         esp_timer_stop(audio_power_timer_);
     }
 }
