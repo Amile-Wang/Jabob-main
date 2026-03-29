@@ -384,7 +384,12 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 
         // 验证重采样结果
         if (data.size() != samples) {
-            ESP_LOGI(TAG, "Resampling size mismatch: expected %d, got %u", samples, data.size());
+            // 注释掉这行日志以避免互斥锁崩溃问题
+            // ESP_LOGI(TAG, "Resampling size mismatch: expected %d, got %u", samples, data.size());
+            // 改为条件性调试日志（仅在DEBUG模式下启用）
+#ifdef CONFIG_DEBUG_AUDIO_RESAMPLING
+            ESP_LOGD(TAG, "Resampling size mismatch: expected %d, got %u", samples, (unsigned int)data.size());
+#endif
         }
     } else {
         // 不需要重采样，直接读取
