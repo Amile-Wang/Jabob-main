@@ -91,7 +91,7 @@ private:
             while(1) {
                 uint32_t raw_value = board->touch_button_.read_raw_value();
 
-                ESP_LOGI(TAG, "TouchMonitor,Raw: %" PRIu32, raw_value);
+                ESP_LOGD(TAG, "TouchMonitor,Raw: %" PRIu32, raw_value);
                 // board->GetDisplay()->ShowNotification("Raw: " + std::to_string(raw_value));
 
                 vTaskDelay(pdMS_TO_TICKS(3500)); // 每 500ms 检查一次

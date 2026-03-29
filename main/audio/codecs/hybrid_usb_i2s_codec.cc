@@ -426,7 +426,7 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                             codec->usb_audio_buffer_.push_back(samples[i]);
                         }
 
-                        ESP_LOGW(TAG, "Added %u/%u samples after overflow, Buffer size: %u",
+                        ESP_LOGD(TAG, "Added %u/%u samples after overflow, Buffer size: %u",
                                 (unsigned int)samples_to_add, (unsigned int)samples_read, (unsigned int)codec->usb_audio_buffer_.size());
                     } else {
                         // 有足够空间，全部添加
@@ -856,7 +856,7 @@ void HybridUsbI2sCodec::UsbDataProcessingTask(void* arg) {
             }
             last_read_count = current_read_count;
 
-            ESP_LOGI(TAG, "USB Task Stats - Buffer: %u/%u samples (%.1f%%), Active: %" PRIu32 ", Idle: %" PRIu32 ", Reads: %" PRIu32 ", Overflows: %" PRIu32 ", Processed: %" PRIu32,
+            ESP_LOGD(TAG, "USB Task Stats - Buffer: %u/%u samples (%.1f%%), Active: %" PRIu32 ", Idle: %" PRIu32 ", Reads: %" PRIu32 ", Overflows: %" PRIu32 ", Processed: %" PRIu32,
                      (unsigned int)buffer_usage, (unsigned int)codec->buffer_capacity_,
                      (buffer_usage * 100.0) / codec->buffer_capacity_,
                      active_count, idle_count,
