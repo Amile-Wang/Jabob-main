@@ -1,0 +1,176 @@
+﻿25-12-06 17:01:03.422 
+25-12-06 17:01:03.423 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:01:03.425 Certification file "CybServer_XXX.bin" open fail!
+25-12-06 17:01:03.427 Total spend 15 ms.
+25-12-06 17:01:47.968 
+25-12-06 17:01:47.968 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:01:47.970 Please set output file information. 
+25-12-06 17:01:47.971 Please run this tool in ESP-IDF CMD. 
+
+25-12-06 17:01:47.972 Usage: 
+25-12-06 17:01:47.973    Request license:
+25-12-06 17:01:47.974       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "FILE_PATH\esptool.py" [--out_file "License.dat"] 
+25-12-06 17:01:47.978       If the com_port parameter is not specified, it is automatically detected by esp_tool. 
+25-12-06 17:01:47.979    Query license count:
+25-12-06 17:01:47.980       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" 
+25-12-06 17:01:47.981 Example:  
+25-12-06 17:01:47.982       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" --com_port COM16 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.1\components\esptool_py\esptool\esptool.py" --out_file "License.dat" 
+25-12-06 17:01:47.987 Total spend 15 ms.
+25-12-06 17:02:07.167 
+25-12-06 17:02:07.168 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:02:07.170 Please set output file information. 
+25-12-06 17:02:07.171 Please run this tool in ESP-IDF CMD. 
+
+25-12-06 17:02:07.173 Usage: 
+25-12-06 17:02:07.173    Request license:
+25-12-06 17:02:07.175       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "FILE_PATH\esptool.py" [--out_file "License.dat"] 
+25-12-06 17:02:07.179       If the com_port parameter is not specified, it is automatically detected by esp_tool. 
+25-12-06 17:02:07.181    Query license count:
+25-12-06 17:02:07.182       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" 
+25-12-06 17:02:07.185 Example:  
+25-12-06 17:02:07.186       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" --com_port COM16 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.1\components\esptool_py\esptool\esptool.py" --out_file "License.dat" 
+25-12-06 17:02:07.190 Total spend 31 ms.
+25-12-06 17:02:41.284 
+25-12-06 17:02:41.285 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:02:41.288 Please set output file information. 
+25-12-06 17:02:41.289 Please run this tool in ESP-IDF CMD. 
+
+25-12-06 17:02:41.289 Usage: 
+25-12-06 17:02:41.290    Request license:
+25-12-06 17:02:41.291       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "FILE_PATH\esptool.py" [--out_file "License.dat"] 
+25-12-06 17:02:41.294       If the com_port parameter is not specified, it is automatically detected by esp_tool. 
+25-12-06 17:02:41.297    Query license count:
+25-12-06 17:02:41.299       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" 
+25-12-06 17:02:41.301 Example:  
+25-12-06 17:02:41.302       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" --com_port COM16 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.1\components\esptool_py\esptool\esptool.py" --out_file "License.dat" 
+25-12-06 17:02:41.307 Total spend 31 ms.
+25-12-06 17:05:12.010 
+25-12-06 17:05:12.010 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:05:12.012 Please set output file information. 
+25-12-06 17:05:12.014 Please run this tool in ESP-IDF CMD. 
+
+25-12-06 17:05:12.015 Usage: 
+25-12-06 17:05:12.015    Request license:
+25-12-06 17:05:12.017       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "FILE_PATH\esptool.py" [--out_file "License.dat"] 
+25-12-06 17:05:12.020       If the com_port parameter is not specified, it is automatically detected by esp_tool. 
+25-12-06 17:05:12.022    Query license count:
+25-12-06 17:05:12.023       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" 
+25-12-06 17:05:12.025 Example:  
+25-12-06 17:05:12.025       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" --com_port COM16 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.1\components\esptool_py\esptool\esptool.py" --out_file "License.dat" 
+25-12-06 17:05:12.029 Total spend 15 ms.
+25-12-06 17:05:13.910 
+25-12-06 17:05:13.911 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:05:13.912 Please set output file information. 
+25-12-06 17:05:13.913 Please run this tool in ESP-IDF CMD. 
+
+25-12-06 17:05:13.914 Usage: 
+25-12-06 17:05:13.915    Request license:
+25-12-06 17:05:13.915       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "FILE_PATH\esptool.py" [--out_file "License.dat"] 
+25-12-06 17:05:13.918       If the com_port parameter is not specified, it is automatically detected by esp_tool. 
+25-12-06 17:05:13.920    Query license count:
+25-12-06 17:05:13.922       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" 
+25-12-06 17:05:13.923 Example:  
+25-12-06 17:05:13.924       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" --com_port COM16 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.1\components\esptool_py\esptool\esptool.py" --out_file "License.dat" 
+25-12-06 17:05:13.928 Total spend 31 ms.
+25-12-06 17:25:50.415 
+25-12-06 17:25:50.416 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:25:50.418 Certification file ".\CustomerCertification\CybServer_DSpotterDev_Jabra.bin" open fail!
+25-12-06 17:25:50.421 Total spend 16 ms.
+25-12-06 17:26:19.814 
+25-12-06 17:26:19.814 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:26:19.970 Uid string = 
+25-12-06 17:26:19.971 Error: Uid wrong format!
+25-12-06 17:26:19.972 Total spend 172 ms.
+25-12-06 17:26:43.617 
+25-12-06 17:26:43.618 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:26:43.620 Please set certification file information. 
+25-12-06 17:26:43.622 Please run this tool in ESP-IDF CMD. 
+
+25-12-06 17:26:43.624 Usage: 
+25-12-06 17:26:43.625    Request license:
+25-12-06 17:26:43.627       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "FILE_PATH\esptool.py" [--out_file "License.dat"] 
+25-12-06 17:26:43.633       If the com_port parameter is not specified, it is automatically detected by esp_tool. 
+25-12-06 17:26:43.635    Query license count:
+25-12-06 17:26:43.636       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" 
+25-12-06 17:26:43.638 Example:  
+25-12-06 17:26:43.639       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" --com_port COM16 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.1\components\esptool_py\esptool\esptool.py" --out_file "License.dat" 
+25-12-06 17:26:43.644 Total spend 31 ms.
+25-12-06 17:26:44.702 
+25-12-06 17:26:44.702 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:26:44.705 Please set certification file information. 
+25-12-06 17:26:44.707 Please run this tool in ESP-IDF CMD. 
+
+25-12-06 17:26:44.708 Usage: 
+25-12-06 17:26:44.709    Request license:
+25-12-06 17:26:44.711       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "FILE_PATH\esptool.py" [--out_file "License.dat"] 
+25-12-06 17:26:44.716       If the com_port parameter is not specified, it is automatically detected by esp_tool. 
+25-12-06 17:26:44.719    Query license count:
+25-12-06 17:26:44.721       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" 
+25-12-06 17:26:44.723 Example:  
+25-12-06 17:26:44.725       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" --com_port COM16 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.1\components\esptool_py\esptool\esptool.py" --out_file "License.dat" 
+25-12-06 17:26:44.731 Total spend 31 ms.
+25-12-06 17:26:45.484 
+25-12-06 17:26:45.485 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:26:45.488 Please set certification file information. 
+25-12-06 17:26:45.489 Please run this tool in ESP-IDF CMD. 
+
+25-12-06 17:26:45.491 Usage: 
+25-12-06 17:26:45.492    Request license:
+25-12-06 17:26:45.493       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "FILE_PATH\esptool.py" [--out_file "License.dat"] 
+25-12-06 17:26:45.498       If the com_port parameter is not specified, it is automatically detected by esp_tool. 
+25-12-06 17:26:45.501    Query license count:
+25-12-06 17:26:45.502       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" 
+25-12-06 17:26:45.505 Example:  
+25-12-06 17:26:45.505       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" --com_port COM16 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.1\components\esptool_py\esptool\esptool.py" --out_file "License.dat" 
+25-12-06 17:26:45.511 Total spend 32 ms.
+25-12-06 18:35:35.544 
+25-12-06 18:35:35.565 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 18:35:35.698 Uid string = 
+25-12-06 18:35:35.700 Error: Uid wrong format!
+25-12-06 18:35:35.701 Total spend 187 ms.
+25-12-06 18:38:42.464 
+25-12-06 18:38:42.465 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 18:38:42.466 Certification file "CybServer_XXX.bin" open fail!
+25-12-06 18:38:42.468 Total spend 0 ms.
+25-12-06 18:38:54.182 
+25-12-06 18:38:54.183 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 18:38:54.184 Please set certification file information. 
+25-12-06 18:38:54.185 Please run this tool in ESP-IDF CMD. 
+
+25-12-06 18:38:54.186 Usage: 
+25-12-06 18:38:54.187    Request license:
+25-12-06 18:38:54.188       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "FILE_PATH\esptool.py" [--out_file "License.dat"] 
+25-12-06 18:38:54.190       If the com_port parameter is not specified, it is automatically detected by esp_tool. 
+25-12-06 18:38:54.192    Query license count:
+25-12-06 18:38:54.194       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" 
+25-12-06 18:38:54.195 Example:  
+25-12-06 18:38:54.196       DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" --com_port COM16 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.1\components\esptool_py\esptool\esptool.py" --out_file "License.dat" 
+25-12-06 18:38:54.199 Total spend 16 ms.
+25-12-06 18:51:34.507 
+25-12-06 18:51:34.537 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 18:51:34.539 License for: GN Jabra(DSpotterDev)
+25-12-06 18:51:35.287 Amount of license: 3
+25-12-06 18:51:35.288 Used license: 2
+25-12-06 18:51:35.289 Left license: 1
+25-12-06 18:51:35.289 Total spend 781 ms.
+26-03-31 03:28:09.290 
+26-03-31 03:28:09.291 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+26-03-31 03:28:09.302 License for: GN Jabra(DSpotterDev)
+26-03-31 03:28:15.084 Amount of license: 8
+26-03-31 03:28:15.085 Used license: 3
+26-03-31 03:28:15.086 Left license: 5
+26-03-31 03:28:15.087 Total spend 5797 ms.
+26-03-31 03:30:43.292 
+26-03-31 03:30:43.293 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+26-03-31 03:30:43.296 License for: GN Jabra(DSpotterDev)
+26-03-31 03:30:43.744 Amount of license: 8
+26-03-31 03:30:43.745 Used license: 3
+26-03-31 03:30:43.746 Left license: 5
+26-03-31 03:30:43.747 Total spend 485 ms.
+26-03-31 03:31:02.192 
+26-03-31 03:31:02.192 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+26-03-31 03:31:02.195 License for: GN Jabra(DSpotterDev)
+26-03-31 03:31:02.663 Amount of license: 8
+26-03-31 03:31:02.664 Used license: 3
+26-03-31 03:31:02.665 Left license: 5
+26-03-31 03:31:02.666 Total spend 469 ms.

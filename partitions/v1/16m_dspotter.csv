@@ -1,0 +1,9 @@
+# ESP-IDF Partition Table for DSpotter
+# Name,   Type, SubType, Offset,  Size, Flags
+nvs,      data, nvs,     0x9000,    0x4000,
+dspotter, data, unknown, 0xe000,    0x1000,
+otadata,  data, ota,     0xf000,    0x2000,
+phy_init, data, phy,     0x11000,   0x1000,
+model,    data, spiffs,  0x12000,   0xEE000,
+ota_0,    app,  ota_0,   0x100000,  6M,
+ota_1,    app,  ota_1,   0x700000,  6M,

@@ -1,0 +1,14 @@
+1. Please run this tool in ESP-IDF CMD console.
+
+2. Request license:
+   DSpotterLicenseForESP32.exe --cert_file "CybServer_XXX.bin" [--com_port COMxx] --esp_tool "ToolChain_Path\esptool.py" [--out_file "License.dat"]
+   If the com_port parameter is not specified, it is automatically detected by esp_tool.
+   If the out_file parameter is not specified, the license data will be stored in the "License_XXX.dat" format, where XXX is the device ID.
+   Example:
+     DSpotterLicenseForESP32.exe --cert_file "CybServer_DSpotterDev_Jabra.bin" --com_port COM3 --esp_tool "C:\Espressif\frameworks\esp-idf-v5.4.3\components\esptool_py\esptool\esptool.py" --out_file "License.dat"
+
+3. Query license count:
+   DSpotterLicenseForESP32.exe --cert_file "CybServer_DSpotterDev_Jabra.bin"
+
+4. Output log:
+   The output log file will be DSpotterLicenseForESP32_COMxx.log or DSpotterLicenseForESP32.log.
