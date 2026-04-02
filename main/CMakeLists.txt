@@ -246,6 +246,8 @@ elseif(CONFIG_USE_ESP_WAKE_WORD)
     list(APPEND SOURCES "audio/wake_words/esp_wake_word.cc")
 elseif(CONFIG_USE_CUSTOM_WAKE_WORD)
     list(APPEND SOURCES "audio/wake_words/custom_wake_word.cc")
+elseif(CONFIG_USE_DSPOTTER_WAKE_WORD)
+    list(APPEND SOURCES "audio/wake_words/dspotter_wake_word.cc")
 endif()
 
 # 根据Kconfig选择语言目录

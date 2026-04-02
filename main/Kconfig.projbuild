@@ -449,6 +449,20 @@ config USE_CUSTOM_WAKE_WORD
     help
         需要 ESP32 S3 与 PSRAM 支持
         
+config USE_DSPOTTER_WAKE_WORD
+    bool "Enable DSpotter Wake Word Detection"
+    default n
+    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD) && (!USE_CUSTOM_WAKE_WORD)
+    help
+        启用 DSpotter 唤醒词检测，需要 ESP32 S3 与 PSRAM 支持
+
+config DSPOTTER_WAKE_WORD_DISPLAY
+    string "DSpotter Wake Word Display"
+    default "Hey Jabra"
+    depends on USE_DSPOTTER_WAKE_WORD
+    help
+        DSpotter 唤醒词对应显示文本
+
 config CUSTOM_WAKE_WORD
     string "Custom Wake Word"
     default "ni hao jie bao bao"

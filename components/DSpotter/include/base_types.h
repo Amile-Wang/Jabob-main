@@ -198,13 +198,15 @@ typedef void* HANDLE;
 #define STATIC 	static
 #endif	// STATIC
 
-#ifndef max
-#define max(a,b)            (((a) > (b)) ? (a) : (b))
-#endif	// max
+// Comment out the conflicting min/max macros to avoid C++ standard library conflicts
+//#ifndef max
+//#define max(a,b)            (((a) > (b)) ? (a) : (b))
+//#endif	// max
 
-#ifndef min
-#define min(a,b)            (((a) < (b)) ? (a) : (b))
-#endif	// min
+// Comment out the conflicting min/max macros to avoid C++ standard library conflicts
+//#ifndef min
+//#define min(a,b)            (((a) < (b)) ? (a) : (b))
+//#endif	// min
 
 #if defined(_WIN32)
 	#define EXPAPI WINAPI

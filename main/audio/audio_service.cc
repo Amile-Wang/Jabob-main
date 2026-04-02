@@ -22,6 +22,8 @@
 #include "wake_words/esp_wake_word.h"
 #elif CONFIG_USE_CUSTOM_WAKE_WORD
 #include "wake_words/custom_wake_word.h"
+#elif CONFIG_USE_DSPOTTER_WAKE_WORD
+#include "wake_words/dspotter_wake_word.h"
 #endif
 
 #define TAG "AudioService"
@@ -144,6 +146,8 @@ void AudioService::Initialize(AudioCodec* codec) {
     wake_word_ = std::make_unique<EspWakeWord>();
 #elif CONFIG_USE_CUSTOM_WAKE_WORD
     wake_word_ = std::make_unique<CustomWakeWord>();
+#elif CONFIG_USE_DSPOTTER_WAKE_WORD
+    wake_word_ = std::make_unique<DSpotterWakeWord>();
 #else
     wake_word_ = nullptr;
 #endif
