@@ -1,4 +1,4 @@
-﻿/*
+/*
 	Copyright (c) 2002 Cyberon Corp.  All right reserved.
 	File: base_types.h
 	Desc: Define all base types

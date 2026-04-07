@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>小智服务器测试页面</title>
+    <title>jabobo服务器测试页面</title>
     <style>
         body {
             font-family: 'PingFang SC', 'Microsoft YaHei', sans-serif;
@@ -436,7 +436,7 @@
 
 <body>
     <div class="container">
-        <h1>小智服务器测试页面</h1>
+        <h1>jabobo服务器测试页面</h1>
 
         <div id="scriptStatus" style="position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);">
             正在加载Opus库...</div>
@@ -447,7 +447,7 @@
                 设备配置
                 <span class="device-info">
                     <span>MAC: <strong id="displayMac"></strong></span>
-                    <span>客户端: <strong id="displayClient">web_test_client</strong></span>
+                    <span>客户端: <strong id="displayClient">jabobo_test_client</strong></span>
                 </span>
                 <button class="toggle-button" id="toggleConfig">编辑</button>
             </h2>
@@ -459,11 +459,11 @@
                     </div>
                     <div class="config-item">
                         <label for="deviceName">设备名称:</label>
-                        <input type="text" id="deviceName" value="Web测试设备" placeholder="设备名称">
+                        <input type="text" id="deviceName" value="jabobo测试设备" placeholder="设备名称">
                     </div>
                     <div class="config-item">
                         <label for="clientId">客户端ID:</label>
-                        <input type="text" id="clientId" value="web_test_client" placeholder="客户端ID">
+                        <input type="text" id="clientId" value="jabobo_test_client" placeholder="客户端ID">
                     </div>
                     <div class="config-item">
                         <label for="token">认证Token:</label>
@@ -484,8 +484,8 @@
             <div class="connection-controls">
                 <input type="text" id="otaUrl" value="http://localhost:8007/api/user/device/ota"
                     placeholder="OTA服务器地址，如：http://localhost:8007/api/user/device/ota" />
-                <input type="text" id="serverUrl" value="ws://121.41.168.85:8000/xiaozhi/v1/"
-                    placeholder="WebSocket服务器地址，如：ws://121.41.168.85:8000/xiaozhi/v1/" />
+                <input type="text" id="serverUrl" value="ws://121.41.168.85:8000/jabobo/v1/"
+                    placeholder="WebSocket服务器地址，如：ws://121.41.168.85:8000/jabobo/v1/" />
                 <button id="connectButton">连接</button>
                 <button id="authTestButton">测试认证</button>
             </div>
@@ -1268,12 +1268,12 @@
 
                 // 获取服务器类型 - 从URL判断
                 const serverUrl = serverUrlInput.value.trim();
-                let isXiaozhiNative = false;
+                let isJaboboNative = false;
 
-                // 检查是否是小智原生服务器 (根据URL特征判断)
-                if (serverUrl.includes('xiaozhi') || serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) {
-                    isXiaozhiNative = true;
-                    log('检测到小智原生服务器，使用标准listen协议', 'info');
+                // 检查是否是jabobo原生服务器 (根据URL特征判断)
+                if (serverUrl.includes('jabobo') || serverUrl.includes('localhost') || serverUrl.includes('127.0.0.1')) {
+                    isJaboboNative = true;
+                    log('检测到jabobo原生服务器，使用标准listen协议', 'info');
                 }
 
                 // 使用直接PCM录音和libopus编码的方式
@@ -1330,18 +1330,18 @@
                             "version": 0,
                             "uuid": "",
                             "application": {
-                                "name": "xiaozhi-web-test",
+                                "name": "jabobo-web-test",
                                 "version": "1.0.0",
                                 "compile_time": "2025-04-16 10:00:00",
                                 "idf_version": "4.4.3",
                                 "elf_sha256": "1234567890abcdef1234567890abcdef1234567890abcdef"
                             },
                             "ota": {
-                                "label": "xiaozhi-web-test",
+                                "label": "jabobo-web-test",
                             },
                             "board": {
-                                "type": "xiaozhi-web-test",
-                                "ssid": "xiaozhi-web-test",
+                                "type": "jabobo-web-test",
+                                "ssid": "jabobo-web-test",
                                 "rssi": 0,
                                 "channel": 0,
                                 "ip": "192.168.1.1",
@@ -1394,6 +1394,7 @@
 
                 log(`正在连接: ${connUrl.toString()}`, 'info');
                 websocket = new WebSocket(connUrl.toString());
+                const currentWebSocket = websocket;
 
                 // 设置接收二进制数据的类型为ArrayBuffer
                 websocket.binaryType = 'arraybuffer';
@@ -1403,17 +1404,24 @@
                     connectionStatus.textContent = 'ws已连接';
                     connectionStatus.style.color = 'green';
 
-                    // 连接成功后发送hello消息
-                    await sendHelloMessage();
-
                     connectButton.textContent = '断开';
                     connectButton.removeEventListener('click', connectToServer);
                     connectButton.addEventListener('click', disconnectFromServer);
-                    // connectButton.onclick = disconnectFromServer;
                     messageInput.disabled = false;
                     sendTextButton.disabled = false;
 
+                    // 连接成功后发送hello消息
+                    await sendHelloMessage();
+
+                    if (websocket !== currentWebSocket || currentWebSocket.readyState !== WebSocket.OPEN) {
+                        return;
+                    }
+
                     const audioInitialized = await initAudio();
+                    if (websocket !== currentWebSocket || currentWebSocket.readyState !== WebSocket.OPEN) {
+                        return;
+                    }
+
                     if (audioInitialized) {
                         recordButton.disabled = false;
                     }
@@ -1431,7 +1439,13 @@
                     messageInput.disabled = true;
                     sendTextButton.disabled = true;
                     recordButton.disabled = true;
-                    stopButton.disabled = true;
+                    if (stopButton) {
+                        stopButton.disabled = true;
+                    }
+
+                    if (websocket === currentWebSocket) {
+                        websocket = null;
+                    }
                 };
 
                 websocket.onerror = (error) => {
@@ -1488,7 +1502,7 @@
                                 const payload = message.payload || {};
                                 log(`服务器下发: ${JSON.stringify(message)}`, 'info');
                                 if (payload) {
-                                    // 模拟小智客户端行为
+                                    // 模拟jabobo客户端行为
                                     if(payload.method === 'tools/list'){
                                         const replay_message = JSON.stringify({"session_id":"","type":"mcp","payload":{"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"self.get_device_status","description":"Provides the real-time information of the device, including the current status of the audio speaker, screen, battery, network, etc.\nUse this tool for: \n1. Answering questions about current condition (e.g. what is the current volume of the audio speaker?)\n2. As the first step to control the device (e.g. turn up / down the volume of the audio speaker, etc.)","inputSchema":{"type":"object","properties":{}}},{"name":"self.audio_speaker.set_volume","description":"Set the volume of the audio speaker. If the current volume is unknown, you must call `self.get_device_status` tool first and then call this tool.","inputSchema":{"type":"object","properties":{"volume":{"type":"integer","minimum":0,"maximum":100}},"required":["volume"]}},{"name":"self.screen.set_brightness","description":"Set the brightness of the screen.","inputSchema":{"type":"object","properties":{"brightness":{"type":"integer","minimum":0,"maximum":100}},"required":["brightness"]}},{"name":"self.screen.set_theme","description":"Set the theme of the screen. The theme can be 'light' or 'dark'.","inputSchema":{"type":"object","properties":{"theme":{"type":"string"}},"required":["theme"]}}]}}})
                                         websocket.send(replay_message);
@@ -1617,18 +1631,7 @@
             }
         }
 
-        // 生成随机MAC地址
-        function generateRandomMac() {
-            const hexDigits = '0123456789ABCDEF';
-            let mac = '';
-            for (let i = 0; i < 6; i++) {
-                if (i > 0) mac += ':';
-                for (let j = 0; j < 2; j++) {
-                    mac += hexDigits.charAt(Math.floor(Math.random() * 16));
-                }
-            }
-            return mac;
-        }
+        const DEFAULT_DEVICE_MAC = '80:b5:4e:e0:98:84';
 
         // 初始化事件监听器
         function initEventListeners() {
@@ -1643,12 +1646,9 @@
             const displayMac = document.getElementById('displayMac');
             const displayClient = document.getElementById('displayClient');
 
-            // 从localStorage加载MAC地址，如果没有则生成新的
-            let savedMac = localStorage.getItem('deviceMac');
-            if (!savedMac) {
-                savedMac = generateRandomMac();
-                localStorage.setItem('deviceMac', savedMac);
-            }
+            // 初始化默认MAC地址
+            let savedMac = DEFAULT_DEVICE_MAC;
+            localStorage.setItem('deviceMac', savedMac);
             deviceMacInput.value = savedMac;
             displayMac.textContent = savedMac;
 
