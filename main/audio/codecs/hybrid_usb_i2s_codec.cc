@@ -4,6 +4,7 @@
 #include <esp_log.h>
 #include <cstring>
 #include <algorithm>
+#include <cmath>
 #include <usb/usb_host.h>
 #include <inttypes.h>  // 添加inttypes.h头文件以支持PRI宏
 
@@ -326,10 +327,23 @@ int HybridUsbI2sCodec::Write(const int16_t* data, int samples) {
         return 0;
     }
 
+    std::vector<int32_t> buffer(samples);
+    int32_t volume_factor = static_cast<int32_t>(pow(double(output_volume_) / 100.0, 2) * 65536);
+    for (int i = 0; i < samples; ++i) {
+        int64_t temp = static_cast<int64_t>(data[i]) * volume_factor;
+        if (temp > INT32_MAX) {
+            buffer[i] = INT32_MAX;
+        } else if (temp < INT32_MIN) {
+            buffer[i] = INT32_MIN;
+        } else {
+            buffer[i] = static_cast<int32_t>(temp);
+        }
+    }
+
     size_t bytes_written = 0;
-    esp_err_t ret = i2s_channel_write(i2s_tx_handle_, data, samples * sizeof(int16_t), &bytes_written, pdMS_TO_TICKS(100));
+    esp_err_t ret = i2s_channel_write(i2s_tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, pdMS_TO_TICKS(100));
     if (ret == ESP_OK && bytes_written > 0) {
-        return bytes_written / sizeof(int16_t);
+        return bytes_written / sizeof(int32_t);
     } else if (ret == ESP_ERR_TIMEOUT) {
         ESP_LOGD(TAG, "I2S write timeout, samples: %d", samples);
         return 0;
