@@ -36,10 +36,14 @@ public:
 private:
     static constexpr int kFrameSample = 480; // 30ms @ 16kHz
     static constexpr int kMaxBufferSize = 16000; // 1秒缓冲区
+    static constexpr int kMaxCommandTimeFrames = 500; // 5000ms / 10ms
     
     void* dspotter_handle_ = nullptr; // 使用void指针
+    void* cyb_model_handle_ = nullptr;
     uint8_t* license_data_ = nullptr;
     size_t license_size_ = 0;
+    int active_group_index_ = 0;
+    std::vector<uint8_t> dspotter_memory_;
     
     EventGroupHandle_t event_group_;
     std::function<void(const std::string& wake_word)> wake_word_detected_callback_;
@@ -62,9 +66,7 @@ private:
     std::mutex wake_word_mutex_;
     std::condition_variable wake_word_cv_;
 
-    void DetectionTask();
     void StoreWakeWordData(const int16_t* data, size_t samples);
-    void ProcessAudioBuffer();
     bool InitializeDSpotter();
 };
 

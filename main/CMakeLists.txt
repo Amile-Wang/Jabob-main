@@ -269,6 +269,11 @@ file(GLOB COMMON_SOUNDS ${CMAKE_CURRENT_SOURCE_DIR}/assets/common/*.p3)
 file(GLOB IMAGES ${CMAKE_CURRENT_SOURCE_DIR}/assets/images/*.png)
 file(GLOB GIFS ${CMAKE_CURRENT_SOURCE_DIR}/assets/gif/*.gif)
 
+set(DSPOTTER_MODEL_FILES "")
+if(CONFIG_USE_DSPOTTER_WAKE_WORD)
+    set(DSPOTTER_MODEL_FILES "audio/wake_words/models/HeyJabra_Lv3_Enc1_pack_WithTxt.bin")
+endif()
+
 # 如果目标芯片是 ESP32，则排除特定文件
 if(CONFIG_IDF_TARGET_ESP32)
     list(REMOVE_ITEM SOURCES "audio/codecs/box_audio_codec.cc"
@@ -278,7 +283,7 @@ if(CONFIG_IDF_TARGET_ESP32)
 endif()
 
 idf_component_register(SRCS ${SOURCES}
-                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${IMAGES} ${GIFS}
+                    EMBED_FILES ${LANG_SOUNDS} ${COMMON_SOUNDS} ${IMAGES} ${GIFS} ${DSPOTTER_MODEL_FILES}
                     INCLUDE_DIRS ${INCLUDE_DIRS}
                     WHOLE_ARCHIVE
                     )
