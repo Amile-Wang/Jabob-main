@@ -265,6 +265,16 @@ bool DSpotterWakeWord::InitializeDSpotter() {
         return false;
     }
 
+    ESP_LOGI(TAG,
+             "DSpotter license partition: label=%s subtype=0x%x address=0x%x size=0x%x",
+             lic_part->label,
+             (unsigned)lic_part->subtype,
+             (unsigned)lic_part->address,
+             (unsigned)lic_part->size);
+    if (lic_part->subtype == ESP_PARTITION_SUBTYPE_DATA_NVS) {
+        ESP_LOGW(TAG, "DSpotter license partition uses NVS subtype; raw binary license data is typically stored in an unknown/custom data partition");
+    }
+
     if (license_data_) {
         free(license_data_);
         license_data_ = nullptr;
@@ -281,6 +291,32 @@ bool DSpotterWakeWord::InitializeDSpotter() {
     if (err != ESP_OK) {
         ESP_LOGE(TAG, "Failed to read DSpotter license, err=0x%x", err);
         return false;
+    }
+
+    bool license_all_ff = true;
+    bool license_all_zero = true;
+    for (size_t i = 0; i < license_size_; ++i) {
+        if (license_data_[i] != 0xFF) {
+            license_all_ff = false;
+        }
+        if (license_data_[i] != 0x00) {
+            license_all_zero = false;
+        }
+    }
+    ESP_LOGI(TAG,
+             "DSpotter license head: %02x %02x %02x %02x %02x %02x %02x %02x",
+             license_size_ > 0 ? license_data_[0] : 0,
+             license_size_ > 1 ? license_data_[1] : 0,
+             license_size_ > 2 ? license_data_[2] : 0,
+             license_size_ > 3 ? license_data_[3] : 0,
+             license_size_ > 4 ? license_data_[4] : 0,
+             license_size_ > 5 ? license_data_[5] : 0,
+             license_size_ > 6 ? license_data_[6] : 0,
+             license_size_ > 7 ? license_data_[7] : 0);
+    if (license_all_ff || license_all_zero) {
+        ESP_LOGW(TAG,
+                 "DSpotter license buffer looks uninitialized (all_%s), license may not have been flashed correctly",
+                 license_all_ff ? "ff" : "zero");
     }
 
     int dspotter_init_err = DSPOTTER_SUCCESS;

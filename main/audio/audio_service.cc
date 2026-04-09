@@ -153,6 +153,13 @@ void AudioService::Initialize(AudioCodec* codec) {
 #endif
 
     audio_processor_->OnOutput([this](std::vector<int16_t>&& data) {
+        #if CONFIG_USE_DSPOTTER_WAKE_WORD
+        EventBits_t bits = xEventGroupGetBits(event_group_);
+        if ((bits & AS_EVENT_WAKE_WORD_RUNNING) && wake_word_) {
+            FeedWakeWordWithProcessedAudio(std::move(data));
+            return;
+        }
+        #endif
         PushTaskToEncodeQueue(kAudioTaskTypeEncodeToSendQueue, std::move(data));
     });
 
@@ -547,6 +554,11 @@ void AudioService::AudioInputTask() {
             if (!wake_word_) {
                 continue;
             }
+#if CONFIG_USE_DSPOTTER_WAKE_WORD
+            if (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
+                continue;
+            }
+#endif
             int samples = wake_word_->GetFeedSize();
             wake_word_buffer.insert(wake_word_buffer.end(), data.begin(), data.end());
             while (wake_word_buffer.size() >= static_cast<size_t>(samples)) {
@@ -569,6 +581,32 @@ void AudioService::AudioInputTask() {
             }
         }
 #endif
+    }
+}
+
+void AudioService::FeedWakeWordWithProcessedAudio(std::vector<int16_t>&& pcm) {
+    if (!wake_word_) {
+        return;
+    }
+
+    size_t samples = wake_word_->GetFeedSize();
+    if (samples == 0) {
+        return;
+    }
+
+    wake_word_preprocessed_buffer_.insert(
+        wake_word_preprocessed_buffer_.end(),
+        pcm.begin(),
+        pcm.end());
+
+    while (wake_word_preprocessed_buffer_.size() >= samples) {
+        std::vector<int16_t> wake_word_chunk(
+            wake_word_preprocessed_buffer_.begin(),
+            wake_word_preprocessed_buffer_.begin() + samples);
+        wake_word_->Feed(wake_word_chunk);
+        wake_word_preprocessed_buffer_.erase(
+            wake_word_preprocessed_buffer_.begin(),
+            wake_word_preprocessed_buffer_.begin() + samples);
     }
 }
 

@@ -1,5 +1,6 @@
 #include "afe_audio_processor.h"
 #include <esp_log.h>
+#include "esp_partition.h"
 #include "esp_task_wdt.h"
 
 #define PROCESSOR_RUNNING 0x01
@@ -28,9 +29,24 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
         input_format.push_back('R');
     }
 
-    srmodel_list_t *models = esp_srmodel_init("model");
-    char* ns_model_name = esp_srmodel_filter(models, ESP_NSNET_PREFIX, NULL);
-    char* vad_model_name = esp_srmodel_filter(models, ESP_VADN_PREFIX, NULL);
+    srmodel_list_t* models = nullptr;
+    char* ns_model_name = nullptr;
+    char* vad_model_name = nullptr;
+    const esp_partition_t* model_partition = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA,
+        ESP_PARTITION_SUBTYPE_ANY,
+        "model");
+    if (model_partition != nullptr) {
+        models = esp_srmodel_init("model");
+        if (models != nullptr) {
+            ns_model_name = esp_srmodel_filter(models, ESP_NSNET_PREFIX, NULL);
+            vad_model_name = esp_srmodel_filter(models, ESP_VADN_PREFIX, NULL);
+        } else {
+            ESP_LOGW(TAG, "Model partition exists but esp_srmodel_init failed, continuing without NS/VAD model overrides");
+        }
+    } else {
+        ESP_LOGW(TAG, "Model partition not present, skip esp-sr model loading and use AFE defaults");
+    }
     
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), NULL, AFE_TYPE_VC, AFE_MODE_HIGH_PERF);
     afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
@@ -117,38 +133,15 @@ void AfeAudioProcessor::Feed(std::vector<int16_t>&& data) {
 }
 
 void AfeAudioProcessor::AudioProcessorTask() {
-    // 将当前任务添加到看门狗监控列表
-    esp_task_wdt_add(NULL);
-
     auto fetch_size = afe_iface_->get_fetch_chunksize(afe_data_);
     auto feed_size = afe_iface_->get_feed_chunksize(afe_data_);
     ESP_LOGI(TAG, "Audio communication task started, feed size: %d fetch size: %d",
         feed_size, fetch_size);
 
-    int error_count = 0;
-    const int MAX_ERRORS = 10; // 最大连续错误次数
-
     while (true) {
-        // 在每次循环开始时重置看门狗
-        esp_task_wdt_reset();
+        xEventGroupWaitBits(event_group_, PROCESSOR_RUNNING, pdFALSE, pdTRUE, portMAX_DELAY);
 
-        // 检查是否应该运行
-        if ((xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING) == 0) {
-            // 在非运行状态下，适度地fetch数据以维持AFE缓冲区健康
-            // 使用非常短的超时（1ms）进行非阻塞尝试
-            auto res = afe_iface_->fetch_with_delay(afe_data_, pdMS_TO_TICKS(1));
-            if (res != nullptr && res->ret_value == ESP_OK) {
-                // 成功获取到数据，说明AFE有数据需要处理
-                // 丢弃数据，但这样可以防止缓冲区溢出
-                // 继续下一次循环
-            }
-            // 无论是否获取到数据，都短暂延迟避免忙等待
-            vTaskDelay(pdMS_TO_TICKS(20));
-            continue;
-        }
-
-        // 正常运行模式：等待数据并处理
-        auto res = afe_iface_->fetch_with_delay(afe_data_, pdMS_TO_TICKS(100)); // 减少等待时间到100ms
+        auto res = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
         if ((xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING) == 0) {
             continue;
         }
@@ -157,19 +150,8 @@ void AfeAudioProcessor::AudioProcessorTask() {
             if (res != nullptr) {
                 ESP_LOGI(TAG, "Error code: %d", res->ret_value);
             }
-            error_count++;
-            if (error_count >= MAX_ERRORS) {
-                ESP_LOGW(TAG, "Too many errors (%d), stopping audio processing temporarily", error_count);
-                vTaskDelay(pdMS_TO_TICKS(1000)); // 长延迟以让系统恢复
-                error_count = 0;
-            } else {
-                vTaskDelay(pdMS_TO_TICKS(10)); // 短暂延迟避免忙等待
-            }
             continue;
         }
-
-        // 成功获取数据，重置错误计数
-        error_count = 0;
 
         // VAD state change
         if (vad_state_change_callback_) {
@@ -202,13 +184,7 @@ void AfeAudioProcessor::AudioProcessorTask() {
                 }
             }
         }
-
-        // 成功处理数据后，再重置一次看门狗
-        esp_task_wdt_reset();
     }
-
-    // 从看门狗监控列表中移除任务
-    esp_task_wdt_delete(NULL);
 }
 
 void AfeAudioProcessor::OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) {
