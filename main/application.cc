@@ -829,12 +829,12 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("confused");
 
-            // Make sure the audio processor is running
+            // Idle state keeps both AFE and wake word active. When entering listening,
+            // always switch the AFE output away from wake word detection and notify the server.
+            audio_service_.EnableWakeWordDetection(false);
+            protocol_->SendStartListening(listening_mode_);
             if (!audio_service_.IsAudioProcessorRunning()) {
-                // Send the start listening command
-                protocol_->SendStartListening(listening_mode_);
                 audio_service_.EnableVoiceProcessing(true);
-                audio_service_.EnableWakeWordDetection(false);
             }
             break;
         case kDeviceStateSpeaking:
