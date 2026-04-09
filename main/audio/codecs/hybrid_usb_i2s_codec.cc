@@ -681,7 +681,7 @@ esp_err_t HybridUsbI2sCodec::InitializeI2sSpeaker() {
     // 创建 I2S 发送通道
     i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG((i2s_port_t)1, I2S_ROLE_MASTER);
     tx_chan_cfg.dma_desc_num = AUDIO_CODEC_DMA_DESC_NUM;
-    tx_chan_cfg.dma_frame_num = AUDIO_CODEC_DMA_FRAME_NUM;
+    tx_chan_cfg.dma_frame_num = AUDIO_CODEC_TX_DMA_FRAME_NUM;
     tx_chan_cfg.auto_clear_after_cb = true;
     tx_chan_cfg.auto_clear_before_cb = false;
     tx_chan_cfg.intr_priority = 0;

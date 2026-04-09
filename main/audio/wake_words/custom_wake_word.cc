@@ -18,6 +18,7 @@
 
 
 #define DETECTION_RUNNING_EVENT 1
+#define DETECTION_FETCH_TIMEOUT_MS 100
 
 #define TAG "CustomWakeWord"
 
@@ -137,10 +138,13 @@ void CustomWakeWord::AudioDetectionTask() {
     while (true) {
         xEventGroupWaitBits(event_group_, DETECTION_RUNNING_EVENT, pdFALSE, pdTRUE, portMAX_DELAY);
 
-        auto res = afe_iface_->fetch_with_delay(afe_data_, portMAX_DELAY);
-        if (res == nullptr || res->ret_value == ESP_FAIL) {
-            ESP_LOGW(TAG, "Fetch failed, continue");
-            // 重置看门狗以防超时
+        auto res = afe_iface_->fetch_with_delay(afe_data_, pdMS_TO_TICKS(DETECTION_FETCH_TIMEOUT_MS));
+        if (res == nullptr || res->ret_value != ESP_OK) {
+            if (res != nullptr && res->ret_value != ESP_FAIL) {
+                ESP_LOGW(TAG, "Fetch returned %d, continue", res->ret_value);
+            } else {
+                ESP_LOGW(TAG, "Fetch failed or timed out, continue");
+            }
             esp_task_wdt_reset();
             continue;
         }

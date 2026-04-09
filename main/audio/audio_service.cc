@@ -456,6 +456,10 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 }
 
 void AudioService::AudioInputTask() {
+    std::vector<int16_t> audio_testing_buffer;
+    std::vector<int16_t> wake_word_buffer;
+    std::vector<int16_t> audio_processor_buffer;
+
     while (true) {
         EventBits_t bits = xEventGroupWaitBits(event_group_, AS_EVENT_AUDIO_TESTING_RUNNING |
             AS_EVENT_WAKE_WORD_RUNNING | AS_EVENT_AUDIO_PROCESSOR_RUNNING,
@@ -470,6 +474,52 @@ void AudioService::AudioInputTask() {
             continue;
         }
 
+        if ((bits & AS_EVENT_AUDIO_TESTING_RUNNING) == 0) {
+            audio_testing_buffer.clear();
+        }
+        if ((bits & AS_EVENT_WAKE_WORD_RUNNING) == 0) {
+            wake_word_buffer.clear();
+        }
+        if ((bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) == 0) {
+            audio_processor_buffer.clear();
+        }
+
+        int read_samples = 0;
+
+        if (bits & AS_EVENT_AUDIO_TESTING_RUNNING) {
+            read_samples = std::max(read_samples, OPUS_FRAME_DURATION_MS * 16000 / 1000);
+        }
+
+#if CONFIG_USE_WAKE_WORD
+        if ((bits & AS_EVENT_WAKE_WORD_RUNNING) && wake_word_) {
+            read_samples = std::max(read_samples, static_cast<int>(wake_word_->GetFeedSize()));
+        }
+#endif
+
+#if CONFIG_USE_AUDIO_PROCESSOR
+        if ((bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) && audio_processor_) {
+            read_samples = std::max(read_samples, static_cast<int>(audio_processor_->GetFeedSize()));
+        }
+#endif
+
+        if (read_samples <= 0) {
+            vTaskDelay(pdMS_TO_TICKS(10));
+            continue;
+        }
+
+        std::vector<int16_t> data;
+        if (!ReadAudioData(data, 16000, read_samples)) {
+            continue;
+        }
+
+        if (codec_->input_channels() == 2) {
+            auto mono_data = std::vector<int16_t>(data.size() / 2);
+            for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
+                mono_data[i] = data[j];
+            }
+            data = std::move(mono_data);
+        }
+
         /* Used for audio testing in NetworkConfiguring mode by clicking the BOOT button */
         if (bits & AS_EVENT_AUDIO_TESTING_RUNNING) {
             if (audio_testing_queue_.size() >= AUDIO_TESTING_MAX_DURATION_MS / OPUS_FRAME_DURATION_MS) {
@@ -477,21 +527,13 @@ void AudioService::AudioInputTask() {
                 EnableAudioTesting(false);
                 continue;
             }
-            std::vector<int16_t> data;
             int samples = OPUS_FRAME_DURATION_MS * 16000 / 1000;
-            if (ReadAudioData(data, 16000, samples)) {
-                // If input channels is 2, we need to fetch the left channel data
-                if (codec_->input_channels() == 2) {
-                    auto mono_data = std::vector<int16_t>(data.size() / 2);
-                    for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
-                        mono_data[i] = data[j];
-                    }
-                    data = std::move(mono_data);
-                }
-                // Create an AudioTask and encode it to AudioStreamPacket for testing queue
+            audio_testing_buffer.insert(audio_testing_buffer.end(), data.begin(), data.end());
+            while (audio_testing_buffer.size() >= static_cast<size_t>(samples)) {
                 auto task = std::make_unique<AudioTask>();
                 task->type = kAudioTaskTypeEncodeToTestingQueue;
-                task->pcm = std::move(data);
+                task->pcm.assign(audio_testing_buffer.begin(), audio_testing_buffer.begin() + samples);
+                audio_testing_buffer.erase(audio_testing_buffer.begin(), audio_testing_buffer.begin() + samples);
                 {
                     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
                     audio_encode_queue_.push_back(std::move(task));
@@ -505,18 +547,12 @@ void AudioService::AudioInputTask() {
             if (!wake_word_) {
                 continue;
             }
-            std::vector<int16_t> data;
             int samples = wake_word_->GetFeedSize();
-            if (ReadAudioData(data, 16000, samples)) {
-                // If input channels is 2, we need to fetch the left channel data
-                if (codec_->input_channels() == 2) {
-                    auto mono_data = std::vector<int16_t>(data.size() / 2);
-                    for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
-                        mono_data[i] = data[j];
-                    }
-                    data = std::move(mono_data);
-                }
-                wake_word_->Feed(data);
+            wake_word_buffer.insert(wake_word_buffer.end(), data.begin(), data.end());
+            while (wake_word_buffer.size() >= static_cast<size_t>(samples)) {
+                std::vector<int16_t> wake_word_chunk(wake_word_buffer.begin(), wake_word_buffer.begin() + samples);
+                wake_word_->Feed(wake_word_chunk);
+                wake_word_buffer.erase(wake_word_buffer.begin(), wake_word_buffer.begin() + samples);
             }
         }
 #endif
@@ -524,19 +560,12 @@ void AudioService::AudioInputTask() {
 #if CONFIG_USE_AUDIO_PROCESSOR
         /* Used for audio processor */
         if (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
-            std::vector<int16_t> data;
-            int samples = OPUS_FRAME_DURATION_MS * 16000 / 1000;
-            if (ReadAudioData(data, 16000, samples)) {
-                // If input channels is 2, we need to fetch the left channel data
-                if (codec_->input_channels() == 2) {
-                    auto mono_data = std::vector<int16_t>(data.size() / 2);
-                    for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
-                        mono_data[i] = data[j];
-                    }
-                    data = std::move(mono_data);
-                }
-                // Feed data directly to audio processor instead of using non-existent queue
-                audio_processor_->Feed(std::move(data));
+            int samples = audio_processor_->GetFeedSize();
+            audio_processor_buffer.insert(audio_processor_buffer.end(), data.begin(), data.end());
+            while (audio_processor_buffer.size() >= static_cast<size_t>(samples)) {
+                std::vector<int16_t> processor_chunk(audio_processor_buffer.begin(), audio_processor_buffer.begin() + samples);
+                audio_processor_->Feed(std::move(processor_chunk));
+                audio_processor_buffer.erase(audio_processor_buffer.begin(), audio_processor_buffer.begin() + samples);
             }
         }
 #endif
