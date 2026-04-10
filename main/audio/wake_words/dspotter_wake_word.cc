@@ -1,5 +1,6 @@
 #include "dspotter_wake_word.h"
 
+#include <cstdint>
 #include <cstdlib>
 #include <cstring>
 #include <memory>
@@ -28,6 +29,25 @@ static const char* TAG = "DSpotterWakeWord";
 
 namespace {
 constexpr size_t kLicenseReadSize = 256;
+
+size_t GetEffectiveLicenseSize(const uint8_t* data, size_t read_size) {
+    if (!data || read_size < 4) {
+        return read_size;
+    }
+
+    // Cyberon license format starts with a 32-bit payload length.
+    uint32_t payload_size =
+        (static_cast<uint32_t>(data[0])      ) |
+        (static_cast<uint32_t>(data[1]) <<  8) |
+        (static_cast<uint32_t>(data[2]) << 16) |
+        (static_cast<uint32_t>(data[3]) << 24);
+    size_t total_size = static_cast<size_t>(payload_size) + 4;
+
+    if (payload_size > 0 && total_size <= read_size) {
+        return total_size;
+    }
+    return read_size;
+}
 
 extern const uint8_t kDSpotterModelStart[] asm("_binary_HeyJabra_Lv3_Enc1_pack_WithTxt_bin_start");
 extern const uint8_t kDSpotterModelEnd[] asm("_binary_HeyJabra_Lv3_Enc1_pack_WithTxt_bin_end");
@@ -319,6 +339,22 @@ bool DSpotterWakeWord::InitializeDSpotter() {
                  license_all_ff ? "ff" : "zero");
     }
 
+    size_t effective_license_size = GetEffectiveLicenseSize(license_data_, license_size_);
+    if (effective_license_size != license_size_) {
+        ESP_LOGI(TAG,
+                 "DSpotter license effective size: %u bytes (read=%u bytes)",
+                 (unsigned)effective_license_size,
+                 (unsigned)license_size_);
+    }
+
+    char uid[32] = {0};
+    int uid_ret = DSpotter_GetUidString(uid, sizeof(uid));
+    if (uid_ret == DSPOTTER_SUCCESS) {
+        ESP_LOGI(TAG, "DSpotter UID: %s", uid);
+    } else {
+        ESP_LOGW(TAG, "DSpotter_GetUidString failed, ret=%d", uid_ret);
+    }
+
     int dspotter_init_err = DSPOTTER_SUCCESS;
     dspotter_handle_ = DSpotter_Init_Multi(
         (BYTE*)CybModelGetBase((HANDLE)cyb_model_handle_),
@@ -328,10 +364,11 @@ bool DSpotterWakeWord::InitializeDSpotter() {
         dspotter_memory_.data(),
         mem_size,
         license_data_,
-        static_cast<INT>(license_size_),
+        static_cast<INT>(effective_license_size),
         &dspotter_init_err);
     if (!dspotter_handle_) {
         ESP_LOGE(TAG, "DSpotter_Init_Multi failed, error=%d", dspotter_init_err);
+        ESP_LOGE(TAG, "Likely causes: license not bound to this UID, outdated cert/license pair, or corrupted license payload");
         return false;
     }
 
