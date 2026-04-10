@@ -156,8 +156,10 @@ void AudioService::Initialize(AudioCodec* codec) {
         #if CONFIG_USE_DSPOTTER_WAKE_WORD
         EventBits_t bits = xEventGroupGetBits(event_group_);
         if ((bits & AS_EVENT_WAKE_WORD_RUNNING) && wake_word_) {
-            FeedWakeWordWithProcessedAudio(std::move(data));
-            return;
+            FeedWakeWordWithProcessedAudio(data);
+            if (!wake_word_audio_passthrough_enabled_) {
+                return;
+            }
         }
         #endif
         PushTaskToEncodeQueue(kAudioTaskTypeEncodeToSendQueue, std::move(data));
@@ -499,6 +501,19 @@ void AudioService::AudioInputTask() {
 
 #if CONFIG_USE_WAKE_WORD
         if ((bits & AS_EVENT_WAKE_WORD_RUNNING) && wake_word_) {
+#if CONFIG_USE_DSPOTTER_WAKE_WORD
+            static uint32_t dspotter_bits_log_counter = 0;
+        EventBits_t current_bits = xEventGroupGetBits(event_group_);
+            ++dspotter_bits_log_counter;
+            if (dspotter_bits_log_counter == 1 || (dspotter_bits_log_counter % 50) == 0) {
+                ESP_LOGI(TAG,
+            "DSpotter input loop bits: wake=%d processor=%d testing=%d current_processor=%d",
+            (bits & AS_EVENT_WAKE_WORD_RUNNING) != 0,
+            (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) != 0,
+            (bits & AS_EVENT_AUDIO_TESTING_RUNNING) != 0,
+            (current_bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) != 0);
+            }
+#endif
             read_samples = std::max(read_samples, static_cast<int>(wake_word_->GetFeedSize()));
         }
 #endif
@@ -516,6 +531,18 @@ void AudioService::AudioInputTask() {
 
         std::vector<int16_t> data;
         if (!ReadAudioData(data, 16000, read_samples)) {
+            #if CONFIG_USE_DSPOTTER_WAKE_WORD
+            if ((bits & AS_EVENT_WAKE_WORD_RUNNING) && (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) == 0) {
+                static uint32_t dspotter_read_failure_log_counter = 0;
+                ++dspotter_read_failure_log_counter;
+                if (dspotter_read_failure_log_counter == 1 || (dspotter_read_failure_log_counter % 20) == 0) {
+                    ESP_LOGW(TAG,
+                        "DSpotter raw feed stalled: failed to read audio, input_enabled=%d, requested_samples=%d",
+                        codec_ && codec_->input_enabled(),
+                        read_samples);
+                }
+            }
+            #endif
             continue;
         }
 
@@ -555,8 +582,27 @@ void AudioService::AudioInputTask() {
                 continue;
             }
 #if CONFIG_USE_DSPOTTER_WAKE_WORD
-            if (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
+            EventBits_t current_bits = xEventGroupGetBits(event_group_);
+            if (current_bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
+                static uint32_t dspotter_bypass_log_counter = 0;
+                ++dspotter_bypass_log_counter;
+                if (dspotter_bypass_log_counter == 1 || (dspotter_bypass_log_counter % 20) == 0) {
+                    ESP_LOGW(TAG,
+                        "DSpotter raw feed bypassed because audio processor is still marked running (snapshot=%d current=%d)",
+                        (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) != 0,
+                        (current_bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) != 0);
+                }
                 continue;
+            }
+
+            static uint32_t dspotter_raw_feed_log_counter = 0;
+            ++dspotter_raw_feed_log_counter;
+            if (dspotter_raw_feed_log_counter == 1 || (dspotter_raw_feed_log_counter % 50) == 0) {
+                ESP_LOGI(TAG,
+                    "DSpotter raw feed active: input_enabled=%d, read_samples=%d, wake_word_feed_size=%d",
+                    codec_ && codec_->input_enabled(),
+                    read_samples,
+                    static_cast<int>(wake_word_->GetFeedSize()));
             }
 #endif
             int samples = wake_word_->GetFeedSize();
@@ -584,7 +630,7 @@ void AudioService::AudioInputTask() {
     }
 }
 
-void AudioService::FeedWakeWordWithProcessedAudio(std::vector<int16_t>&& pcm) {
+void AudioService::FeedWakeWordWithProcessedAudio(const std::vector<int16_t>& pcm) {
     if (!wake_word_) {
         return;
     }
@@ -878,11 +924,20 @@ void AudioService::EnableWakeWordDetection(bool enable) {
             wake_word_initialized_ = true;
         }
         wake_word_->Start();
+        ESP_LOGI(TAG, "Wake word detection enabled: passthrough=%d, processor_running=%d",
+            wake_word_audio_passthrough_enabled_,
+            IsAudioProcessorRunning());
         xEventGroupSetBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
     } else {
         wake_word_->Stop();
+        wake_word_audio_passthrough_enabled_ = false;
+        ESP_LOGI(TAG, "Wake word detection disabled");
         xEventGroupClearBits(event_group_, AS_EVENT_WAKE_WORD_RUNNING);
     }
+}
+
+void AudioService::SetWakeWordAudioPassthrough(bool enable) {
+    wake_word_audio_passthrough_enabled_ = enable;
 }
 
 void AudioService::EnableVoiceProcessing(bool enable) {

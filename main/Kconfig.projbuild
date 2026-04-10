@@ -401,6 +401,7 @@ endchoice
 
 choice AUDIO_I2S_METHOD
     prompt "Audio I2S Method"
+    depends on !BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO_UAC
     default AUDIO_I2S_METHOD_SIMPLEX_I2S_PDM
     help
       Select the I2S method to use for audio processing

@@ -112,6 +112,7 @@ public:
     void EnableVoiceProcessing(bool enable);
     void EnableAudioTesting(bool enable);
     void EnableDeviceAec(bool enable);
+    void SetWakeWordAudioPassthrough(bool enable);
 
     void SetCallbacks(AudioServiceCallbacks& callbacks);
 
@@ -155,6 +156,7 @@ private:
     bool wake_word_initialized_ = false;
     bool audio_processor_initialized_ = false;
     bool voice_detected_ = false;
+    bool wake_word_audio_passthrough_enabled_ = false;
     bool service_stopped_ = true;
     bool audio_input_need_warmup_ = false;
 
@@ -180,7 +182,7 @@ private:
     void AudioOutputTask();
     void OpusCodecTask();
     void PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t>&& pcm);
-    void FeedWakeWordWithProcessedAudio(std::vector<int16_t>&& pcm);
+    void FeedWakeWordWithProcessedAudio(const std::vector<int16_t>& pcm);
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void CheckAndUpdateAudioPowerState();
 };
