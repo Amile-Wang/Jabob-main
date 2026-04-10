@@ -381,7 +381,7 @@ void LcdDisplay::LayoutEmotionGif(LvglGif* gif_controller) {
     const uint16_t layout_height = rotate_to_portrait ? gif_width : gif_height;
 
     lv_image_set_pivot(emotion_gif_, gif_width / 2, gif_height / 2);
-    lv_image_set_rotation(emotion_gif_, rotate_to_portrait ? 2700 : 0);
+    // lv_image_set_rotation(emotion_gif_, rotate_to_portrait ? 2700 : 0);
 
     const uint32_t scale_x = (static_cast<uint32_t>(width_) * 256U) / layout_width;
     const uint32_t scale_y = (static_cast<uint32_t>(height_) * 256U) / layout_height;
