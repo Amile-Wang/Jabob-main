@@ -42,6 +42,7 @@ protected:
 
     void InitializeLcdThemes();
     void SetupUI();
+    void LayoutEmotionGif(LvglGif* gif_controller);
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 

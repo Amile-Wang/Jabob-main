@@ -81,6 +81,11 @@
 #define DISPLAY_RST_PIN       GPIO_NUM_45
 #define DISPLAY_CS_PIN        GPIO_NUM_41
 
+#define DISPLAY_PIXEL_CLOCK_HZ (40 * 1000 * 1000)
+#define DISPLAY_PANEL_GAP_X    0
+#define DISPLAY_PANEL_GAP_Y    0
+#define DISPLAY_RUN_STARTUP_PANEL_TEST 1
+
 #define NFC_SDA                 GPIO_NUM_10
 #define NFC_SCK                 GPIO_NUM_11
 #define NFC_MOSI                GPIO_NUM_12

@@ -20,6 +20,7 @@
 #include <esp_lcd_panel_ops.h>
 #include <driver/spi_common.h>
 #include <assets/lang_config.h>
+#include <vector>
 
 #if defined(LCD_TYPE_ILI9341_SERIAL)
 #include "esp_lcd_ili9341.h"
@@ -82,6 +83,66 @@ private:
 #ifdef BATTERY_ADC_UNIT
     std::unique_ptr<AdcBatteryMonitor> battery_monitor_;
 #endif
+
+    void RunStartupPanelTest(esp_lcd_panel_handle_t panel) {
+        std::vector<uint16_t> line(DISPLAY_WIDTH, 0x0000);
+
+        auto draw_full_screen = [&](uint16_t color) {
+            std::fill(line.begin(), line.end(), color);
+            for (int y = 0; y < DISPLAY_HEIGHT; ++y) {
+                ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel, 0, y, DISPLAY_WIDTH, y + 1, line.data()));
+            }
+        };
+
+        auto draw_edge_pattern = [&]() {
+            constexpr int border = 4;
+            constexpr int corner = 24;
+            for (int y = 0; y < DISPLAY_HEIGHT; ++y) {
+                std::fill(line.begin(), line.end(), 0x0000);
+
+                for (int x = 0; x < DISPLAY_WIDTH; ++x) {
+                    if (y < border) {
+                        line[x] = 0xF800;
+                    } else if (y >= DISPLAY_HEIGHT - border) {
+                        line[x] = 0x07E0;
+                    }
+                }
+
+                for (int x = 0; x < border && x < DISPLAY_WIDTH; ++x) {
+                    line[x] = 0x001F;
+                    line[DISPLAY_WIDTH - 1 - x] = 0xFFE0;
+                }
+
+                for (int x = 0; x < corner && x < DISPLAY_WIDTH; ++x) {
+                    if (y < corner) {
+                        line[x] = 0xFFFF;
+                        line[DISPLAY_WIDTH - 1 - x] = 0xF81F;
+                    }
+                    if (y >= DISPLAY_HEIGHT - corner) {
+                        line[x] = 0x07FF;
+                        line[DISPLAY_WIDTH - 1 - x] = 0xFFE0;
+                    }
+                }
+
+                if (y > (DISPLAY_HEIGHT / 2) - border && y < (DISPLAY_HEIGHT / 2) + border) {
+                    for (int x = DISPLAY_WIDTH / 4; x < (DISPLAY_WIDTH * 3) / 4; ++x) {
+                        line[x] = 0xFFFF;
+                    }
+                }
+
+                ESP_ERROR_CHECK(esp_lcd_panel_draw_bitmap(panel, 0, y, DISPLAY_WIDTH, y + 1, line.data()));
+            }
+        };
+
+        draw_full_screen(0xF800);
+        vTaskDelay(pdMS_TO_TICKS(1200));
+        draw_full_screen(0x07E0);
+        vTaskDelay(pdMS_TO_TICKS(1200));
+        draw_full_screen(0x001F);
+        vTaskDelay(pdMS_TO_TICKS(1200));
+        draw_edge_pattern();
+        vTaskDelay(pdMS_TO_TICKS(4000));
+    }
 
    
 
@@ -249,7 +310,7 @@ public:
         io_config.cs_gpio_num = DISPLAY_CS_PIN;
         io_config.dc_gpio_num = DISPLAY_DC_PIN;
         io_config.spi_mode = DISPLAY_SPI_MODE;
-        io_config.pclk_hz = 40 * 1000 * 1000;
+        io_config.pclk_hz = DISPLAY_PIXEL_CLOCK_HZ;
         io_config.trans_queue_depth = 10;
         io_config.lcd_cmd_bits = 8;
         io_config.lcd_param_bits = 8;
@@ -274,12 +335,27 @@ public:
 #endif
         
         esp_lcd_panel_reset(panel);
- 
 
         esp_lcd_panel_init(panel);
-        esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
-        esp_lcd_panel_swap_xy(panel, DISPLAY_SWAP_XY);
         esp_lcd_panel_mirror(panel, DISPLAY_MIRROR_X, DISPLAY_MIRROR_Y);
+        if (DISPLAY_SWAP_XY) {
+            esp_lcd_panel_swap_xy(panel, true);
+        }
+        esp_lcd_panel_invert_color(panel, DISPLAY_INVERT_COLOR);
+        if (DISPLAY_PANEL_GAP_X != 0 || DISPLAY_PANEL_GAP_Y != 0) {
+            esp_lcd_panel_set_gap(panel, DISPLAY_PANEL_GAP_X, DISPLAY_PANEL_GAP_Y);
+        }
+        esp_lcd_panel_disp_on_off(panel, true);
+        if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
+            auto backlight = GetBacklight();
+            if (backlight) {
+                backlight->SetBrightness(100);
+            }
+            vTaskDelay(pdMS_TO_TICKS(1200));
+        }
+    #if DISPLAY_RUN_STARTUP_PANEL_TEST
+        RunStartupPanelTest(panel);
+    #endif
 #ifdef  LCD_TYPE_GC9A01_SERIAL
         panel_config.vendor_config = &gc9107_vendor_config;
 #endif

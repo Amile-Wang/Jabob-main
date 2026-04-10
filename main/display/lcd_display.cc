@@ -365,6 +365,36 @@ void LcdDisplay::Unlock() {
     lvgl_port_unlock();
 }
 
+void LcdDisplay::LayoutEmotionGif(LvglGif* gif_controller) {
+    if (emotion_gif_ == nullptr || gif_controller == nullptr || !gif_controller->IsLoaded()) {
+        return;
+    }
+
+    const uint16_t gif_width = gif_controller->width();
+    const uint16_t gif_height = gif_controller->height();
+    if (gif_width == 0 || gif_height == 0) {
+        return;
+    }
+
+    const bool rotate_to_portrait = (gif_width > gif_height) && (width_ < height_);
+    const uint16_t layout_width = rotate_to_portrait ? gif_height : gif_width;
+    const uint16_t layout_height = rotate_to_portrait ? gif_width : gif_height;
+
+    lv_image_set_pivot(emotion_gif_, gif_width / 2, gif_height / 2);
+    lv_image_set_rotation(emotion_gif_, rotate_to_portrait ? 900 : 0);
+
+    const uint32_t scale_x = (static_cast<uint32_t>(width_) * 256U) / layout_width;
+    const uint32_t scale_y = (static_cast<uint32_t>(height_) * 256U) / layout_height;
+    const uint32_t cover_scale = std::max(scale_x, scale_y);
+
+    lv_obj_set_size(emotion_gif_, LV_SIZE_CONTENT, LV_SIZE_CONTENT);
+    lv_obj_set_style_pad_all(emotion_gif_, 0, 0);
+    lv_obj_set_style_border_width(emotion_gif_, 0, 0);
+    lv_obj_set_style_bg_opa(emotion_gif_, LV_OPA_TRANSP, 0);
+    lv_image_set_scale(emotion_gif_, cover_scale);
+    lv_obj_center(emotion_gif_);
+}
+
 #if CONFIG_USE_WECHAT_MESSAGE_STYLE
 void LcdDisplay::SetupUI() {
     DisplayLockGuard lock(this);
@@ -795,10 +825,14 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_bg_color(screen, lvgl_theme->background_color(), 0); // 确保屏幕背景应用主题颜色
 
     emotion_display_ = lv_obj_create(screen);
-    
-    lv_obj_set_size(emotion_display_, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_style_bg_color(emotion_display_, lvgl_theme->background_color(), 0); // 确保屏幕背景应用主题颜色
-    lv_obj_align(emotion_display_, LV_ALIGN_CENTER, 0, 0); // 居中对齐
+    lv_obj_remove_style_all(emotion_display_);
+    lv_obj_set_size(emotion_display_, width_, height_);
+    lv_obj_set_pos(emotion_display_, 0, 0);
+    lv_obj_set_style_bg_color(emotion_display_, lvgl_theme->background_color(), 0);
+    lv_obj_set_style_bg_opa(emotion_display_, LV_OPA_COVER, 0);
+    lv_obj_set_style_pad_all(emotion_display_, 0, 0);
+    lv_obj_set_style_border_width(emotion_display_, 0, 0);
+    lv_obj_set_style_radius(emotion_display_, 0, 0);
 
 #ifdef CONFIG_USE_EMOTION_ICON
     emotion_icon_ = icon_manager_create_image(emotion_display_, ICON_BLUETOOTH_0, 0, 0);
@@ -807,12 +841,14 @@ void LcdDisplay::SetupUI() {
     lv_obj_align(emotion_icon_, LV_ALIGN_CENTER, 0, 0); // 居中对齐
 #else
     emotion_gif_ = gif_manager_create_gif(emotion_display_, GIF_1, 0, 0);
-    lv_obj_set_size(emotion_gif_, LV_HOR_RES, LV_VER_RES);
-    lv_obj_set_style_bg_color(emotion_gif_, lvgl_theme->background_color(), 0); // 确保屏幕背景应用主题颜色
+    lv_obj_set_style_bg_opa(emotion_gif_, LV_OPA_TRANSP, 0);
+    lv_obj_set_style_pad_all(emotion_gif_, 0, 0);
+    lv_obj_set_style_border_width(emotion_gif_, 0, 0);
     lv_obj_align(emotion_gif_, LV_ALIGN_CENTER, 0, 0); // 居中对齐
     LvglGif* raw_gif_ptr = gif_manager_play_gif(emotion_gif_, GIF_1);
         if (raw_gif_ptr != nullptr) {
             emotion_gif_controller_ = std::unique_ptr<LvglGif>(raw_gif_ptr);
+            LayoutEmotionGif(emotion_gif_controller_.get());
         } else {
             ESP_LOGE(TAG, "Failed to create GIF controller");
         }
@@ -1116,6 +1152,7 @@ void LcdDisplay::SetEmotion(const char* emotion) {
         LvglGif* raw_gif_ptr = gif_manager_play_gif(emotion_gif_, gif_it->second);
         if (raw_gif_ptr != nullptr) {
             emotion_gif_controller_ = std::unique_ptr<LvglGif>(raw_gif_ptr);
+            LayoutEmotionGif(emotion_gif_controller_.get());
         } else {
             ESP_LOGE(TAG, "Failed to create GIF controller");
         }
