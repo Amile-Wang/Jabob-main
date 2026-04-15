@@ -24,7 +24,6 @@
 
         h1 {
             color: #333;
-            text-align: center;
             margin-bottom: 30px;
         }
 
@@ -482,10 +481,10 @@
                 </span>
             </h2>
             <div class="connection-controls">
-                <input type="text" id="otaUrl" value="http://localhost:8007/api/user/device/ota"
-                    placeholder="OTA服务器地址，如：http://localhost:8007/api/user/device/ota" />
-                <input type="text" id="serverUrl" value="ws://121.41.168.85:8000/jabobo/v1/"
-                    placeholder="WebSocket服务器地址，如：ws://121.41.168.85:8000/jabobo/v1/" />
+                <input type="text" id="otaUrl" value="http://51.107.185.69/api/user/device/ota"
+                    placeholder="OTA服务器地址，如：http://51.107.185.69/api/user/device/ota" />
+                <input type="text" id="serverUrl" value="ws://51.107.185.69/ws/xiaozhi/v1/"
+                    placeholder="WebSocket服务器地址，如：ws://51.107.185.69/ws/xiaozhi/v1/" />
                 <button id="connectButton">连接</button>
                 <button id="authTestButton">测试认证</button>
             </div>
@@ -649,7 +648,6 @@
                     logEntry.style.color = 'red';
                 } else if (type === 'debug') {
                     logEntry.style.color = 'gray';
-                    return;
                 } else if (type === 'warning') {
                     logEntry.style.color = 'orange';
                 } else if (type === 'success') {
@@ -1314,19 +1312,14 @@
                 }
 
                 // 先检查OTA状态
-                log('正在检查OTA状态...', 'info');
+                log('==================== OTA 请求开始 ====================', 'info');
+                log(`[CONFIG] deviceId=${config.deviceId} clientId=${config.clientId} deviceMac=${config.deviceMac} token=${config.token}`, 'debug');
                 const otaUrl = document.getElementById('otaUrl').value.trim();
                 localStorage.setItem('otaUrl', otaUrl);
                 localStorage.setItem('wsUrl', url);
+                log(`[OTA] URL: ${otaUrl}`, 'debug');
                 try {
-                    const otaResponse = await fetch(otaUrl, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'Device-Id': config.deviceId,
-                            'Client-Id': config.clientId
-                        },
-                        body: JSON.stringify({
+                    const otaBody = {
                             "version": 0,
                             "uuid": "",
                             "application": {
@@ -1366,24 +1359,57 @@
                                     "size": 0
                                 }
                             ]
-                        })
+                        };
+                    const otaHeaders = {
+                        'Content-Type': 'application/json',
+                        'Device-Id': config.deviceId,
+                        'Client-Id': config.clientId
+                    };
+                    log(`[OTA] 请求头: ${JSON.stringify(otaHeaders)}`, 'debug');
+                    log(`[OTA] 请求体: ${JSON.stringify(otaBody, null, 2)}`, 'debug');
+                    const otaT0 = performance.now();
+                    const otaResponse = await fetch(otaUrl, {
+                        method: 'POST',
+                        headers: otaHeaders,
+                        body: JSON.stringify(otaBody)
                     });
+                    const otaElapsed = (performance.now() - otaT0).toFixed(1);
+                    log(`[OTA] 响应状态: ${otaResponse.status} ${otaResponse.statusText} (${otaElapsed}ms)`, 'info');
+                    const otaRespHeaders = {};
+                    otaResponse.headers.forEach((v, k) => { otaRespHeaders[k] = v; });
+                    log(`[OTA] 响应头: ${JSON.stringify(otaRespHeaders)}`, 'debug');
+                    const otaRespText = await otaResponse.text();
+                    log(`[OTA] 响应体(raw): ${otaRespText}`, 'debug');
 
                     if (!otaResponse.ok) {
-                        throw new Error(`OTA检查失败: ${otaResponse.status} ${otaResponse.statusText}`);
+                        throw new Error(`OTA检查失败: ${otaResponse.status} ${otaResponse.statusText} | body=${otaRespText}`);
                     }
 
-                    const otaResult = await otaResponse.json();
-                    log(`OTA检查结果: ${JSON.stringify(otaResult)}`, 'info');
+                    let otaResult;
+                    try {
+                        otaResult = JSON.parse(otaRespText);
+                    } catch (e) {
+                        log(`[OTA] 响应不是合法JSON: ${e.message}`, 'error');
+                        throw e;
+                    }
+                    log(`[OTA] 解析后: ${JSON.stringify(otaResult, null, 2)}`, 'info');
+                    if (otaResult.websocket && otaResult.websocket.url) {
+                        log(`[OTA] 服务器建议 WebSocket URL: ${otaResult.websocket.url}（注意：本页面仍使用输入框中的 WS 地址）`, 'warning');
+                    }
+                    if (otaResult.firmware && otaResult.firmware.url) {
+                        log(`[OTA] 固件 URL: ${otaResult.firmware.url} version=${otaResult.firmware.version} force=${otaResult.firmware.force}`, 'info');
+                    }
 
                     log('OTA检查通过，开始连接WebSocket...', 'success');
                     document.getElementById('otaStatus').textContent = 'ota已连接';
                     document.getElementById('otaStatus').style.color = 'green';
                 } catch (error) {
-                    log(`OTA检查错误: ${error.message}`, 'error');
+                    log(`[OTA] 异常: ${error.name}: ${error.message}`, 'error');
+                    if (error.stack) log(`[OTA] stack: ${error.stack}`, 'debug');
                     document.getElementById('otaStatus').textContent = 'ota未连接';
                     document.getElementById('otaStatus').style.color = 'red';
                 }
+                log('==================== OTA 请求结束 ====================', 'info');
 
                 // 使用自定义WebSocket实现以添加认证头信息
                 let connUrl = new URL(url);
@@ -1392,15 +1418,21 @@
                 connUrl.searchParams.append('device-id', config.deviceId);
                 connUrl.searchParams.append('client-id', config.clientId);
 
-                log(`正在连接: ${connUrl.toString()}`, 'info');
+                log('==================== WebSocket 握手开始 ====================', 'info');
+                log(`[WS] URL: ${connUrl.toString()}`, 'info');
+                log(`[WS] 注意：浏览器不支持自定义 header，device-id/client-id 通过 query 参数传递`, 'debug');
+                const wsT0 = performance.now();
                 websocket = new WebSocket(connUrl.toString());
                 const currentWebSocket = websocket;
+                log(`[WS] readyState=${websocket.readyState} (0=CONNECTING)`, 'debug');
 
                 // 设置接收二进制数据的类型为ArrayBuffer
                 websocket.binaryType = 'arraybuffer';
 
                 websocket.onopen = async () => {
-                    log(`已连接到服务器: ${url}`, 'success');
+                    const wsElapsed = (performance.now() - wsT0).toFixed(1);
+                    log(`[WS] onopen - 已连接 (${wsElapsed}ms) readyState=${websocket.readyState}`, 'success');
+                    log(`[WS] protocol="${websocket.protocol}" extensions="${websocket.extensions}"`, 'debug');
                     connectionStatus.textContent = 'ws已连接';
                     connectionStatus.style.color = 'green';
 
@@ -1427,8 +1459,13 @@
                     }
                 };
 
-                websocket.onclose = () => {
-                    log('已断开连接', 'info');
+                websocket.onclose = (ev) => {
+                    const wsElapsed = (performance.now() - wsT0).toFixed(1);
+                    log(`[WS] onclose - code=${ev.code} reason="${ev.reason || '(空)'}" wasClean=${ev.wasClean} 生命周期=${wsElapsed}ms`, 'warning');
+                    // 常见 code: 1000 正常, 1001 端点离开, 1006 异常关闭(未收到关闭帧,常见于握手失败/服务端拒绝), 1011 服务端错误
+                    if (ev.code === 1006) {
+                        log('[WS] code=1006 通常表示 TCP/握手失败：可能原因 - 后端未监听/nginx 未转发Upgrade/路径错误/握手被拒', 'error');
+                    }
                     connectionStatus.textContent = 'ws已断开';
                     connectionStatus.style.color = 'red';
 
@@ -1449,7 +1486,8 @@
                 };
 
                 websocket.onerror = (error) => {
-                    log(`WebSocket错误: ${error.message || '未知错误'}`, 'error');
+                    log(`[WS] onerror - type=${error.type} readyState=${websocket ? websocket.readyState : 'null'}`, 'error');
+                    log(`[WS] 浏览器通常不暴露具体错误原因，请查看 Network 面板 的 WS 帧，以及上方 onclose 的 code`, 'debug');
                     connectionStatus.textContent = 'ws未连接';
                     connectionStatus.style.color = 'red';
                 };
@@ -1458,6 +1496,7 @@
                     try {
                         // 检查是否为文本消息
                         if (typeof event.data === 'string') {
+                            log(`[WS<=] 文本(${event.data.length}字节): ${event.data.length > 500 ? event.data.slice(0,500)+'...(truncated)' : event.data}`, 'debug');
                             const message = JSON.parse(event.data);
 
                             if (message.type === 'hello') {
@@ -1522,6 +1561,13 @@
                             }
                         } else {
                             // 处理二进制数据 - 兼容多种二进制格式
+                            const byteLen = event.data.byteLength !== undefined ? event.data.byteLength : (event.data.size || 0);
+                            let preview = '';
+                            if (event.data instanceof ArrayBuffer) {
+                                const bytes = new Uint8Array(event.data.slice(0, Math.min(16, event.data.byteLength)));
+                                preview = Array.from(bytes).map(b => b.toString(16).padStart(2,'0')).join(' ');
+                            }
+                            log(`[WS<=] 二进制(${byteLen}字节) 前16字节: ${preview}`, 'debug');
                             handleBinaryMessage(event.data);
                         }
                     } catch (error) {
@@ -1560,8 +1606,9 @@
                     }
                 };
 
-                log('发送hello握手消息', 'info');
-                websocket.send(JSON.stringify(helloMessage));
+                const helloJson = JSON.stringify(helloMessage);
+                log(`[WS=>] hello: ${helloJson}`, 'info');
+                websocket.send(helloJson);
 
                 // 等待服务器响应
                 return new Promise(resolve => {
