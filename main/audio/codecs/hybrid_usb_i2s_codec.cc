@@ -16,21 +16,50 @@
 
 // USB Host 事件处理任务
 static void usb_host_task(void *arg) {
+    ESP_LOGI("USB_HOST", "USB Host task started");
+    
     while (true) {
         uint32_t event_flags;
         esp_err_t ret = usb_host_lib_handle_events(portMAX_DELAY, &event_flags);
         if (ret != ESP_OK) {
-            ESP_LOGE(TAG, "usb_host_lib_handle_events failed: %s", esp_err_to_name(ret));
+            // 特别处理设备描述符读取错误
+            if (ret == ESP_ERR_NOT_FOUND) {
+                ESP_LOGE("USB_HOST", "USB device enumeration failed - likely hardware issue");
+                ESP_LOGE("USB_HOST", "Check: USB cable (data capable), power supply, device compatibility");
+            } else if (ret == ESP_ERR_INVALID_RESPONSE) {
+                ESP_LOGE("USB_HOST", "Invalid USB response received - device may not be UAC compliant");
+            } else {
+                ESP_LOGE("USB_HOST", "usb_host_lib_handle_events failed: %s", esp_err_to_name(ret));
+            }
+            
+            // 不立即退出，给用户时间看到错误信息
+            vTaskDelay(pdMS_TO_TICKS(1000));
             break;
         }
         
         // 检查是否需要退出任务
         if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS) {
-            ESP_LOGI(TAG, "No more USB clients, exiting USB host task");
+            ESP_LOGI("USB_HOST", "No more USB clients, exiting USB host task");
             break;
+        }
+        
+        // 添加周期性状态检查
+        static TickType_t last_status_check = 0;
+        TickType_t current_time = xTaskGetTickCount();
+        if ((current_time - last_status_check) > pdMS_TO_TICKS(5000)) {
+            last_status_check = current_time;
+            
+            // 检查USB设备列表
+            uint8_t dev_addr_list[8];
+            int num_devices = 0;
+            esp_err_t check_ret = usb_host_device_addr_list_fill(8, dev_addr_list, &num_devices);
+            if (check_ret == ESP_OK) {
+                ESP_LOGD("USB_HOST", "USB devices present: %d", num_devices);
+            }
         }
     }
     
+    ESP_LOGI("USB_HOST", "USB Host task exiting");
     vTaskDelete(NULL);
 }
 
@@ -799,6 +828,23 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
     ESP_LOGI(TAG, "  3. Try a different USB port if available");
     ESP_LOGI(TAG, "  4. Ensure adequate power supply to the device");
 
+    // 添加USB设备枚举前的预检查
+    ESP_LOGI(TAG, "Performing USB pre-enumeration check...");
+    
+    // 检查是否有任何USB设备被检测到
+    uint8_t dev_addr_list[8];
+    int num_devices = 0;
+    esp_err_t ret = usb_host_device_addr_list_fill(8, dev_addr_list, &num_devices);
+    
+    if (ret == ESP_OK && num_devices > 0) {
+        ESP_LOGI(TAG, "Found %d USB device(s) before waiting:", num_devices);
+        for (int i = 0; i < num_devices; i++) {
+            ESP_LOGI(TAG, "  Device %d: Address %d", i, dev_addr_list[i]);
+        }
+    } else {
+        ESP_LOGD(TAG, "No USB devices detected initially (this is normal for fresh connection)");
+    }
+
     // 使用事件组等待 UAC 设备连接事件（参考官方示例）
     EventBits_t bits = xEventGroupWaitBits(
         usb_event_group_,
@@ -814,7 +860,26 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
         return true;
     }
 
+    // 超时后的详细诊断
     ESP_LOGW(TAG, "No USB audio device found within %dms", timeout_ms);
+    
+    // 再次检查USB设备列表
+    ret = usb_host_device_addr_list_fill(8, dev_addr_list, &num_devices);
+    if (ret == ESP_OK && num_devices > 0) {
+        ESP_LOGW(TAG, "USB devices detected but no UAC audio device found:");
+        for (int i = 0; i < num_devices; i++) {
+            ESP_LOGW(TAG, "  Device %d: Address %d (may not be audio class)", i, dev_addr_list[i]);
+        }
+        ESP_LOGW(TAG, "The connected device may not be a UAC-compliant audio device");
+    } else {
+        ESP_LOGE(TAG, "No USB devices detected at all - likely hardware/connection issue");
+        ESP_LOGE(TAG, "Common causes:");
+        ESP_LOGE(TAG, "  - USB cable only supports power (no data lines)");
+        ESP_LOGE(TAG, "  - Insufficient power supply to USB device");
+        ESP_LOGE(TAG, "  - Poor USB connector contact");
+        ESP_LOGE(TAG, "  - USB device not UAC-compliant");
+    }
+
     ESP_LOGW(TAG, "System will continue without USB microphone input");
     ESP_LOGW(TAG, "Audio input will be disabled until a USB microphone is connected");
     return false;
