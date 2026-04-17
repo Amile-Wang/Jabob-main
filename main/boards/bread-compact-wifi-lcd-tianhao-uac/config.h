@@ -47,11 +47,11 @@
 // LCD 型号选择（通过 menuconfig 配置）
 #ifdef CONFIG_LCD_ST7789_240X320
 #define LCD_TYPE_ST7789_SERIAL
-#define DISPLAY_WIDTH   320
-#define DISPLAY_HEIGHT  240
+#define DISPLAY_WIDTH   240
+#define DISPLAY_HEIGHT  320
 #define DISPLAY_MIRROR_X false
-#define DISPLAY_MIRROR_Y true
-#define DISPLAY_SWAP_XY true
+#define DISPLAY_MIRROR_Y false
+#define DISPLAY_SWAP_XY false
 #define DISPLAY_INVERT_COLOR    true
 #define DISPLAY_RGB_ORDER  LCD_RGB_ELEMENT_ORDER_RGB
 #define DISPLAY_OFFSET_X  0
