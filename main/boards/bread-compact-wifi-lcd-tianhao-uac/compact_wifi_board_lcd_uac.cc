@@ -363,6 +363,20 @@ public:
             ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_17, 1));
         }
 
+        // 初始化GPIO21为输出并拉高
+        {
+            gpio_config_t gpio21_cfg = {};
+            gpio21_cfg.pin_bit_mask = BIT64(GPIO_NUM_21);
+            gpio21_cfg.mode = GPIO_MODE_OUTPUT;
+            gpio21_cfg.pull_up_en = GPIO_PULLUP_DISABLE;
+            gpio21_cfg.pull_down_en = GPIO_PULLDOWN_DISABLE;
+            gpio21_cfg.intr_type = GPIO_INTR_DISABLE;
+            ESP_ERROR_CHECK(gpio_config(&gpio21_cfg));
+            
+            // 将GPIO21设置为高电平
+            ESP_ERROR_CHECK(gpio_set_level(GPIO_NUM_21, 1));
+        }
+
         if (DISPLAY_BACKLIGHT_PIN != GPIO_NUM_NC) {
             GetBacklight()->SetBrightness(50, true); 
         }
