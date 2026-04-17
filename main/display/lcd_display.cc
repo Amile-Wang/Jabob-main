@@ -28,6 +28,21 @@
 LV_FONT_DECLARE(BUILTIN_TEXT_FONT);
 LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 
+namespace {
+
+constexpr lv_display_rotation_t kDisplayRotation = LV_DISPLAY_ROTATION_90;
+
+void DisableScrolling(lv_obj_t* obj) {
+    if (obj == nullptr) {
+        return;
+    }
+
+    lv_obj_remove_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_scrollbar_mode(obj, LV_SCROLLBAR_MODE_OFF);
+}
+
+}
+
 
 void LcdDisplay::InitializeLcdThemes() {
     auto text_font = std::make_shared<LvglBuiltInFont>(&BUILTIN_TEXT_FONT);
@@ -177,6 +192,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
+    lv_display_set_rotation(display_, kDisplayRotation);
     gif_manager_init();
     icon_manager_init();
     SetupUI();
@@ -242,6 +258,8 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
+    lv_display_set_rotation(display_, kDisplayRotation);
+
     SetupUI();
 }
 
@@ -294,6 +312,8 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
     if (offset_x != 0 || offset_y != 0) {
         lv_display_set_offset(display_, offset_x, offset_y);
     }
+
+    lv_display_set_rotation(display_, kDisplayRotation);
 
     SetupUI();
 }
@@ -378,6 +398,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(screen, text_font, 0);
     lv_obj_set_style_text_color(screen, lvgl_theme->text_color(), 0);
     lv_obj_set_style_bg_color(screen, lvgl_theme->background_color(), 0);
+    DisableScrolling(screen);
 
     /* Container */
     container_ = lv_obj_create(screen);
@@ -389,6 +410,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_row(container_, 0, 0);
     lv_obj_set_style_bg_color(container_, lvgl_theme->background_color(), 0);
     lv_obj_set_style_border_color(container_, lvgl_theme->border_color(), 0);
+    DisableScrolling(container_);
 
     /* Layer 1: Top bar - for status icons */
     top_bar_ = lv_obj_create(container_);
@@ -420,6 +442,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_pad_all(right_icons, 0, 0);
     lv_obj_set_flex_flow(right_icons, LV_FLEX_FLOW_ROW);
     lv_obj_set_flex_align(right_icons, LV_FLEX_ALIGN_END, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    DisableScrolling(right_icons);
 
     mute_label_ = lv_label_create(right_icons);
     lv_label_set_text(mute_label_, "");
@@ -444,6 +467,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_scrollbar_mode(status_bar_, LV_SCROLLBAR_MODE_OFF);
     lv_obj_set_style_layout(status_bar_, LV_LAYOUT_NONE, 0);  // Use absolute positioning
     lv_obj_align(status_bar_, LV_ALIGN_TOP_MID, 0, 0);  // Overlap with top_bar_
+    DisableScrolling(status_bar_);
 
     notification_label_ = lv_label_create(status_bar_);
     lv_obj_set_width(notification_label_, LV_HOR_RES * 0.8);
@@ -793,12 +817,14 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_text_font(screen, text_font, 0);
     lv_obj_set_style_text_color(screen, lvgl_theme->text_color(), 0);
     lv_obj_set_style_bg_color(screen, lvgl_theme->background_color(), 0); // 确保屏幕背景应用主题颜色
+    DisableScrolling(screen);
 
     emotion_display_ = lv_obj_create(screen);
     
     lv_obj_set_size(emotion_display_, LV_HOR_RES, LV_VER_RES);
     lv_obj_set_style_bg_color(emotion_display_, lvgl_theme->background_color(), 0); // 确保屏幕背景应用主题颜色
     lv_obj_align(emotion_display_, LV_ALIGN_CENTER, 0, 0); // 居中对齐
+    DisableScrolling(emotion_display_);
 
 #ifdef CONFIG_USE_EMOTION_ICON
     emotion_icon_ = icon_manager_create_image(emotion_display_, ICON_BLUETOOTH_0, 0, 0);
@@ -828,6 +854,7 @@ void LcdDisplay::SetupUI() {
     // lv_obj_set_style_bg_color(container_, current_theme_.background, 0);
     // lv_obj_set_style_border_color(container_, current_theme_.border, 0); 
     lv_obj_set_style_bg_opa(container_, LV_OPA_TRANSP, 0);
+    DisableScrolling(container_);
 
     
 
@@ -841,6 +868,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_style_bg_opa(status_bar_, LV_OPA_TRANSP, 0);
     lv_obj_set_style_border_width(status_bar_, 0, 0); 
     lv_obj_set_style_pad_top(status_bar_, 20, 0);
+    DisableScrolling(status_bar_);
     
     /* Content */
     content_ = lv_obj_create(container_);
@@ -894,6 +922,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_size(spacerL, 40, 1); // 宽度为 40px，高度忽略
     lv_obj_set_style_bg_opa(spacerL, LV_OPA_TRANSP, 0); // 透明背景
     lv_obj_set_style_border_width(spacerL, 0, 0);
+    DisableScrolling(spacerL);
 
     network_label_ = lv_label_create(status_bar_);
     
@@ -933,6 +962,7 @@ void LcdDisplay::SetupUI() {
     lv_obj_set_size(spacerR, 40, 1); // 宽度为 40px，高度忽略
     lv_obj_set_style_bg_opa(spacerR, LV_OPA_TRANSP, 0); // 透明背景
     lv_obj_set_style_border_width(spacerR, 0, 0);
+    DisableScrolling(spacerR);
 
     low_battery_popup_ = lv_obj_create(screen);
     lv_obj_set_scrollbar_mode(low_battery_popup_, LV_SCROLLBAR_MODE_OFF);
