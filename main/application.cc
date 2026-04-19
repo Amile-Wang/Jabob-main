@@ -413,7 +413,7 @@ void Application::Start() {
 
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
-    codec->SetOutputVolume(75);  // 初始化音量为10%
+    codec->SetOutputVolume(10);  // 初始化音量为10%
     // audio_service_.Initialize(codec);
     audio_service_.Initialize(codec);
     audio_service_.Start();
@@ -478,7 +478,7 @@ void Application::Start() {
         xEventGroupSetBits(event_group_, MAIN_EVENT_ERROR);
     });
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
-        if (device_state_ == kDeviceStateSpeaking) {
+        if (device_state_ == kDeviceStateSpeaking && !aborted_) {
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
     });
@@ -748,6 +748,7 @@ void Application::OnWakeWordDetected() {
                 audio_service_.PlaySound(Lang::Sounds::P3_POPUP);
         #endif
     } else if (device_state_ == kDeviceStateSpeaking) {
+        ESP_LOGI(TAG, "Wake word detected while speaking, switching to listening state");
         AbortSpeaking(kAbortReasonWakeWordDetected);
                 // 播放提示音，表示设备即将开始聆听
             {
@@ -779,6 +780,13 @@ void Application::OnWakeWordDetected() {
             SetListeningMode(kListeningModeAutoStop);
         
         return;
+    } else if (device_state_ == kDeviceStateListening) {
+        ESP_LOGI(TAG, "Wake word detected while listening, returning to idle state");
+        if (protocol_->IsAudioChannelOpened()) {
+            protocol_->CloseAudioChannel();
+        }
+        SetDeviceState(kDeviceStateIdle);
+        return;
     } else if (device_state_ == kDeviceStateActivating) {
         SetDeviceState(kDeviceStateIdle);
     }
@@ -787,6 +795,7 @@ void Application::OnWakeWordDetected() {
 void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
     aborted_ = true;
+    audio_service_.ResetDecoder();
     protocol_->SendAbortSpeaking(reason);
 }
 
@@ -817,7 +826,8 @@ void Application::SetDeviceState(DeviceState state) {
         case kDeviceStateIdle:
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
-            audio_service_.EnableVoiceProcessing(false);
+            audio_service_.EnableVoiceProcessing(true);
+            audio_service_.SetWakeWordAudioPassthrough(false);
             audio_service_.EnableWakeWordDetection(true);
             break;
         case kDeviceStateConnecting:
@@ -829,12 +839,18 @@ void Application::SetDeviceState(DeviceState state) {
             display->SetStatus(Lang::Strings::LISTENING);
             display->SetEmotion("confused");
 
-            // Make sure the audio processor is running
+            // Idle state keeps both AFE and wake word active. When entering listening,
+            // always switch the AFE output away from wake word detection and notify the server.
+            #if CONFIG_USE_DSPOTTER_WAKE_WORD
+            audio_service_.SetWakeWordAudioPassthrough(true);
+            audio_service_.EnableWakeWordDetection(true);
+            #else
+            audio_service_.SetWakeWordAudioPassthrough(false);
+            audio_service_.EnableWakeWordDetection(false);
+            #endif
+            protocol_->SendStartListening(listening_mode_);
             if (!audio_service_.IsAudioProcessorRunning()) {
-                // Send the start listening command
-                protocol_->SendStartListening(listening_mode_);
                 audio_service_.EnableVoiceProcessing(true);
-                audio_service_.EnableWakeWordDetection(false);
             }
             break;
         case kDeviceStateSpeaking:
@@ -842,7 +858,13 @@ void Application::SetDeviceState(DeviceState state) {
             // if (!audio_service_.IsAudioProcessorRunning()) {
                 // Send the start listening command
                 // protocol_->SendStartListening(listening_mode_);
+                ESP_LOGI(TAG, "Speaking state: keep processed audio for wake word detection");
+                #if CONFIG_USE_DSPOTTER_WAKE_WORD
+                audio_service_.EnableVoiceProcessing(true);
+                #else
                 audio_service_.EnableVoiceProcessing(false);
+                #endif
+                audio_service_.SetWakeWordAudioPassthrough(false);
                 audio_service_.EnableWakeWordDetection(true);
             // }
 
@@ -872,9 +894,13 @@ void Application::SetDeviceState(DeviceState state) {
 
 
             if (listening_mode_ != kListeningModeRealtime) {
+                #if CONFIG_USE_DSPOTTER_WAKE_WORD
+                audio_service_.EnableVoiceProcessing(true);
+                #else
                 audio_service_.EnableVoiceProcessing(false);
-                // Only AFE wake word can be detected in speaking mode
-                #if CONFIG_USE_AFE_WAKE_WORD or CONFIG_USE_CUSTOM_WAKE_WORD
+                #endif
+                // AFE、Custom 和 DSpotter 都允许在 speaking 模式下继续检测唤醒词
+                #if CONFIG_USE_AFE_WAKE_WORD || CONFIG_USE_CUSTOM_WAKE_WORD || CONFIG_USE_DSPOTTER_WAKE_WORD
                                 audio_service_.EnableWakeWordDetection(true);
                 #else
                                 audio_service_.EnableWakeWordDetection(false);

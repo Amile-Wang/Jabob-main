@@ -1,0 +1,72 @@
+﻿25-12-06 16:49:57.173 
+25-12-06 16:49:57.174 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 16:49:57.175 Certification file "CybServer_XXX.bin" open fail!
+25-12-06 16:49:57.177 Total spend 15 ms.
+25-12-06 16:54:50.770 
+25-12-06 16:54:50.771 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 16:54:50.773 Certification file "CybServer_DSpotterDev_Jabra.bin" open fail!
+25-12-06 16:54:50.774 Total spend 15 ms.
+25-12-06 16:55:02.228 
+25-12-06 16:55:02.229 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 16:55:02.366 Uid string = 
+25-12-06 16:55:02.367 Error: Uid wrong format!
+25-12-06 16:55:02.368 Total spend 141 ms.
+25-12-06 16:55:31.068 
+25-12-06 16:55:31.069 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 16:55:31.174 Uid string = 
+25-12-06 16:55:31.175 Error: Uid wrong format!
+25-12-06 16:55:31.176 Total spend 125 ms.
+25-12-06 16:55:50.323 
+25-12-06 16:55:50.324 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 16:55:50.442 Uid string = 
+25-12-06 16:55:50.443 Error: Uid wrong format!
+25-12-06 16:55:50.444 Total spend 125 ms.
+25-12-06 16:59:44.048 
+25-12-06 16:59:44.049 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 16:59:44.266 Uid string = 
+25-12-06 16:59:44.267 Error: Uid wrong format!
+25-12-06 16:59:44.268 Total spend 219 ms.
+25-12-06 17:00:01.252 
+25-12-06 17:00:01.252 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:00:01.386 Uid string = 
+25-12-06 17:00:01.387 Error: Uid wrong format!
+25-12-06 17:00:01.388 Total spend 141 ms.
+25-12-06 17:00:27.022 
+25-12-06 17:00:27.023 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+25-12-06 17:00:27.137 Uid string = 
+25-12-06 17:00:27.138 Error: Uid wrong format!
+25-12-06 17:00:27.139 Total spend 110 ms.
+26-03-31 03:29:13.672 
+26-03-31 03:29:13.674 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+26-03-31 03:29:13.831 Uid string = 
+26-03-31 03:29:13.833 Error: Uid wrong format!
+26-03-31 03:29:13.834 Total spend 172 ms.
+26-03-31 03:32:58.663 
+26-03-31 03:32:58.664 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+26-03-31 03:32:58.781 Uid string = 
+26-03-31 03:32:58.782 Error: Uid wrong format!
+26-03-31 03:32:58.782 Total spend 125 ms.
+26-03-31 03:34:42.930 
+26-03-31 03:34:42.931 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+26-03-31 03:34:43.200 esptool.py v4.11.0
+
+26-03-31 03:34:43.202 Found 4 serial ports
+
+26-03-31 03:34:43.203 Serial port COM9
+
+26-03-31 03:34:43.526 Connecting....
+
+26-03-31 03:34:43.536 Detecting chip type... ESP32-S3
+
+26-03-31 03:34:44.359 Chip is ESP32-S3 (QFN56) (revision v0.2)
+
+26-03-31 03:34:44.361 Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+
+26-03-31 03:34:44.362 Crystal is 40MHz
+
+26-03-31 03:34:44.363 MAC: dc:b4:d9:0a:50:94
+
+26-03-31 03:34:44.364 Uid string = dc:b4:d9:0a:50:94
+26-03-31 03:34:44.767 Get license data from server successfully.
+26-03-31 03:34:44.769 Write license data to output file successfully.
+26-03-31 03:34:44.771 Total spend 1843 ms.

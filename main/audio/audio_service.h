@@ -37,8 +37,8 @@
 #define OPUS_FRAME_DURATION_MS 60
 #define MAX_ENCODE_TASKS_IN_QUEUE 2
 #define MAX_PLAYBACK_TASKS_IN_QUEUE 2
-#define MAX_DECODE_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
-#define MAX_SEND_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)
+#define MAX_DECODE_PACKETS_IN_QUEUE (1200 / OPUS_FRAME_DURATION_MS)  // 优化：从2400减到1200
+#define MAX_SEND_PACKETS_IN_QUEUE (1200 / OPUS_FRAME_DURATION_MS)  // 优化：从2400减到1200
 #define AUDIO_TESTING_MAX_DURATION_MS 10000
 #define MAX_TIMESTAMPS_IN_QUEUE 3
 
@@ -89,22 +89,36 @@ public:
     void EncodeWakeWord();
     std::unique_ptr<AudioStreamPacket> PopWakeWordPacket();
     const std::string& GetLastWakeWord() const;
+    
+    // 添加核心任务监控函数
+    void PrintCoreTaskInfo(int core_id);
+    
+    bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
+    
+    // 添加后备数据消费者任务声明
+    void BackupDataConsumerTask();
+    
+    // 添加 IsVoiceDetected 公共方法
     bool IsVoiceDetected() const { return voice_detected_; }
+    
     bool IsIdle();
     bool IsWakeWordRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_WAKE_WORD_RUNNING; }
     bool IsAudioProcessorRunning() const { return xEventGroupGetBits(event_group_) & AS_EVENT_AUDIO_PROCESSOR_RUNNING; }
+    
+    // 添加 USB 设备就绪状态检查方法
+    bool IsUsbDeviceReady() const { return usb_device_ready_; }
 
     void EnableWakeWordDetection(bool enable);
     void EnableVoiceProcessing(bool enable);
     void EnableAudioTesting(bool enable);
     void EnableDeviceAec(bool enable);
+    void SetWakeWordAudioPassthrough(bool enable);
 
     void SetCallbacks(AudioServiceCallbacks& callbacks);
 
     bool PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait = false);
     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
     void PlaySound(const std::string_view& sound);
-    bool ReadAudioData(std::vector<int16_t>& data, int sample_rate, int samples);
     void ResetDecoder();
 
 private:
@@ -126,6 +140,7 @@ private:
     TaskHandle_t audio_input_task_handle_ = nullptr;
     TaskHandle_t audio_output_task_handle_ = nullptr;
     TaskHandle_t opus_codec_task_handle_ = nullptr;
+    TaskHandle_t backup_consumer_task_handle_ = nullptr;
     std::mutex audio_queue_mutex_;
     std::condition_variable audio_queue_cv_;
     std::deque<std::unique_ptr<AudioStreamPacket>> audio_decode_queue_;
@@ -141,17 +156,33 @@ private:
     bool wake_word_initialized_ = false;
     bool audio_processor_initialized_ = false;
     bool voice_detected_ = false;
+    bool wake_word_audio_passthrough_enabled_ = false;
     bool service_stopped_ = true;
     bool audio_input_need_warmup_ = false;
+
+    // 采样率状态跟踪
+    int last_configured_input_sample_rate_ = 0;   // 最后配置的输入采样率
+    int last_detected_input_sample_rate_ = 0;      // 最后检测到的实际输入采样率
+    uint32_t sample_rate_change_count_ = 0;        // 采样率变化计数
+    const uint32_t MAX_SAMPLE_RATE_CHANGES = 10;   // 最大允许的采样率变化次数
+    int fallback_input_sample_rate_ = 16000;        // Fallback采样率
+    bool usb_device_ready_ = false;                 // USB设备就绪标志
+
+    // 输出采样率状态跟踪
+    int last_configured_output_sample_rate_ = 0;  // 最后配置的输出采样率
+    int locked_output_sample_rate_ = 0;            // 锁定的输出采样率（防止回滚）
+    bool output_sample_rate_locked_ = false;          // 输出采样率锁定标志
 
     esp_timer_handle_t audio_power_timer_ = nullptr;
     std::chrono::steady_clock::time_point last_input_time_;
     std::chrono::steady_clock::time_point last_output_time_;
+    std::vector<int16_t> wake_word_preprocessed_buffer_;
 
     void AudioInputTask();
     void AudioOutputTask();
     void OpusCodecTask();
     void PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t>&& pcm);
+    void FeedWakeWordWithProcessedAudio(const std::vector<int16_t>& pcm);
     void SetDecodeSampleRate(int sample_rate, int frame_duration);
     void CheckAndUpdateAudioPowerState();
 };

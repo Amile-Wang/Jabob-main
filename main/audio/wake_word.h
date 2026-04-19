@@ -1,11 +1,13 @@
 #ifndef WAKE_WORD_H
 #define WAKE_WORD_H
 
-#include <string>
-#include <vector>
-#include <functional>
+#include <memory>
 
-#include "audio_codec.h"
+class AudioCodec;
+class CustomWakeWord;
+class EspWakeWord;
+class AfeWakeWord;
+class DSpotterWakeWord; // 添加DSpotter唤醒词声明
 
 class WakeWord {
 public:
@@ -20,6 +22,8 @@ public:
     virtual void EncodeWakeWordData() = 0;
     virtual bool GetWakeWordOpus(std::vector<uint8_t>& opus) = 0;
     virtual const std::string& GetLastDetectedWakeWord() const = 0;
+
+    static std::unique_ptr<WakeWord> Create();
 };
 
 #endif

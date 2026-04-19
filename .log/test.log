@@ -1,0 +1,21 @@
+ (15377) wifi:state: assoc -> run (0x10)
+I (15477) wifi:connected with 王天豪的iPhone, aid = 1, channel 1, BW20, bssid = 1a:6f:37:f1:7d:09
+I (15477) wifi:security: WPA2-PSK, phy: bgn, rssi: -53
+I (15477) wifi:pm start, type: 1
+
+I (15477) wifi:dp: 1, bi: 102400, li: 3, scale listen interval from 307200 us to 307200 us      
+I (15487) wifi:set rx beacon pti, rx_bcn_pti: 0, bcn_timeout: 25000, mt_pti: 0, mt_time: 10000
+I (15497) wifi:AP's beacon interval = 102400 us, DTIM period = 1
+I (17047) wifi: Got IP: 172.20.10.4
+I (17107) esp_netif_handlers: sta ip: 172.20.10.4, mask: 255.255.255.240, gw: 172.20.10.1
+I (17107) Application: STATE: activating
+I (17107) CompactWifiBoardLCDUAC: Device state changed from 1 to 8
+I (17117) CompactWifiBoardLCDUAC: Power save timer woken up due to leaving idle state
+I (17237) Ota: Current version: 2.0.5
+I (17237) Ota: HTTP headers: Activation-Version=1, Device-Id=80:b5:4e:f4:82:2c, Client-Id=e85c6512-3751-48c6-a78b-d22ebd49bddd, User-Agent=bread-compact-wifi-lcd-tianhao-uac/2.0.5, Accept-Language=zh-CN, Content-Type=application/json
+I (17247) Ota: HTTP body: {"version":2,"language":"zh-CN","flash_size":16777216,"minimum_free_heap_size":"6454392","mac_address":"80:b5:4e:f4:82:2c","uuid":"e85c6512-3751-48c6-a78b-d22ebd49bddd","chip_model_name":"esp32s3","chip_info":{"model":9,"cores":2,"revision":2,"features":18},"application":{"name":"Jabob","version":"2.0.5","compile_time":"Apr  7 2026T15:38:08Z","idf_version":"v5.4.3","elf_sha256":"a8fd5d6cb2566a95b88f1fa9cd170e313587d8a727b84cf5d402c31101a72863"},"partition_table": [{"label":"nvs","type":1,"subtype":2,"address":36864,"size":16384},{"label":"dspotter","type":1,"subtype":2,"address":57344,"size":4096},{"label":"otadata","type":1,"subtype":0,"address":61440,"size":8192},{"label":"phy_init","type":1,"subtype":1,"address":69632,"size":4096},{"label":"ota_0","type":0,"subtype":16,"address":131072,"size":7340032},{"label":"ota_1","type":0,"subtype":17,"address":7471104,"size":7340032}],"ota":{"label":"ota_0"},"board":{"type":"bread-compact-wifi-lcd-tianhao-uac","name":"bread-compact-wifi-lcd-tianhao-uac","ssid":"王天豪的iPhone","rssi":-53,"channel":1,"ip":"172.20.10.4","mac":"80:b5:4e:f4:82:2c"}}
+I (17357) wifi:<ba-add>idx:0 (ifx:0, 1a:6f:37:f1:7d:09), tid:0, ssn:2, winSize:64
+I (17517) Ota: Response: {"server_time":{"timestamp":1775519313251,"timeZone":"Asia/Shanghai","timezone_offset":480},"firmware":{"version":"2.0.5","url":"http://121.41.168.85:8007/api/xiaozhi/otaMag/download/Jabobo_2.0.5.bin","force":0},"websocket":{"url":"ws://121.41.168.85:8000/xiaozhi/v1/"}}
+I (17537) Ota: No mqtt section found !
+I (17537) Ota: Current is the latest version
+I (17537) Ota: Running partition: ota_0

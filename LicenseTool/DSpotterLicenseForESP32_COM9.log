@@ -1,0 +1,24 @@
+﻿26-04-09 22:48:30.219 
+26-04-09 22:48:30.222 DSpotterLicenseForESP32 version 1.0, build @ Aug  8 2025, 17:13:54
+26-04-09 22:48:30.837 esptool.py v4.11.0
+
+26-04-09 22:48:30.839 Found 5 serial ports
+
+26-04-09 22:48:30.842 Serial port COM9
+
+26-04-09 22:48:31.174 Connecting....
+
+26-04-09 22:48:31.184 Detecting chip type... ESP32-S3
+
+26-04-09 22:48:32.024 Chip is ESP32-S3 (QFN56) (revision v0.2)
+
+26-04-09 22:48:32.038 Features: WiFi, BLE, Embedded PSRAM 8MB (AP_3v3)
+
+26-04-09 22:48:32.042 Crystal is 40MHz
+
+26-04-09 22:48:32.045 MAC: 80:b5:4e:e1:7b:a4
+
+26-04-09 22:48:32.047 Uid string = 80:b5:4e:e1:7b:a4
+26-04-09 22:48:33.585 Get license data from server successfully.
+26-04-09 22:48:33.590 Write license data to output file successfully.
+26-04-09 22:48:33.597 Total spend 3391 ms.

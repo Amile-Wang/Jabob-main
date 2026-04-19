@@ -71,7 +71,7 @@ uint8_t AdcBatteryMonitor::GetBatteryLevel() {
         // 如果无法获取容量信息，默认返回一个合理的值而不是100
         return 50; // 返回中间值50%，表示不确定状态
     }
-    ESP_LOGI("ADC_BATTERY", "Raw battery capacity: %.2f%%", capacity);
+    ESP_LOGD("ADC_BATTERY", "Raw battery capacity: %.2f%%", capacity);
     // 确保返回的值在合理范围内
     if (capacity < 0) {
         capacity = 0;

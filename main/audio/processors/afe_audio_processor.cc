@@ -1,5 +1,7 @@
 #include "afe_audio_processor.h"
 #include <esp_log.h>
+#include "esp_partition.h"
+#include "esp_task_wdt.h"
 
 #define PROCESSOR_RUNNING 0x01
 
@@ -27,9 +29,24 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
         input_format.push_back('R');
     }
 
-    srmodel_list_t *models = esp_srmodel_init("model");
-    char* ns_model_name = esp_srmodel_filter(models, ESP_NSNET_PREFIX, NULL);
-    char* vad_model_name = esp_srmodel_filter(models, ESP_VADN_PREFIX, NULL);
+    srmodel_list_t* models = nullptr;
+    char* ns_model_name = nullptr;
+    char* vad_model_name = nullptr;
+    const esp_partition_t* model_partition = esp_partition_find_first(
+        ESP_PARTITION_TYPE_DATA,
+        ESP_PARTITION_SUBTYPE_ANY,
+        "model");
+    if (model_partition != nullptr) {
+        models = esp_srmodel_init("model");
+        if (models != nullptr) {
+            ns_model_name = esp_srmodel_filter(models, ESP_NSNET_PREFIX, NULL);
+            vad_model_name = esp_srmodel_filter(models, ESP_VADN_PREFIX, NULL);
+        } else {
+            ESP_LOGW(TAG, "Model partition exists but esp_srmodel_init failed, continuing without NS/VAD model overrides");
+        }
+    } else {
+        ESP_LOGW(TAG, "Model partition not present, skip esp-sr model loading and use AFE defaults");
+    }
     
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), NULL, AFE_TYPE_VC, AFE_MODE_HIGH_PERF);
     afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
@@ -60,14 +77,19 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
     afe_config->vad_init = true;
 #endif
 
+    // 配置AFE使用CPU 1进行处理
+    afe_config->afe_perferred_core = 1;
+    afe_config->afe_perferred_priority = 20;
+
     afe_iface_ = esp_afe_handle_from_config(afe_config);
     afe_data_ = afe_iface_->create_from_config(afe_config);
     
-    xTaskCreate([](void* arg) {
+    // 将AFE音频处理器任务固定到CPU 1
+    xTaskCreatePinnedToCore([](void* arg) {
         auto this_ = (AfeAudioProcessor*)arg;
         this_->AudioProcessorTask();
         vTaskDelete(NULL);
-    }, "audio_communication", 8192, this, 20, NULL);
+    }, "audio_communication", 12288, this, 20, NULL, 1); // 固定到CPU 1
 }
 
 AfeAudioProcessor::~AfeAudioProcessor() {
@@ -78,17 +100,10 @@ AfeAudioProcessor::~AfeAudioProcessor() {
 }
 
 size_t AfeAudioProcessor::GetFeedSize() {
-    if (afe_data_ == nullptr) {
+    if (!afe_data_) {
         return 0;
     }
-    return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
-}
-
-void AfeAudioProcessor::Feed(std::vector<int16_t>&& data) {
-    if (afe_data_ == nullptr) {
-        return;
-    }
-    afe_iface_->feed(afe_data_, data.data());
+    return afe_iface_->get_feed_chunksize(afe_data_);
 }
 
 void AfeAudioProcessor::Start() {
@@ -102,16 +117,19 @@ void AfeAudioProcessor::Stop() {
     }
 }
 
-bool AfeAudioProcessor::IsRunning() {
-    return xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING;
+void AfeAudioProcessor::EnableDeviceAec(bool enable) {
+    if (enable) {
+        afe_iface_->enable_aec(afe_data_);
+    } else {
+        afe_iface_->disable_aec(afe_data_);
+    }
 }
 
-void AfeAudioProcessor::OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) {
-    output_callback_ = callback;
-}
-
-void AfeAudioProcessor::OnVadStateChange(std::function<void(bool speaking)> callback) {
-    vad_state_change_callback_ = callback;
+void AfeAudioProcessor::Feed(std::vector<int16_t>&& data) {
+    if (!afe_data_) {
+        return;
+    }
+    afe_iface_->feed(afe_data_, data.data());
 }
 
 void AfeAudioProcessor::AudioProcessorTask() {
@@ -127,6 +145,7 @@ void AfeAudioProcessor::AudioProcessorTask() {
         if ((xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING) == 0) {
             continue;
         }
+
         if (res == nullptr || res->ret_value == ESP_FAIL) {
             if (res != nullptr) {
                 ESP_LOGI(TAG, "Error code: %d", res->ret_value);
@@ -147,10 +166,10 @@ void AfeAudioProcessor::AudioProcessorTask() {
 
         if (output_callback_) {
             size_t samples = res->data_size / sizeof(int16_t);
-            
+
             // Add data to buffer
             output_buffer_.insert(output_buffer_.end(), res->data, res->data + samples);
-            
+
             // Output complete frames when buffer has enough data
             while (output_buffer_.size() >= frame_samples_) {
                 if (output_buffer_.size() == frame_samples_) {
@@ -168,16 +187,14 @@ void AfeAudioProcessor::AudioProcessorTask() {
     }
 }
 
-void AfeAudioProcessor::EnableDeviceAec(bool enable) {
-    if (enable) {
-#if CONFIG_USE_DEVICE_AEC
-        afe_iface_->disable_vad(afe_data_);
-        afe_iface_->enable_aec(afe_data_);
-#else
-        ESP_LOGE(TAG, "Device AEC is not supported");
-#endif
-    } else {
-        afe_iface_->disable_aec(afe_data_);
-        afe_iface_->enable_vad(afe_data_);
-    }
+void AfeAudioProcessor::OnOutput(std::function<void(std::vector<int16_t>&& data)> callback) {
+    output_callback_ = callback;
+}
+
+void AfeAudioProcessor::OnVadStateChange(std::function<void(bool speaking)> callback) {
+    vad_state_change_callback_ = callback;
+}
+
+bool AfeAudioProcessor::IsRunning() {
+    return xEventGroupGetBits(event_group_) & PROCESSOR_RUNNING;
 }

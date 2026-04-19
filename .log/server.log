@@ -1,0 +1,17 @@
+2026-04-07 15:51:15.284 | DEBUG    | app.database:__init__:10 - 正在初始化 MySQLConnector...
+2026-04-07 15:51:15.289 | INFO     | app.routes.device_data_api:handle_ota_request:193 - 🚀 [OTA_REQUEST] Device-Id: 80:b5:4e:f4:82:2c | Client-Id: e85c6512-3751-48c6-a78b-d22ebd49bddd
+2026-04-07 15:51:15.289 | DEBUG    | app.routes.device_data_api:handle_ota_request:194 - OTA Context: UA=bread-compact-wifi-lcd-tianhao-uac/2.0.5, Version=1
+2026-04-07 15:51:15.291 | SUCCESS  | app.database:_load_config:46 - ✅ 数据库配置加载成功
+2026-04-07 15:51:15.293 | INFO     | app.database:connect:62 - 🔗 数据库连接已建立: 127.0.0.1/jabobo
+2026-04-07 15:51:15.293 | DEBUG    | app.routes.device_data_api:handle_ota_request:204 - 🔍 [OTA CHECK] Checking registration for 80:b5:4e:f4:82:2c
+2026-04-07 15:51:15.295 | INFO     | app.routes.device_data_api:handle_ota_request:214 - ✅ [OTA CHECK] Device 80:b5:4e:f4:82:2c is registered to: tianhao
+2026-04-07 15:51:15.296 | DEBUG    | app.database:close:85 - 🔌 数据库连接已安全关闭
+2026-04-07 15:51:15.296 | INFO     | app.routes.device_data_api:handle_ota_request:286 - 🔧 [OTA FIRMWARE] Using safe_ver: 2.0.5, versioned_filename: Jabobo_2.0.5.bin
+2026-04-07 15:51:15.297 | INFO     | app.routes.device_data_api:handle_ota_request:308 - 📤 [OTA RESPONSE] To Device 80:b5:4e:f4:82:2c: {'server_time': {'timestamp': 1775519475290, 'timeZone': 'Asia/Shanghai', 'timezone_offset': 480}, 'firmware': {'version': '2.0.5', 'url': 'http://121.41.168.85:8007/api/xiaozhi/otaMag/download/Jabobo_2.0.5.bin', 'force': 0}, 'websocket': {'url': 'ws://121.41.168.85:8000/xiaozhi/v1/'}}
+2026-04-07 15:51:15.297 | INFO     | app.routes.device_data_api:handle_ota_request:314 - 🔓 [OTA ACTIVATION] No activation needed for 80:b5:4e:f4:82:2c
+2026-04-07 15:51:15.300 | INFO     | app.database:connect:62 - 🔗 数据库连接已建立: 127.0.0.1/jabobo
+2026-04-07 15:51:15.301 | DEBUG    | app.database:close:85 - 🔌 数据库连接已安全关闭
+2026-04-07 15:51:15.927 | SUCCESS  | __main__:<module>:27 - ✨ Jabobo API 模块加载完成，正在挂载路由...
+2026-04-07 15:51:15.961 | INFO     | __main__:<module>:51 - ✅ 所有 API 路由注册完成，准备接收请求。
+2026-04-07 15:51:16.622 | DEBUG    | app.database:__init__:10 - 正在初始化 MySQLConnector...
+2026-04-07 15:51:16.627 | SUCCESS  | app.database:_load_config:46 - ✅ 数据库配置加载成功

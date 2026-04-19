@@ -2,10 +2,20 @@
 
 音频服务是捷宝宝 AI 聊天机器人项目的核心组件之一，负责管理所有与音频相关的功能，包括从麦克风捕获音频、处理音频、编码/解码以及通过扬声器播放音频。它被设计为模块化和高效，其主要操作在专用的 FreeRTOS 任务中运行，以确保实时性能。
 
+## 🆕 USB音频支持 (2.0.5 Beta)
+
+**重要**: USB音频支持是2.0.5 Beta版本的新特性，目前仅在tianhaoUAC定制硬件平台上完全测试。
+
+- **USB Host UAC**: 支持USB Audio Class 1.0/2.0设备
+- **双工通信**: 同时支持USB麦克风输入和USB扬声器输出  
+- **自动采样率检测**: 支持48kHz、44.1kHz等常见USB音频采样率
+- **直接回调模式**: 优化实时音频采集性能，减少延迟
+
 ## 核心组件
 
 - **[AudioService](file://z:\jabobo\Jabob-main\main\audio\audio_service.h#L80-L156)**：中央协调器。它初始化和管理所有其他音频组件、任务和数据队列。
 - **[AudioCodec](file://z:\jabobo\Jabob-main\main\audio\audio_codec.h#L17-L56)**：物理音频编解码器芯片的硬件抽象层(HAL)。它处理音频输入和输出的原始 I2S 通信。
+- **[HybridUsbI2sCodec](file://z:\jabobo\Jabob-main\main\audio\codecs\hybrid_usb_i2s_codec.h#L15-L45)**：🆕 **新增USB/I2S混合编解码器**，支持USB音频设备和传统I2S设备
 - **[AudioProcessor](file://z:\jabobo\Jabob-main\main\audio\audio_processor.h#L9-L22)**：对麦克风输入流执行实时音频处理。这通常包括声学回声消除(AEC)、噪声抑制和语音活动检测(VAD)。[AfeAudioProcessor](file://z:\jabobo\Jabob-main\main\audio\processors\afe_audio_processor.h#L15-L42) 是默认实现，利用 ESP-ADF 音频前端。
 - **[WakeWord](file://z:\jabobo\Jabob-main\main\audio\wake_word.h#L9-L22)**：从音频流中检测关键词(例如"你好，小智"，"Hi, ESP")。它独立于主音频处理器运行，直到检测到唤醒词。
 - **`OpusEncoderWrapper` / `OpusDecoderWrapper`**：管理将 PCM 音频编码为 Opus 格式以及将 Opus 数据包解码回 PCM。Opus 因其高压缩率和低延迟而被选用，非常适合语音流传输。
@@ -27,10 +37,10 @@
 
 此流向从麦克风捕获音频，处理音频，编码音频，并准备将其发送到服务器。
 
-```mermaid
+``mermaid
 graph TD
     subgraph 设备
-        Mic[("麦克风")] -->|I2S| Codec(音频编解码器)
+        Mic[("麦克风")] -->|I2S/USB| Codec(音频编解码器)
         
         subgraph 音频输入任务
             Codec -->|原始PCM| Read(读取音频数据)

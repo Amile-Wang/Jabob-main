@@ -1,78 +1,109 @@
-<!-- gitnexus:start -->
-# GitNexus — Code Intelligence
+# Jabob AI Chatbot Project Context
 
-This project is indexed by GitNexus as **Jabob-main** (57346 symbols, 89754 relationships, 300 execution flows). Use the GitNexus MCP tools to understand code, assess impact, and navigate safely.
+## Project Overview
 
-> If any GitNexus tool warns the index is stale, run `npx gitnexus analyze` in terminal first.
+**项目名称**: 捷宝宝 (Jabob) AI 聊天机器人
+**平台**: ESP32S3嵌入式设备
+**当前版本分支**: 2.0.5 **(Beta版本 - 新功能开发中，稳定性不保证)**
+**稳定版本计划**: 2.0.6
+**主控芯片**: ESP32S3双核处理器
+**推荐开发板**: bread-compact-wifi-lcd-tianhao (定制版)
+**🆕 新增开发板**: bread-compact-wifi-lcd-tianhao-uac (USB音频输入版本)
 
-## Always Do
+## 🚨 Beta版本重要提示
 
-- **MUST run impact analysis before editing any symbol.** Before modifying a function, class, or method, run `gitnexus_impact({target: "symbolName", direction: "upstream"})` and report the blast radius (direct callers, affected processes, risk level) to the user.
-- **MUST run `gitnexus_detect_changes()` before committing** to verify your changes only affect expected symbols and execution flows.
-- **MUST warn the user** if impact analysis returns HIGH or CRITICAL risk before proceeding with edits.
-- When exploring unfamiliar code, use `gitnexus_query({query: "concept"})` to find execution flows instead of grepping. It returns process-grouped results ranked by relevance.
-- When you need full context on a specific symbol — callers, callees, which execution flows it participates in — use `gitnexus_context({name: "symbolName"})`.
+这是一个 **Beta版本**，主要实现 **USB音频支持** 新功能，但 **不保证其他原有功能的稳定性**。生产环境请等待 **2.0.6稳定版本**。
 
-## When Debugging
+### Beta版本核心特性
+- **USB Audio Class (UAC) 支持**: 支持USB麦克风和扬声器
+- **混合音频架构**: USB输入 + I2S输出
+- **即插即用**: 自动检测和配置USB音频设备
+- **热插拔支持**: USB设备可动态连接/断开
 
-1. `gitnexus_query({query: "<error or symptom>"})` — find execution flows related to the issue
-2. `gitnexus_context({name: "<suspect function>"})` — see all callers, callees, and process participation
-3. `READ gitnexus://repo/Jabob-main/process/{processName}` — trace the full execution flow step by step
-4. For regressions: `gitnexus_detect_changes({scope: "compare", base_ref: "main"})` — see what your branch changed
+## Core Functionality Modules
 
-## When Refactoring
+### Audio System (main/audio)
+- Support for multiple audio codecs (**including USB audio - NEW in 2.0.5 Beta**)
+- Opus codec (high compression, low latency)
+- Real-time audio processing (AEC echo cancellation, VAD voice activity detection)
+- Wake word detection (AFE WakeNet, ESP WakeNet)
+- Dual audio stream processing (microphone input + speaker output)
+- Three-task concurrent architecture (AudioInputTask, AudioOutputTask, OpusCodecTask)
+- **USB Host UAC integration with automatic sample rate negotiation**
 
-- **Renaming**: MUST use `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` first. Review the preview — graph edits are safe, text_search edits need manual review. Then run with `dry_run: false`.
-- **Extracting/Splitting**: MUST run `gitnexus_context({name: "target"})` to see all incoming/outgoing refs, then `gitnexus_impact({target: "target", direction: "upstream"})` to find all external callers before moving code.
-- After any refactor: run `gitnexus_detect_changes({scope: "all"})` to verify only expected files changed.
+### Display System (main/display)
+- LVGL graphics library support
+- Multiple LCD controllers (ST7789, GC9A01, ILI9341, etc.)
+- GIF animation and emoji display
+- Touch screen support
+- Network status, battery, mute and other status indicators
 
-## Never Do
+### Communication Protocols (main/protocols)
+- MQTT protocol (with QoS levels)
+- WebSocket protocol (real-time bidirectional communication)
+- Unified protocol abstraction interface
+- Automatic reconnection and heartbeat mechanism
 
-- NEVER edit a function, class, or method without first running `gitnexus_impact` on it.
-- NEVER ignore HIGH or CRITICAL risk warnings from impact analysis.
-- NEVER rename symbols with find-and-replace — use `gitnexus_rename` which understands the call graph.
-- NEVER commit changes without running `gitnexus_detect_changes()` to check affected scope.
+### Hardware Abstraction Layer (main/boards)
+- Multi-platform support (ESP32, ESP32S3, ESP32C3, etc.)
+- Unified hardware interface abstraction
+- Supported peripherals: Audio Codec, Display, LED, RFID/NFC, etc.
 
-## Tools Quick Reference
+### System Services
+- OTA over-the-air updates
+- Device state machine management
+- Configuration persistent storage
+- MCP internal message protocol
 
-| Tool | When to use | Command |
-|------|-------------|---------|
-| `query` | Find code by concept | `gitnexus_query({query: "auth validation"})` |
-| `context` | 360-degree view of one symbol | `gitnexus_context({name: "validateUser"})` |
-| `impact` | Blast radius before editing | `gitnexus_impact({target: "X", direction: "upstream"})` |
-| `detect_changes` | Pre-commit scope check | `gitnexus_detect_changes({scope: "staged"})` |
-| `rename` | Safe multi-file rename | `gitnexus_rename({symbol_name: "old", new_name: "new", dry_run: true})` |
-| `cypher` | Custom graph queries | `gitnexus_cypher({query: "MATCH ..."})` |
+## Technology Stack
 
-## Impact Risk Levels
+- **Development Environment**: ESP-IDF v5.1+
+- **Programming Language**: C++
+- **Real-time OS**: FreeRTOS
+- **Key Components**:
+  - esp-sr (speech recognition)
+  - esp-opus (audio codec)
+  - esp_lvgl_port (LVGL porting)
+  - esp-wifi-connect (WiFi management)
 
-| Depth | Meaning | Action |
-|-------|---------|--------|
-| d=1 | WILL BREAK — direct callers/importers | MUST update these |
-| d=2 | LIKELY AFFECTED — indirect deps | Should test |
-| d=3 | MAY NEED TESTING — transitive | Test if critical path |
+## Supported Hardware Platforms
 
-## Resources
+- bread-compact-esp32 (basic ESP32)
+- bread-compact-esp32-lcd (with LCD display)
+- bread-compact-ml307 (with 4G module support)
+- bread-compact-wifi (WiFi version)
+- bread-compact-wifi-lcd (WiFi + LCD)
+- bread-compact-wifi-lcd-tianhao (Jabob custom version)
+- bread-compact-wifi-s3cam (S3 version with camera)
 
-| Resource | Use for |
-|----------|---------|
-| `gitnexus://repo/Jabob-main/context` | Codebase overview, check index freshness |
-| `gitnexus://repo/Jabob-main/clusters` | All functional areas |
-| `gitnexus://repo/Jabob-main/processes` | All execution flows |
-| `gitnexus://repo/Jabob-main/process/{name}` | Step-by-step execution trace |
+## Recent Development Focus
 
-## Self-Check Before Finishing
+Current branch (2.0.5) main work:
+- USB audio codec support and improvements
+- Sample rate processing optimization
+- Buffer management improvements
+- Microphone dedicated mode implementation
+- Duplex communication support
 
-Before completing any code modification task, verify:
-1. `gitnexus_impact` was run for all modified symbols
-2. No HIGH/CRITICAL risk warnings were ignored
-3. `gitnexus_detect_changes()` confirms changes match expected scope
-4. All d=1 (WILL BREAK) dependents were updated
+## Project Characteristics
 
-## CLI
+1. **Low Power and High Performance**: Based on ESP32S3 dual-core, optimized power management
+2. **Multi-protocol Support**: MQTT and WebSocket unified interface
+3. **Voice Interaction**: Integrated audio codec and wake word detection
+4. **Visual Interface**: LVGL modern graphics interface with rich UI elements
+5. **Modular Design**: Clear code structure, easy for secondary development and porting
 
-- Re-index: `npx gitnexus analyze`
-- Check freshness: `npx gitnexus status`
-- Generate docs: `npx gitnexus wiki`
+## Build and Development
 
-<!-- gitnexus:end -->
+- Build scripts available in project root (various .ps1 and .bat files)
+- ESP-IDF build system
+- Multi-configuration support via sdkconfig
+- OTA update capability
+
+## Recent Commits
+
+- feat(audio): 改进音频服务的采样率处理和缓冲区管理
+- feat(usb_audio): 实现USB音频编解码器的麦克风专用模式
+- feat(audio): 改进USB音频编解码器实现支持双工通信
+- feat(usb-audio): 完善USB音频编解码器功能和设备信息显示
+- feat(audio): 添加USB音频编解码器支持并更新配置选项
