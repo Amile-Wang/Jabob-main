@@ -776,11 +776,18 @@ void Application::OnWakeWordDetected() {
             });
             // 等待一小段时间确保中止操作完成
             // vTaskDelay(pdMS_TO_TICKS(1000));
-            // 切换到聆听模式
-            SetListeningMode(kListeningModeAutoStop);
+            // 切换到聆听模式，保持当前的listening_mode_
+            SetListeningMode(listening_mode_);
         
         return;
     } else if (device_state_ == kDeviceStateListening) {
+        // 如果当前处于会议助手模式，检测到唤醒词后暂时切换到autostop模式，等用户说完话后再切换回会议助手模式
+        if (listening_mode_ == kListeningModeMeetingAssistant) {
+            SetListeningMode(kListeningModeAutoStop);
+            listening_mode_ = kListeningModeMeetingAssistant;
+            return;
+        }
+        
         ESP_LOGI(TAG, "Wake word detected while listening, returning to idle state");
         if (protocol_->IsAudioChannelOpened()) {
             protocol_->CloseAudioChannel();
@@ -842,7 +849,14 @@ void Application::SetDeviceState(DeviceState state) {
             break;
         case kDeviceStateListening:
             display->SetStatus(Lang::Strings::LISTENING);
-            display->SetEmotion("confused");
+            // 如果是会议助手模式，则显示会议助手图标
+            if (listening_mode_ == kListeningModeMeetingAssistant) {
+                display->SetEmotion("sad");
+            } else {
+                display->SetEmotion("confused");
+            }
+            // display->SetEmotion("confused");
+
 
             // Idle state keeps both AFE and wake word active. When entering listening,
             // always switch the AFE output away from wake word detection and notify the server.
