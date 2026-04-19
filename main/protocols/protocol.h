@@ -38,7 +38,8 @@ enum AbortReason {
 enum ListeningMode {
     kListeningModeAutoStop,
     kListeningModeManualStop,
-    kListeningModeRealtime // 需要 AEC 支持
+    kListeningModeRealtime, // 需要 AEC 支持
+    kListeningModeMeetingAssistant  // 会议助手模式：持续上传音频进行转录，说话时也保持上传
 };
 
 class Protocol {

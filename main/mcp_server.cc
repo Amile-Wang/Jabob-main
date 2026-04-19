@@ -177,6 +177,28 @@ void McpServer::AddCommonTools() {
             return result;
         });
 
+    // 添加会议助手模式工具
+    AddTool("self.set_meeting_assistant_mode",
+        "Switch the device to meeting assistant mode. In this mode, the device will continuously transcribe audio without actively responding, "
+        "making it suitable for meeting transcription scenarios.",
+        PropertyList(),
+        [](const PropertyList& properties) -> ReturnValue {
+            auto& app = Application::GetInstance();
+            
+            // 切换到会议助手模式
+            app.SetListeningModePublic(kListeningModeMeetingAssistant);
+            
+            cJSON* root = cJSON_CreateObject();
+            cJSON_AddStringToObject(root, "status", "success");
+            cJSON_AddStringToObject(root, "message", "Device switched to meeting assistant mode");
+            
+            char* json_str = cJSON_PrintUnformatted(root);
+            std::string result(json_str);
+            cJSON_free(json_str);
+            cJSON_Delete(root);
+            
+            return result;
+        });
 
     // Restore the original tools list to the end of the tools list
     tools_.insert(tools_.end(), original_tools.begin(), original_tools.end());

@@ -804,6 +804,11 @@ void Application::SetListeningMode(ListeningMode mode) {
     SetDeviceState(kDeviceStateListening);
 }
 
+// 添加公共方法用于MCP调用
+void Application::SetListeningModePublic(ListeningMode mode) {
+    SetListeningMode(mode);
+}
+
 void Application::SetDeviceState(DeviceState state) {
     if (device_state_ == state) {
         return;

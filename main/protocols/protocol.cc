@@ -53,6 +53,8 @@ void Protocol::SendStartListening(ListeningMode mode) {
         message += ",\"mode\":\"realtime\"";
     } else if (mode == kListeningModeAutoStop) {
         message += ",\"mode\":\"auto\"";
+    } else if (mode == kListeningModeMeetingAssistant) {
+        message += ",\"mode\":\"meeting\"";
     } else {
         message += ",\"mode\":\"manual\"";
     }

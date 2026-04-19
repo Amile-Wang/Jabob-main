@@ -64,6 +64,9 @@ public:
     void SetOfficeLocation(const std::string& location);
     std::string GetOfficeLocation() const;
 
+    // 添加公共方法用于MCP调用设置listening mode
+    void SetListeningModePublic(ListeningMode mode);
+
 private:
     Application();
     ~Application();
