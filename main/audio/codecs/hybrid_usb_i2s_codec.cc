@@ -356,6 +356,8 @@ int HybridUsbI2sCodec::Write(const int16_t* data, int samples) {
         return 0;
     }
 
+    ESP_LOGD(TAG, "Writing %d samples to I2S at %dHz", samples, output_sample_rate_);
+
     std::vector<int32_t> buffer(samples);
     int32_t volume_factor = static_cast<int32_t>(pow(double(output_volume_) / 100.0, 2) * 65536);
     for (int i = 0; i < samples; ++i) {
@@ -372,7 +374,9 @@ int HybridUsbI2sCodec::Write(const int16_t* data, int samples) {
     size_t bytes_written = 0;
     esp_err_t ret = i2s_channel_write(i2s_tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, pdMS_TO_TICKS(100));
     if (ret == ESP_OK && bytes_written > 0) {
-        return bytes_written / sizeof(int32_t);
+        int samples_written = bytes_written / sizeof(int32_t);
+        ESP_LOGD(TAG, "Successfully wrote %d samples to I2S", samples_written);
+        return samples_written;
     } else if (ret == ESP_ERR_TIMEOUT) {
         ESP_LOGD(TAG, "I2S write timeout, samples: %d", samples);
         return 0;
