@@ -233,7 +233,7 @@ void AudioService::Start() {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->OpusCodecTask();
         vTaskDelete(NULL);
-    }, "opus_codec", 8192 * 4, this, 2, &opus_codec_task_handle_); // 增加栈大小到32KB以解决栈溢出问题
+    }, "opus_codec", 8192 * 4, this, 10, &opus_codec_task_handle_); // 增加栈大小到32KB以解决栈溢出问题
 }
 
 void AudioService::Stop() {
@@ -722,6 +722,14 @@ void AudioService::OpusCodecTask() {
                      (unsigned int)audio_decode_queue_.size(), (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
             audio_queue_cv_.notify_all();
             lock.unlock();
+
+            // 检查 start_to_speak 标志位，如果为 true 则延迟 300ms
+            if (start_to_speak_) {
+                ESP_LOGI(TAG, "Start to speak detected, delaying decode by 300ms");
+                vTaskDelay(pdMS_TO_TICKS(300));
+                start_to_speak_ = false;  // 重置标志位
+                ESP_LOGI(TAG, "Decode delay completed, flag reset");
+            }
 
             auto task = std::make_unique<AudioTask>();
             task->type = kAudioTaskTypeDecodeToPlaybackQueue;

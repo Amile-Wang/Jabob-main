@@ -36,7 +36,7 @@
 
 #define OPUS_FRAME_DURATION_MS 60
 #define MAX_ENCODE_TASKS_IN_QUEUE 2
-#define MAX_PLAYBACK_TASKS_IN_QUEUE 10
+#define MAX_PLAYBACK_TASKS_IN_QUEUE 20
 #define MAX_DECODE_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)  // 优化：从2400减到1200
 #define MAX_SEND_PACKETS_IN_QUEUE (2400 / OPUS_FRAME_DURATION_MS)  // 优化：从2400减到1200
 #define AUDIO_TESTING_MAX_DURATION_MS 10000
@@ -120,6 +120,15 @@ public:
     std::unique_ptr<AudioStreamPacket> PopPacketFromSendQueue();
     void PlaySound(const std::string_view& sound);
     void ResetDecoder();
+    
+    // 添加说话模式开始标志控制方法
+    void SetStartToSpeakFlag(bool flag) { 
+        start_to_speak_ = flag; 
+        if (flag) {
+            start_to_speak_time_ = xTaskGetTickCount();
+        }
+    }
+    bool GetStartToSpeakFlag() const { return start_to_speak_; }
 
 private:
     AudioCodec* codec_ = nullptr;
@@ -172,6 +181,10 @@ private:
     int last_configured_output_sample_rate_ = 0;  // 最后配置的输出采样率
     int locked_output_sample_rate_ = 0;            // 锁定的输出采样率（防止回滚）
     bool output_sample_rate_locked_ = false;          // 输出采样率锁定标志
+
+    // 新增：说话模式开始标志和时间戳
+    bool start_to_speak_ = false;
+    TickType_t start_to_speak_time_ = 0;
 
     esp_timer_handle_t audio_power_timer_ = nullptr;
     std::chrono::steady_clock::time_point last_input_time_;

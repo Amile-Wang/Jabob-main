@@ -413,7 +413,7 @@ void Application::Start() {
 
     /* Setup the audio service */
     auto codec = board.GetAudioCodec();
-    codec->SetOutputVolume(75);  // 初始化音量为10%
+    codec->SetOutputVolume(35);  // 初始化音量为10%
     // audio_service_.Initialize(codec);
     audio_service_.Initialize(codec);
     audio_service_.Start();
@@ -506,6 +506,8 @@ void Application::Start() {
                 Schedule([this]() {
                     aborted_ = false;
                     if (device_state_ == kDeviceStateIdle || device_state_ == kDeviceStateListening) {
+                        // 设置 start_to_speak 标志位，让音频解码延迟300ms
+                        audio_service_.SetStartToSpeakFlag(true);
                         SetDeviceState(kDeviceStateSpeaking);
                     }
                 });
