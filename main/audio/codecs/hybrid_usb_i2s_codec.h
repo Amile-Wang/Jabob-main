@@ -56,6 +56,9 @@ private:
     void ProcessUsbData();
     esp_err_t ReadUsbData(int16_t* buffer, size_t requested_samples, size_t& samples_read);
 
+    // 新增：位深处理相关方法
+    void ConvertAudioDataTo16Bit(const uint8_t* src_data, size_t src_bytes, int16_t* dest, size_t samples);
+
     // I2S 扬声器相关
 
     // 成员变量
@@ -75,6 +78,9 @@ private:
     size_t buffer_capacity_;   // 缓冲区容量
     mutable std::mutex buffer_mutex_;  // 缓冲区保护互斥锁，声明为mutable
     bool buffer_overflowed_;  // 缓冲区溢出标志
+
+    // 新增：设备位深信息
+    uint8_t device_bit_depth_ = 16;  // 默认16位，从设备能力中获取
 
     // 统计信息
     uint32_t usb_read_count_;       // USB读取次数
