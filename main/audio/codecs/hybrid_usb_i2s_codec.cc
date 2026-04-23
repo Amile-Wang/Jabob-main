@@ -457,6 +457,23 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                     ESP_LOGD(TAG, "Samples read: %zu (bit depth: %d), Buffer size before: %zu",
                             samples_read, codec->device_bit_depth_, codec->usb_audio_buffer_.size());
 
+                    // 打印原始数据以验证是否为LRLR格式（仅打印前16个样本用于调试）
+                    if (codec->device_bit_depth_ == 16 && samples_read >= 8) {
+                        const int16_t* raw_samples = reinterpret_cast<const int16_t*>(temp_buffer);
+                        ESP_LOGI(TAG, "RAW USB DATA (first 8 samples, LRLRLRLR format):");
+                        for (int i = 0; i < 8; i++) {
+                            ESP_LOGI(TAG, "  Sample[%d] = %d", i, raw_samples[i]);
+                        }
+                        // 如果是立体声，显示左右声道分离
+                        if (codec->input_channels_ > 1) {
+                            ESP_LOGI(TAG, "STEREO CHANNELS (assuming LRLR):");
+                            ESP_LOGI(TAG, "  Left:  [%d, %d, %d, %d]", 
+                                    raw_samples[0], raw_samples[2], raw_samples[4], raw_samples[6]);
+                            ESP_LOGI(TAG, "  Right: [%d, %d, %d, %d]", 
+                                    raw_samples[1], raw_samples[3], raw_samples[5], raw_samples[7]);
+                        }
+                    }
+
                     // 将数据添加到应用缓冲区（统一转换为16-bit）
                     std::lock_guard<std::mutex> lock(codec->buffer_mutex_);
 

@@ -1,0 +1,113 @@
+I (1047) HybridUsbI2sCodec: Set hybrid output volume to 75
+I (1047) HybridUsbI2sCodec: Starting Hybrid USB-I2S Audio codec with async event-driven mode...
+I (1057) HybridUsbI2sCodec: Initializing USB Host with enhanced debug logging...
+I (1097) HybridUsbI2sCodec: USB Host installed successfully
+I (1097) USB_HOST: USB Host task started
+D (1097) uac-host: USB UAC handling start
+I (1097) uac-host: Install Succeed, Version: 1.3.3
+I (1097) HybridUsbI2sCodec: USB Host and UAC driver initialized
+D (1107) i2s_common: tx channel is registered on I2S1 successfully
+I (1107) HybridUsbI2sCodec: Configuring I2S with sample rate: 16000Hz
+D (1117) i2s_common: DMA malloc info: dma_desc_num = 12, dma_desc_buf_size = dma_frame_num * slot_num * data_bit_width = 3840
+D (1127) i2s_std: Clock division info: [sclk] 160000000 Hz [mdiv] 39 [mclk] 4096000 Hz [bdiv] 4 [bclk] 1024000 Hz
+D (1137) i2s_std: The tx channel on I2S1 has been initialized to STD mode successfully
+I (1147) HybridUsbI2sCodec: I2S speaker initialized successfully - Sample Rate: 16000Hz        
+I (1157) HybridUsbI2sCodec: Waiting for USB audio device connection (5 seconds timeout)...
+I (1157) HybridUsbI2sCodec: Troubleshooting:
+I (1167) HybridUsbI2sCodec:   1. Ensure USB microphone is properly connected
+I (1167) HybridUsbI2sCodec:   2. Check USB cable supports data transfer (not power-only)       
+I (1177) HybridUsbI2sCodec:   3. Try a different USB port if available
+I (1187) HybridUsbI2sCodec:   4. Ensure adequate power supply to the device
+I (1187) HybridUsbI2sCodec: Performing USB pre-enumeration check...
+I (1477) HybridUsbI2sCodec: UAC RX device connected - Addr: 1, Iface: 1
+I (1477) HybridUsbI2sCodec: USB microphone connected (Addr: 1, Iface: 1)
+I (1477) HybridUsbI2sCodec: Opening USB microphone with dynamic sample rate detection...       
+D (1487) uac-host: Open Device addr 1, iface 1
+D (1487) uac-host: line 2094, Open Device addr 1
+D (1497) uac-host: Found UAC Control, bInterfaceNumber=0
+D (1497) uac-host: UAC version 0x0100
+D (1497) uac-host: Found UAC bInterfaceNumber= 1, bAlternateSetting= 1
+D (1507) uac-host: UAC AS Format Type 1, Bit Resolution 16, Sample Freq Type 1
+D (1517) uac-host: Output Terminal last linked unit ID 7
+D (1517) uac-host: Output Terminal last linked unit ID 5
+D (1527) uac-host: Output Terminal last linked unit ID 0
+D (1527) uac-host: UAC Endpoint 0x03, Max Packet Size 192, Attributes 0x05, Interval 1
+D (1537) uac-host: UAC EP General, Attributes 0x00
+D (1537) uac-host: UAC EP Frequency Control 0
+D (1547) uac-host: UAC Interface 1, found total alternate 1
+I (1547) HybridUsbI2sCodec: USB device supports the following sample rates:
+I (1557) HybridUsbI2sCodec:   - 48000 Hz
+I (1557) HybridUsbI2sCodec: Device capabilities - Channels: 2, Bit Resolution: 16, Format Type: 1
+I (1567) HybridUsbI2sCodec: Selected optimal sample rate: 48000 Hz
+D (1577) uac-host: 0x3fce0464   01 0b 01 00 01 00 00 00                           |........|
+I (1587) uac-host: Resume Interface 1-1
+I (1587) HybridUsbI2sCodec: USB microphone opened and started successfully at 48000Hz!
+I (1597) HybridUsbI2sCodec: USB microphone input enabled with direct callback reading mode
+I (1607) HybridUsbI2sCodec: Performing initial USB device status check...
+I (1607) HybridUsbI2sCodec: === USB Device Status Check ===
+I (1617) HybridUsbI2sCodec: UAC RX Device: OK (Addr: 1, Iface: 1)
+I (1617) HybridUsbI2sCodec: USB Devices found: 1
+I (1627) HybridUsbI2sCodec:   Device 0: Address 1
+I (1627) HybridUsbI2sCodec: Audio Buffer: 2592/8192 samples (31.6%)
+I (1637) HybridUsbI2sCodec: Statistics - USB reads: 1, Overflows: 0, Processed: 2592
+I (1647) HybridUsbI2sCodec: === End USB Device Status Check ===
+I (1647) HybridUsbI2sCodec: USB monitor task started (direct callback reading mode enabled)
+I (1657) HybridUsbI2sCodec: USB Task Initial State - Device ready: YES, Input enabled: YES, UAC device: 0x3fce04a8
+I (1667) HybridUsbI2sCodec: USB monitor task created for statistics and monitoring
+I (1677) HybridUsbI2sCodec: I2S speaker output enabled
+D (1677) i2s_common: i2s tx channel enabled
+I (1687) HybridUsbI2sCodec: I2S channel enabled
+ device: 0x3fce04a8
+I (1667) HybridUsbI2sCodec: USB monitor task created for statistics and monitoring
+ device: 0x3fce04a8
+I (1667) HybridUsbI2sCodec: USB monitor task created for statistics and monitoring
+I (1677) HybridUsbI2sCodec: I2S speaker output enabled
+D (1677) i2s_common: i2s tx channel enabled
+I (1687) HybridUsbI2sCodec: I2S channel enabled
+I (1687) HybridUsbI2sCodec: Hybrid USB-I2S Audio codec started with async mode - Input: enabled, Output: enabled
+W (2667) HybridUsbI2sCodec: Buffer near full! Usage: zu/zu (0.2%)
+I (3697) AudioService: Initial codec sample rates - Input: 48000Hz, Output: 16000Hz
+I (3697) AudioService: Output sample rate validated: 16000Hz
+I (3697) AudioService: Input sample rate validated: 48000Hz
+I (3697) AudioService: Opus decoder created successfully with 16000Hz
+I (3707) AudioService: Output sample rate locked to 16000Hz (prevents rollback)
+W (3767) HybridUsbI2sCodec: Buffer near full! Usage: zu/zu (0.2%)
+I (5717) AudioService: Input resampler will be configured on first read: 48000Hz -> 16kHz
+I (5717) pp: pp rom version: e7ae62f
+I (5717) net80211: net80211 rom version: e7ae62f
+I (5727) wifi:wifi driver task: 3fce3cd0, prio:23, stack:6144, core=0
+I (5727) wifi:wifi firmware version: e8ce6e2
+I (5727) wifi:wifi certification version: v7.0
+I (5727) wifi:config NVS flash: disabled
+I (5737) wifi:config nano formatting: enabled
+I (5737) wifi:Init data frame dynamic rx buffer num: 8
+I (5747) wifi:Init dynamic rx mgmt buffer num: 5
+I (5747) wifi:Init management short buffer num: 32
+I (5757) wifi:Init dynamic tx buffer num: 32
+I (5757) wifi:Init static tx FG buffer num: 2
+I (5757) wifi:Init static rx buffer size: 1600
+I (5767) wifi:Init static rx buffer num: 6
+I (5767) wifi:Init dynamic rx buffer num: 8
+I (5777) wifi_init: rx ba win: 6
+I (5777) wifi_init: accept mbox: 6
+I (5777) wifi_init: tcpip mbox: 32
+I (5777) wifi_init: udp mbox: 6
+I (5787) wifi_init: tcp mbox: 6
+I (5787) wifi_init: tcp tx win: 5760
+I (5787) wifi_init: tcp rx win: 5760
+I (5797) wifi_init: tcp mss: 1440
+I (5797) phy_init: phy_version 701,f4f1da3a,Mar  3 2025,15:50:10
+I (5837) wifi:mode : sta (80:b5:4e:e1:7b:a4)
+I (5837) wifi:enable tsf
+I (6717) AudioService: No audio input for 5 seconds, disabling audio input to save power
+W (6717) HybridUsbI2sCodec: Attempt to disable USB microphone input ignored - USB input cannot be truly disabled
+W (6977) HybridUsbI2sCodec: Buffer near full! Usage: zu/zu (0.2%)
+I (8257) wifi: Found AP: 王天豪的iPhone, BSSID: 42:e4:0d:95:6a:ff, RSSI: -51, Channel: 6, Authmode: 3
+W (8347) wifi:Password length matches WPA2 standards, authmode threshold changes from OPEN to WPA2
+I (9037) wifi:new:<6,0>, old:<1,0>, ap:<255,255>, sta:<6,0>, prof:1, snd_ch_cfg:0x0
+I (9037) wifi:state: init -> auth (0xb0)
+I (9047) wifi:state: auth -> assoc (0x0)
+I (9047) wifi:state: assoc -> run (0x10)
+I (9117) wifi:connected with 王天豪的iPhone, aid = 1, channel 6, BW20, bssid = 42:e4:0d:95:6a:ff
+I (9117) wifi:security: WPA2-PSK, phy: bgn, rssi: -62
+I (9117) wifi:pm start, type: 1
