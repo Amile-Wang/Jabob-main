@@ -77,7 +77,7 @@ void AfeWakeWord::Initialize(AudioCodec* codec) {
     }, "audio_detection", 4096, this, 3, nullptr);
 }
 
-void AfeWakeWord::SetListeningMode(aec_mode_ == kAecOff ? kListeningModeAutoStop : kListeningModeRealtime);(std::function<void(const std::string& wake_word)> callback) {
+void AfeWakeWord::OnWakeWordDetected(std::function<void(const std::string& wake_word)> callback) {
     wake_word_detected_callback_ = callback;
 }
 
@@ -94,6 +94,9 @@ void AfeWakeWord::Stop() {
 
 void AfeWakeWord::Feed(const std::vector<int16_t>& data) {
     if (afe_data_ == nullptr) {
+        return;
+    }
+    if ((xEventGroupGetBits(event_group_) & DETECTION_RUNNING_EVENT) == 0) {
         return;
     }
     afe_iface_->feed(afe_data_, data.data());

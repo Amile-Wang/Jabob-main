@@ -61,6 +61,9 @@ void CustomWakeWord::Initialize(AudioCodec* codec) {
     }
 
     afe_config_t* afe_config = afe_config_init(input_format.c_str(), models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
+    afe_config->wakenet_init = false;
+    afe_config->wakenet_model_name = nullptr;
+    afe_config->wakenet_model_name_2 = nullptr;
     afe_config->aec_init = codec_->input_reference();
     afe_config->aec_mode = AEC_MODE_SR_HIGH_PERF;
     afe_config->afe_perferred_core = 0; // 将AFE配置为使用CPU 0
@@ -97,6 +100,9 @@ void CustomWakeWord::Feed(const std::vector<int16_t>& data) {
     if (afe_data_ == nullptr) {
         return;
     }
+    if ((xEventGroupGetBits(event_group_) & DETECTION_RUNNING_EVENT) == 0) {
+        return;
+    }
     afe_iface_->feed(afe_data_, data.data());
 }
 
@@ -131,9 +137,6 @@ void CustomWakeWord::AudioDetectionTask() {
 
     ESP_LOGI(TAG, "Audio detection task started, feed size: %d fetch size: %d", feed_size, fetch_size);
     ESP_LOGI(TAG, "Custom wake word: %s", CONFIG_CUSTOM_WAKE_WORD);
-
-    // 禁用wakenet，直接使用multinet检测自定义唤醒词
-    afe_iface_->disable_wakenet(afe_data_);
 
     while (true) {
         xEventGroupWaitBits(event_group_, DETECTION_RUNNING_EVENT, pdFALSE, pdTRUE, portMAX_DELAY);

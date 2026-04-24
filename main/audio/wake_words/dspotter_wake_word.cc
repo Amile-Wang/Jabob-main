@@ -191,7 +191,10 @@ void DSpotterWakeWord::Stop() {
 }
 
 size_t DSpotterWakeWord::GetFeedSize() {
-    return kFrameSample;
+    if (codec_ == nullptr) {
+        return kFrameSample;
+    }
+    return kFrameSample * codec_->input_channels();
 }
 
 void DSpotterWakeWord::EncodeWakeWordData() {
@@ -200,7 +203,8 @@ void DSpotterWakeWord::EncodeWakeWordData() {
         wake_word_opus_.clear();
     }
 
-    auto encoder = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
+    int channels = codec_ ? codec_->input_channels() : 1;
+    auto encoder = std::make_unique<OpusEncoderWrapper>(16000, channels, OPUS_FRAME_DURATION_MS);
     encoder->SetComplexity(0);
 
     for (auto& pcm : wake_word_pcm_) {

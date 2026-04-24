@@ -44,6 +44,9 @@ void AudioService::Initialize(AudioCodec* codec) {
     codec_ = codec;
     codec_->Start();
 
+    // Suppress verbose esp-sr AFE warnings such as ringbuffer full during debug flows.
+    esp_log_level_set("AFE", ESP_LOG_ERROR);
+
     // 添加延迟确保 USB 设备完成枚举和采样率协商
     vTaskDelay(pdMS_TO_TICKS(2000));
 
@@ -119,6 +122,8 @@ void AudioService::Initialize(AudioCodec* codec) {
 
     opus_encoder_ = std::make_unique<OpusEncoderWrapper>(16000, 1, OPUS_FRAME_DURATION_MS);
     opus_encoder_->SetComplexity(0);
+    testing_opus_encoder_ = std::make_unique<OpusEncoderWrapper>(16000, codec_->input_channels(), OPUS_FRAME_DURATION_MS);
+    testing_opus_encoder_->SetComplexity(0);
 
     
     // 再添加一个延迟确保OPUS编码器初始化完成
@@ -396,7 +401,7 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
         }
 
         // 验证重采样结果
-        if (data.size() != samples) {
+        if (data.size() != static_cast<size_t>(samples)) {
             // 注释掉这行日志以避免互斥锁崩溃问题
             // ESP_LOGI(TAG, "Resampling size mismatch: expected %d, got %u", samples, data.size());
             // 改为条件性调试日志（仅在DEBUG模式下启用）
@@ -451,6 +456,91 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
                  (int)data.size(), 
                  *std::max_element(data.begin(), data.end()),
                  *std::min_element(data.begin(), data.end()));
+
+    }
+
+    if (codec_->input_channels() == 2 && (debug_statistics_.input_count % 50 == 0)) {
+        int64_t ch0_sum = 0;
+        int64_t ch1_sum = 0;
+        int32_t ch0_abs_sum = 0;
+        int32_t ch1_abs_sum = 0;
+        int16_t ch0_peak = 0;
+        int16_t ch1_peak = 0;
+        int16_t ch0_min = INT16_MAX;
+        int16_t ch0_max = INT16_MIN;
+        int16_t ch1_min = INT16_MAX;
+        int16_t ch1_max = INT16_MIN;
+        int32_t ch0_diff_sum = 0;
+        int32_t ch1_diff_sum = 0;
+        size_t frames = data.size() / 2;
+
+        for (size_t index = 0; index + 1 < data.size(); index += 2) {
+            int16_t ch0 = data[index];
+            int16_t ch1 = data[index + 1];
+            ch0_sum += ch0;
+            ch1_sum += ch1;
+            ch0_min = std::min(ch0_min, ch0);
+            ch0_max = std::max(ch0_max, ch0);
+            ch1_min = std::min(ch1_min, ch1);
+            ch1_max = std::max(ch1_max, ch1);
+        }
+
+        int32_t ch0_mean = frames > 0 ? static_cast<int32_t>(ch0_sum / static_cast<int64_t>(frames)) : 0;
+        int32_t ch1_mean = frames > 0 ? static_cast<int32_t>(ch1_sum / static_cast<int64_t>(frames)) : 0;
+
+        for (size_t index = 0; index + 1 < data.size(); index += 2) {
+            int32_t ch0_centered = static_cast<int32_t>(data[index]) - ch0_mean;
+            int32_t ch1_centered = static_cast<int32_t>(data[index + 1]) - ch1_mean;
+            int16_t ch0_abs = static_cast<int16_t>(std::min<int32_t>(INT16_MAX, std::abs(ch0_centered)));
+            int16_t ch1_abs = static_cast<int16_t>(std::min<int32_t>(INT16_MAX, std::abs(ch1_centered)));
+            ch0_abs_sum += ch0_abs;
+            ch1_abs_sum += ch1_abs;
+            ch0_peak = std::max(ch0_peak, ch0_abs);
+            ch1_peak = std::max(ch1_peak, ch1_abs);
+
+            if (index >= 2) {
+                int32_t prev_ch0_centered = static_cast<int32_t>(data[index - 2]) - ch0_mean;
+                int32_t prev_ch1_centered = static_cast<int32_t>(data[index - 1]) - ch1_mean;
+                ch0_diff_sum += std::abs(ch0_centered - prev_ch0_centered);
+                ch1_diff_sum += std::abs(ch1_centered - prev_ch1_centered);
+            }
+        }
+
+        int32_t ch0_avg = frames > 0 ? ch0_abs_sum / static_cast<int32_t>(frames) : 0;
+        int32_t ch1_avg = frames > 0 ? ch1_abs_sum / static_cast<int32_t>(frames) : 0;
+        int32_t ch0_avg_step = frames > 1 ? ch0_diff_sum / static_cast<int32_t>(frames - 1) : 0;
+        int32_t ch1_avg_step = frames > 1 ? ch1_diff_sum / static_cast<int32_t>(frames - 1) : 0;
+        const char* occlusion_hint = "balanced_or_quiet";
+
+        if (ch0_avg < 200 && ch1_avg < 200) {
+            occlusion_hint = "both_channels_quiet";
+        } else if ((ch1_max - ch1_min) < 8 || ch1_avg_step < 8) {
+            occlusion_hint = "\033[0;34mCH1\033[0m looks stuck or nearly constant";
+        } else if ((ch0_max - ch0_min) < 8 || ch0_avg_step < 8) {
+            occlusion_hint = "\033[0;34mCH0\033[0m looks stuck or nearly constant";
+        } else if (ch0_avg > ch1_avg * 2 && ch0_avg > 200) {
+            occlusion_hint = "\033[0;34mCH1\033[0m likely blocked or weaker";
+        } else if (ch1_avg > ch0_avg * 2 && ch1_avg > 200) {
+            occlusion_hint = "\033[0;34mCH0\033[0m likely blocked or weaker";
+        }
+
+        ESP_LOGI(TAG,
+            "Stereo mic test: \033[0;34mCH0\033[0m mean=%ld avg=%ld peak=%d min=%d max=%d step=%ld | \033[0;34mCH1\033[0m mean=%ld avg=%ld peak=%d min=%d max=%d step=%ld | hint=%s",
+            static_cast<long>(ch0_mean),
+            static_cast<long>(ch0_avg),
+            ch0_peak,
+            ch0_min,
+            ch0_max,
+            static_cast<long>(ch0_avg_step),
+            static_cast<long>(ch1_mean),
+            static_cast<long>(ch1_avg),
+            ch1_peak,
+            ch1_min,
+            ch1_max,
+            static_cast<long>(ch1_avg_step),
+            occlusion_hint);
+        ESP_LOGI(TAG,
+            "Stereo mic test guide: if one channel stays near a fixed min/max or tiny step value, that channel is abnormal; otherwise block left then right mic and record whether \033[0;34mCH0\033[0m or \033[0;34mCH1\033[0m drops first");
     }
 
 #if CONFIG_USE_AUDIO_DEBUGGER
@@ -546,13 +636,8 @@ void AudioService::AudioInputTask() {
             continue;
         }
 
-        if (codec_->input_channels() == 2) {
-            auto mono_data = std::vector<int16_t>(data.size() / 2);
-            for (size_t i = 0, j = 0; i < mono_data.size(); ++i, j += 2) {
-                mono_data[i] = data[j];
-            }
-            data = std::move(mono_data);
-        }
+        const std::vector<int16_t>& testing_data = data;
+        const std::vector<int16_t>& processor_data = data;
 
         /* Used for audio testing in NetworkConfiguring mode by clicking the BOOT button */
         if (bits & AS_EVENT_AUDIO_TESTING_RUNNING) {
@@ -561,8 +646,8 @@ void AudioService::AudioInputTask() {
                 EnableAudioTesting(false);
                 continue;
             }
-            int samples = OPUS_FRAME_DURATION_MS * 16000 / 1000;
-            audio_testing_buffer.insert(audio_testing_buffer.end(), data.begin(), data.end());
+            int samples = OPUS_FRAME_DURATION_MS * 16000 / 1000 * codec_->input_channels();
+            audio_testing_buffer.insert(audio_testing_buffer.end(), testing_data.begin(), testing_data.end());
             while (audio_testing_buffer.size() >= static_cast<size_t>(samples)) {
                 auto task = std::make_unique<AudioTask>();
                 task->type = kAudioTaskTypeEncodeToTestingQueue;
@@ -575,12 +660,13 @@ void AudioService::AudioInputTask() {
             }
         }
 
-#if CONFIG_USE_WAKE_WORD
+#if CONFIG_USE_AFE_WAKE_WORD || CONFIG_USE_ESP_WAKE_WORD || CONFIG_USE_CUSTOM_WAKE_WORD || CONFIG_USE_DSPOTTER_WAKE_WORD
         /* Used for wake word detection */
         if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
             if (!wake_word_) {
                 continue;
             }
+            const std::vector<int16_t>& wake_word_data = data;
 #if CONFIG_USE_DSPOTTER_WAKE_WORD
             EventBits_t current_bits = xEventGroupGetBits(event_group_);
             if (current_bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
@@ -606,7 +692,7 @@ void AudioService::AudioInputTask() {
             }
 #endif
             int samples = wake_word_->GetFeedSize();
-            wake_word_buffer.insert(wake_word_buffer.end(), data.begin(), data.end());
+            wake_word_buffer.insert(wake_word_buffer.end(), wake_word_data.begin(), wake_word_data.end());
             while (wake_word_buffer.size() >= static_cast<size_t>(samples)) {
                 std::vector<int16_t> wake_word_chunk(wake_word_buffer.begin(), wake_word_buffer.begin() + samples);
                 wake_word_->Feed(wake_word_chunk);
@@ -619,7 +705,7 @@ void AudioService::AudioInputTask() {
         /* Used for audio processor */
         if (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
             int samples = audio_processor_->GetFeedSize();
-            audio_processor_buffer.insert(audio_processor_buffer.end(), data.begin(), data.end());
+            audio_processor_buffer.insert(audio_processor_buffer.end(), processor_data.begin(), processor_data.end());
             while (audio_processor_buffer.size() >= static_cast<size_t>(samples)) {
                 std::vector<int16_t> processor_chunk(audio_processor_buffer.begin(), audio_processor_buffer.begin() + samples);
                 audio_processor_->Feed(std::move(processor_chunk));
@@ -760,7 +846,13 @@ void AudioService::OpusCodecTask() {
             packet->frame_duration = OPUS_FRAME_DURATION_MS;
             packet->sample_rate = 16000;
             packet->timestamp = task->timestamp;
-            if (!opus_encoder_->Encode(std::move(task->pcm), packet->payload)) {
+
+            OpusEncoderWrapper* encoder = opus_encoder_.get();
+            if (task->type == kAudioTaskTypeEncodeToTestingQueue && testing_opus_encoder_) {
+                encoder = testing_opus_encoder_.get();
+            }
+
+            if (!encoder->Encode(std::move(task->pcm), packet->payload)) {
                 ESP_LOGE(TAG, "Failed to encode audio");
                 continue;
             }

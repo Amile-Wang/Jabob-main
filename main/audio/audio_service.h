@@ -128,6 +128,7 @@ private:
     std::unique_ptr<WakeWord> wake_word_;
     std::unique_ptr<AudioDebugger> audio_debugger_;
     std::unique_ptr<OpusEncoderWrapper> opus_encoder_;
+    std::unique_ptr<OpusEncoderWrapper> testing_opus_encoder_;
     std::unique_ptr<OpusDecoderWrapper> opus_decoder_;
     OpusResampler input_resampler_;
     OpusResampler reference_resampler_;

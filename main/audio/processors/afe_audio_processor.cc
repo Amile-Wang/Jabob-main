@@ -48,10 +48,11 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
         ESP_LOGW(TAG, "Model partition not present, skip esp-sr model loading and use AFE defaults");
     }
     
-    afe_config_t* afe_config = afe_config_init(input_format.c_str(), NULL, AFE_TYPE_VC, AFE_MODE_HIGH_PERF);
-    afe_config->aec_mode = AEC_MODE_VOIP_HIGH_PERF;
+    afe_config_t* afe_config = afe_config_init(input_format.c_str(), models, AFE_TYPE_SR, AFE_MODE_HIGH_PERF);
+    afe_config->aec_mode = AEC_MODE_SR_HIGH_PERF;
     afe_config->vad_mode = VAD_MODE_0;
     afe_config->vad_min_noise_ms = 100;
+    afe_config->se_init = (codec_->input_channels() > 1);
     if (vad_model_name != nullptr) {
         afe_config->vad_model_name = vad_model_name;
     }
@@ -76,6 +77,25 @@ void AfeAudioProcessor::Initialize(AudioCodec* codec, int frame_duration_ms) {
     afe_config->aec_init = false;
     afe_config->vad_init = true;
 #endif
+
+    if (codec_->input_reference()) {
+        afe_config->aec_init = true;
+    }
+
+    ESP_LOGI(TAG,
+        "AFE init verdict: input_format=%s, input_channels=%d, ref_channels=%d, afe_type=SR, se_init=%d, aec_init=%d, vad_init=%d, ns_init=%d, models=%s",
+        input_format.c_str(),
+        codec_->input_channels(),
+        ref_num,
+        afe_config->se_init,
+        afe_config->aec_init,
+        afe_config->vad_init,
+        afe_config->ns_init,
+        models != nullptr ? "loaded" : "default");
+    if (codec_->input_channels() == 2) {
+        ESP_LOGI(TAG,
+            "Stereo mic test enabled: observe AudioService stereo test logs and alternately block the two microphones to map CH0/CH1 to physical left/right");
+    }
 
     // 配置AFE使用CPU 1进行处理
     afe_config->afe_perferred_core = 1;
@@ -103,7 +123,7 @@ size_t AfeAudioProcessor::GetFeedSize() {
     if (!afe_data_) {
         return 0;
     }
-    return afe_iface_->get_feed_chunksize(afe_data_);
+    return afe_iface_->get_feed_chunksize(afe_data_) * codec_->input_channels();
 }
 
 void AfeAudioProcessor::Start() {

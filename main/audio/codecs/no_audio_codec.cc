@@ -1,6 +1,7 @@
 #include "no_audio_codec.h"
 
 #include <esp_log.h>
+#include <algorithm>
 #include <cmath>
 #include <cstring>
 
@@ -286,6 +287,7 @@ NoAudioCodecSimplexI2sPdm::NoAudioCodecSimplexI2sPdm(int input_sample_rate, int 
     duplex_ = false;
     input_sample_rate_ = input_sample_rate;
     output_sample_rate_ = output_sample_rate;
+    input_channels_ = 2;
 
     // Create a new channel for speaker in I2S standard mode
     i2s_chan_config_t tx_chan_cfg = I2S_CHANNEL_DEFAULT_CONFIG((i2s_port_t)1, I2S_ROLE_MASTER);
@@ -334,7 +336,7 @@ NoAudioCodecSimplexI2sPdm::NoAudioCodecSimplexI2sPdm(int input_sample_rate, int 
     i2s_pdm_rx_config_t pdm_rx_cfg = {
         .clk_cfg = I2S_PDM_RX_CLK_DEFAULT_CONFIG((uint32_t)input_sample_rate_),
         /* The data bit-width of PDM mode is fixed to 16 */
-        .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_MONO),
+        .slot_cfg = I2S_PDM_RX_SLOT_DEFAULT_CONFIG(I2S_DATA_BIT_WIDTH_16BIT, I2S_SLOT_MODE_STEREO),
         .gpio_cfg = {
             .clk = mic_sck,
             .din = mic_din,
@@ -343,11 +345,12 @@ NoAudioCodecSimplexI2sPdm::NoAudioCodecSimplexI2sPdm(int input_sample_rate, int 
             },
         },
     };
+    pdm_rx_cfg.slot_cfg.slot_mask = I2S_PDM_SLOT_BOTH;
     ESP_ERROR_CHECK(i2s_channel_init_pdm_rx_mode(rx_handle_, &pdm_rx_cfg));
 #else
     ESP_LOGE(TAG, "PDM is not supported");
 #endif
-    ESP_LOGI(TAG, "Simplex I2S/PDM channels created");
+    ESP_LOGI(TAG, "Simplex I2S/PDM stereo input channels created, slot_mask=0x%x", pdm_rx_cfg.slot_cfg.slot_mask);
 }
 
 int NoAudioCodecSimplexI2sPdm::Read(int16_t* dest, int samples) {
@@ -360,7 +363,47 @@ int NoAudioCodecSimplexI2sPdm::Read(int16_t* dest, int samples) {
     }
 
     // 计算实际读取的样本数
-    return bytes_read / sizeof(int16_t);
+    int actual_samples = bytes_read / sizeof(int16_t);
+
+    static uint32_t read_counter = 0;
+    ++read_counter;
+    if (actual_samples >= 4 && (read_counter % 100) == 0) {
+        int16_t even_min = INT16_MAX;
+        int16_t even_max = INT16_MIN;
+        int16_t odd_min = INT16_MAX;
+        int16_t odd_max = INT16_MIN;
+        int32_t even_step_sum = 0;
+        int32_t odd_step_sum = 0;
+        size_t frames = actual_samples / 2;
+
+        for (int index = 0; index + 1 < actual_samples; index += 2) {
+            int16_t even_sample = dest[index];
+            int16_t odd_sample = dest[index + 1];
+            even_min = std::min(even_min, even_sample);
+            even_max = std::max(even_max, even_sample);
+            odd_min = std::min(odd_min, odd_sample);
+            odd_max = std::max(odd_max, odd_sample);
+
+            if (index >= 2) {
+                even_step_sum += std::abs(static_cast<int32_t>(even_sample) - static_cast<int32_t>(dest[index - 2]));
+                odd_step_sum += std::abs(static_cast<int32_t>(odd_sample) - static_cast<int32_t>(dest[index - 1]));
+            }
+        }
+
+        int32_t even_avg_step = frames > 1 ? even_step_sum / static_cast<int32_t>(frames - 1) : 0;
+        int32_t odd_avg_step = frames > 1 ? odd_step_sum / static_cast<int32_t>(frames - 1) : 0;
+        ESP_LOGI(TAG,
+            "Raw PDM stereo diagnostic: even[min=%d max=%d step=%ld] odd[min=%d max=%d step=%ld] samples=%d",
+            even_min,
+            even_max,
+            static_cast<long>(even_avg_step),
+            odd_min,
+            odd_max,
+            static_cast<long>(odd_avg_step),
+            actual_samples);
+    }
+
+    return actual_samples;
 }
 
 
