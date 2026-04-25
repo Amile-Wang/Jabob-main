@@ -467,6 +467,9 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                         if (codec->input_channels_ > 1) {
                             ESP_LOGD(TAG, "STEREO CHANNELS (assuming LRLR):");
                             ESP_LOGD(TAG, "  Left:  [%d, %d, %d, %d]", 
+                        if (codec->usb_channels_ > 1) {
+                            ESP_LOGI(TAG, "STEREO CHANNELS (assuming LRLR):");
+                            ESP_LOGI(TAG, "  Left:  [%d, %d, %d, %d]", 
                                     raw_samples[0], raw_samples[2], raw_samples[4], raw_samples[6]);
                             ESP_LOGD(TAG, "  Right: [%d, %d, %d, %d]", 
                                     raw_samples[1], raw_samples[3], raw_samples[5], raw_samples[7]);
@@ -478,7 +481,7 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
 
                     // 关键修改：如果是立体声（2通道），只保留左声道（偶数索引）的数据
                     size_t actual_samples_to_add = samples_read;
-                    if (codec->input_channels_ > 1) {
+                    if (codec->usb_channels_ > 1) {
                         // 立体声模式：只取左声道（每2个样本取1个）
                         actual_samples_to_add = samples_read / 2;
                     }
@@ -512,7 +515,7 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                         if (codec->device_bit_depth_ == 16) {
                             // 16-bit设备，直接复制
                             const int16_t* src_samples = reinterpret_cast<const int16_t*>(temp_buffer);
-                            if (codec->input_channels_ == 1) {
+                            if (codec->usb_channels_ == 1) {
                                 // 单声道：直接复制所有样本
                                 for (size_t i = 0; i < samples_to_add; i++) {
                                     converted_samples[i] = src_samples[i];
@@ -526,7 +529,7 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                         } else if (codec->device_bit_depth_ == 24) {
                             // 24-bit设备，转换为16-bit
                             // 24-bit音频数据通常以3字节小端序存储
-                            if (codec->input_channels_ == 1) {
+                            if (codec->usb_channels_ == 1) {
                                 // 单声道24-bit
                                 for (size_t i = 0; i < samples_to_add; i++) {
                                     // 从3字节24-bit数据中提取值
@@ -566,7 +569,7 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                         } else {
                             // 未知位深，按16-bit处理
                             const int16_t* src_samples = reinterpret_cast<const int16_t*>(temp_buffer);
-                            if (codec->input_channels_ == 1) {
+                            if (codec->usb_channels_ == 1) {
                                 for (size_t i = 0; i < samples_to_add; i++) {
                                     converted_samples[i] = src_samples[i];
                                 }
@@ -773,12 +776,13 @@ esp_err_t HybridUsbI2sCodec::OpenUsbMicrophone() {
         device_bit_depth_ = 16;
     }
 
-    // 关键：同步 input_channels_ 到设备实际通道数。
-    // 否则回调里所有 input_channels_>1 的判断都会走单声道分支，
-    // 立体声麦克风的 LRLR 数据会被当成 mono 整段塞进 buffer，
-    // 造成样本时序翻倍、缓冲区频繁溢出、上层重采样错乱。
-    input_channels_ = alt_params.channels;
-    ESP_LOGI(TAG, "Updated input_channels_ to %d (from device alt_params)", input_channels_);
+    // 关键：记录 USB 物理通道数到私有成员，用于回调里 stereo→mono 提取。
+    // 但 input_channels_（暴露给上层）必须保持 1，因为本 codec 已经做了
+    // stereo→mono 转换，对外吐出的就是 mono；如果改为 2，AudioService
+    // 会以为数据是 LR 交错再拆一次，把 mono 当 stereo 处理 → 时序翻倍错乱。
+    usb_channels_ = (uint8_t)alt_params.channels;
+    ESP_LOGI(TAG, "USB physical channels: %d (codec output stays mono, input_channels_=%d)",
+             usb_channels_, input_channels_);
 
     // 预分配回调里复用的 USB 读取缓冲，避免每次回调 malloc/free
     constexpr size_t kRxScratchBytes = 4096 * 3;  // 兼容 24-bit 最坏情况
