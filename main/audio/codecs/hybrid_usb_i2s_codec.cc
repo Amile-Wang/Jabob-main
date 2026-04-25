@@ -467,9 +467,6 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                         if (codec->input_channels_ > 1) {
                             ESP_LOGD(TAG, "STEREO CHANNELS (assuming LRLR):");
                             ESP_LOGD(TAG, "  Left:  [%d, %d, %d, %d]", 
-                        if (codec->usb_channels_ > 1) {
-                            ESP_LOGI(TAG, "STEREO CHANNELS (assuming LRLR):");
-                            ESP_LOGI(TAG, "  Left:  [%d, %d, %d, %d]", 
                                     raw_samples[0], raw_samples[2], raw_samples[4], raw_samples[6]);
                             ESP_LOGD(TAG, "  Right: [%d, %d, %d, %d]", 
                                     raw_samples[1], raw_samples[3], raw_samples[5], raw_samples[7]);
