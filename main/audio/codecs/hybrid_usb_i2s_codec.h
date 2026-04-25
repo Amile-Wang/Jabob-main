@@ -5,6 +5,7 @@
 #include <usb/usb_host.h>
 #include "usb/uac_host.h"
 #include <deque>
+#include <vector>
 
 // USB音频缓冲区大小定义
 #define USB_AUDIO_BUFFER_SIZE  (16 * 1024)  // 调整为16KB，支持48kHz采样率和60ms帧长
@@ -81,6 +82,9 @@ private:
 
     // 新增：设备位深信息
     uint8_t device_bit_depth_ = 16;  // 默认16位，从设备能力中获取
+
+    // 回调内复用的 USB 读取临时缓冲（避免每次回调 malloc/free）
+    std::vector<uint8_t> rx_scratch_;
 
     // 统计信息
     uint32_t usb_read_count_;       // USB读取次数

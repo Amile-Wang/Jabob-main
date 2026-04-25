@@ -424,14 +424,13 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
             if (codec->uac_rx_device_ != nullptr && codec->input_enabled_) {
                 ESP_LOGD(TAG, "Starting USB data read in callback...");
 
-                // 计算缓冲区大小：基于最大可能的位深（24-bit）来分配
-                const size_t max_bytes_per_sample = 3; // 24-bit = 3 bytes
-                const size_t temp_read_size = 4096 * max_bytes_per_sample; // 足够大的缓冲区
-                uint8_t* temp_buffer = (uint8_t*)malloc(temp_read_size);
-                if (temp_buffer == nullptr) {
-                    ESP_LOGE(TAG, "Failed to allocate temp buffer in callback");
+                // 使用成员持有的 scratch，避免每次回调 malloc/free（OpenUsbMicrophone 已预分配）
+                if (codec->rx_scratch_.empty()) {
+                    ESP_LOGE(TAG, "rx_scratch_ not initialized, skipping callback read");
                     return;
                 }
+                uint8_t* temp_buffer = codec->rx_scratch_.data();
+                const size_t temp_read_size = codec->rx_scratch_.size();
                 uint32_t bytes_read = 0;
 
                 // 使用0超时，立即读取（与官方示例一致）
@@ -477,33 +476,34 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                     // 将数据添加到应用缓冲区（统一转换为16-bit）
                     std::lock_guard<std::mutex> lock(codec->buffer_mutex_);
 
-                    // 检查缓冲区空间
-                    size_t free_space = codec->buffer_capacity_ - codec->usb_audio_buffer_.size();
-                    
                     // 关键修改：如果是立体声（2通道），只保留左声道（偶数索引）的数据
                     size_t actual_samples_to_add = samples_read;
                     if (codec->input_channels_ > 1) {
                         // 立体声模式：只取左声道（每2个样本取1个）
                         actual_samples_to_add = samples_read / 2;
                     }
+
+                    size_t free_space = codec->buffer_capacity_ - codec->usb_audio_buffer_.size();
+
+                    // 缓冲区不够：先丢弃旧数据腾空间，再按当前 free_space 重新算 samples_to_add
+                    if (actual_samples_to_add > free_space) {
+                        codec->buffer_overflowed_ = true;
+                        codec->usb_overflow_count_++;
+
+                        size_t keep_size = codec->buffer_capacity_ / 2;
+                        ESP_LOGD(TAG, "Buffer overflow! Dropping old data, keeping %u samples",
+                                (unsigned int)keep_size);
+
+                        while (codec->usb_audio_buffer_.size() > keep_size) {
+                            codec->usb_audio_buffer_.pop_front();
+                        }
+                        free_space = codec->buffer_capacity_ - codec->usb_audio_buffer_.size();
+                    }
+
                     size_t samples_to_add = std::min(actual_samples_to_add, free_space);
 
                     ESP_LOGD(TAG, "Buffer capacity: %zu, Free space: %zu, Samples to add: %zu (original: %zu)",
                             codec->buffer_capacity_, free_space, samples_to_add, samples_read);
-
-                    if (samples_to_add < actual_samples_to_add) {
-                        // 缓冲区空间不足，丢弃旧数据
-                        codec->buffer_overflowed_ = true;
-                        codec->usb_overflow_count_++;
-
-                        ESP_LOGD(TAG, "Buffer overflow! Dropping old data, keeping %u samples",
-                                (unsigned int)(codec->buffer_capacity_ / 2));
-
-                        size_t keep_size = codec->buffer_capacity_ / 2;
-                        while (codec->usb_audio_buffer_.size() > keep_size) {
-                            codec->usb_audio_buffer_.pop_front();
-                        }
-                    }
 
                     // 转换并添加新数据（统一为16-bit），同时处理立体声到单声道的转换
                     if (samples_to_add > 0) {
@@ -592,9 +592,6 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                 } else if (ret != ESP_OK) {
                     ESP_LOGW(TAG, "USB read failed in callback: %s", esp_err_to_name(ret));
                 }
-
-                // 释放临时缓冲区
-                free(temp_buffer);
             } else {
                 ESP_LOGW(TAG, "RX_DONE event but cannot read - Device: %p, Input enabled: %s",
                         codec->uac_rx_device_, codec->input_enabled_ ? "YES" : "NO");
@@ -774,6 +771,19 @@ esp_err_t HybridUsbI2sCodec::OpenUsbMicrophone() {
     if (device_bit_depth_ != 16 && device_bit_depth_ != 24) {
         ESP_LOGW(TAG, "Unsupported bit depth: %d, falling back to 16-bit", device_bit_depth_);
         device_bit_depth_ = 16;
+    }
+
+    // 关键：同步 input_channels_ 到设备实际通道数。
+    // 否则回调里所有 input_channels_>1 的判断都会走单声道分支，
+    // 立体声麦克风的 LRLR 数据会被当成 mono 整段塞进 buffer，
+    // 造成样本时序翻倍、缓冲区频繁溢出、上层重采样错乱。
+    input_channels_ = alt_params.channels;
+    ESP_LOGI(TAG, "Updated input_channels_ to %d (from device alt_params)", input_channels_);
+
+    // 预分配回调里复用的 USB 读取缓冲，避免每次回调 malloc/free
+    constexpr size_t kRxScratchBytes = 4096 * 3;  // 兼容 24-bit 最坏情况
+    if (rx_scratch_.size() != kRxScratchBytes) {
+        rx_scratch_.assign(kRxScratchBytes, 0);
     }
     
     // 智能选择最佳采样率
