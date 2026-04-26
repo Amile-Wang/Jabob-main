@@ -1,0 +1,68 @@
+I (1097) uac-host: Install Succeed, Version: 1.3.3
+I (1097) HybridUsbI2sCodec: USB Host and UAC driver initialized
+D (1107) i2s_common: tx channel is registered on I2S1 successfully
+I (1107) HybridUsbI2sCodec: Configuring I2S with sample rate: 16000Hz
+D (1117) i2s_common: DMA malloc info: dma_desc_num = 12, dma_desc_buf_size = dma_frame_num * slot_num * data_bit_width = 3840
+D (1127) i2s_std: Clock division info: [sclk] 160000000 Hz [mdiv] 39 [mclk] 4096000 Hz [bdiv] 4 [bclk] 1024000 Hz
+D (1137) i2s_std: The tx channel on I2S1 has been initialized to STD mode successfully
+I (1147) HybridUsbI2sCodec: I2S speaker initialized successfully - Sample Rate: 16000Hz
+I (1157) HybridUsbI2sCodec: Waiting for USB audio device connection (5 seconds timeout)...     
+I (1157) HybridUsbI2sCodec: Troubleshooting:
+I (1167) HybridUsbI2sCodec:   1. Ensure USB microphone is properly connected
+I (1167) HybridUsbI2sCodec:   2. Check USB cable supports data transfer (not power-only)
+I (1177) HybridUsbI2sCodec:   3. Try a different USB port if available
+I (1187) HybridUsbI2sCodec:   4. Ensure adequate power supply to the device
+I (1187) HybridUsbI2sCodec: Performing USB pre-enumeration check...
+I (1477) HybridUsbI2sCodec: UAC RX device connected - Addr: 1, Iface: 1
+I (1477) HybridUsbI2sCodec: USB microphone connected (Addr: 1, Iface: 1)
+I (1477) HybridUsbI2sCodec: Opening USB microphone with dynamic sample rate detection...       
+D (1487) uac-host: Open Device addr 1, iface 1
+D (1487) uac-host: line 2094, Open Device addr 1
+D (1497) uac-host: Found UAC Control, bInterfaceNumber=0
+D (1497) uac-host: UAC version 0x0100
+D (1497) uac-host: Found UAC bInterfaceNumber= 1, bAlternateSetting= 1
+D (1507) uac-host: UAC AS Format Type 1, Bit Resolution 16, Sample Freq Type 1
+D (1517) uac-host: Output Terminal last linked unit ID 7
+D (1517) uac-host: Output Terminal last linked unit ID 5
+D (1527) uac-host: UAC Unknown Descriptor Subtype 63
+D (1527) uac-host: Output Terminal last linked unit ID 0
+D (1537) uac-host: UAC Endpoint 0x03, Max Packet Size 96, Attributes 0x05, Interval 1
+D (1537) uac-host: UAC EP General, Attributes 0x00
+D (1547) uac-host: UAC EP Frequency Control 0
+D (1547) uac-host: UAC Interface 1, found total alternate 1
+I (1557) HybridUsbI2sCodec: USB device supports the following sample rates:
+I (1567) HybridUsbI2sCodec:   - 48000 Hz
+I (1567) HybridUsbI2sCodec: Device capabilities - Channels: 1, Bit Resolution: 16, Format Type: 1
+I (1577) HybridUsbI2sCodec: Selected optimal sample rate: 48000 Hz
+D (1577) uac-host: 0x3fce0464   01 0b 01 00 01 00 00 00                           |........|   
+I (1587) uac-host: Resume Interface 1-1
+I (1597) HybridUsbI2sCodec: USB microphone opened and started successfully at 48000Hz!
+I (1597) HybridUsbI2sCodec: USB microphone input enabled with direct callback reading mode     
+I (1607) HybridUsbI2sCodec: Performing initial USB device status check...
+I (1617) HybridUsbI2sCodec: === USB Device Status Check ===
+I (1617) HybridUsbI2sCodec: UAC RX Device: OK (Addr: 1, Iface: 1)
+I (1627) HybridUsbI2sCodec: USB Devices found: 1
+I (1627) HybridUsbI2sCodec:   Device 0: Address 1
+I (1637) HybridUsbI2sCodec: Audio Buffer: 0/8192 samples (0.0%)
+I (1637) HybridUsbI2sCodec: Statistics - USB reads: 0, Overflows: 0, Processed: 0
+I (1647) HybridUsbI2sCodec: === End USB Device Status Check ===
+I (1657) HybridUsbI2sCodec: USB monitor task started (direct callback reading mode enabled)
+I (1657) HybridUsbI2sCodec: USB Task Initial State - Device ready: YES, Input enabled: YES, UAC device: 0x3fce04a8
+I (1667) HybridUsbI2sCodec: USB monitor task created for statistics and monitoring
+I (1677) HybridUsbI2sCodec: I2S speaker output enabled
+D (1687) i2s_common: i2s tx channel enabled
+I (1687) HybridUsbI2sCodec: I2S channel enabled
+I (1687) HybridUsbI2sCodec: Hybrid USB-I2S Audio codec started with async mode - Input: enabled, Output: enabled
+I (3697) AudioService: Initial codec sample rates - Input: 48000Hz, Output: 16000Hz
+I (3697) AudioService: Output sample rate validated: 16000Hz
+I (3697) AudioService: Input sample rate validated: 48000Hz
+I (3697) AudioService: Opus decoder created successfully with 16000Hz
+I (3707) AudioService: Output sample rate locked to 16000Hz (prevents rollback)
+I (5717) AudioService: Input resampler will be configured on first read: 48000Hz -> 16kHz
+I (5717) pp: pp rom version: e7ae62f
+I (5717) net80211: net80211 rom version: e7ae62f
+I (5727) wifi:wifi driver task: 3fce9390, prio:23, stack:6144, core=0
+I (5727) wifi:wifi firmware version: e8ce6e2
+I (5727) wifi:wifi certification version: v7.0
+I (5727) wifi:config NVS flash: disabled
+I (5737) wifi:co

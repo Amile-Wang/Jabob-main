@@ -55,6 +55,7 @@ std::unique_ptr<Http> Ota::SetupHttp() {
 
     auto network = board.GetNetwork();
     auto http = network->CreateHttp(0);
+    http->SetTimeout(60000); // 增加超时时间到60秒，解决HTTPS握手超时问题
     http->SetHeader("Activation-Version", has_serial_number_ ? "2" : "1");
     http->SetHeader("Device-Id", SystemInfo::GetMacAddress().c_str());
     http->SetHeader("Client-Id", board.GetUuid());

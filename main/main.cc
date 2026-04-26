@@ -32,6 +32,11 @@ static int custom_vprintf(const char *fmt, va_list args) {
 }
 extern "C" void app_main(void)
 {
+    // 设置ML307相关组件的日志级别为INFO，用于调试HTTPS SSL问题
+    esp_log_level_set("AtUart", ESP_LOG_INFO);
+    esp_log_level_set("Ml307Ssl", ESP_LOG_INFO);
+    esp_log_level_set("HttpClient", ESP_LOG_INFO);
+    
     // Initialize the default event loop
     ESP_ERROR_CHECK(esp_event_loop_create_default());
 

@@ -233,7 +233,7 @@ void AudioService::Start() {
         AudioService* audio_service = (AudioService*)arg;
         audio_service->OpusCodecTask();
         vTaskDelete(NULL);
-    }, "opus_codec", 8192 * 4, this, 2, &opus_codec_task_handle_); // 增加栈大小到32KB以解决栈溢出问题
+    }, "opus_codec", 8192 * 4, this, 10, &opus_codec_task_handle_); // 增加栈大小到32KB以解决栈溢出问题
 }
 
 void AudioService::Stop() {
@@ -664,6 +664,10 @@ void AudioService::AudioOutputTask() {
             break;
         }
 
+        // Log queue status before playback
+        ESP_LOGI(TAG, "Playback: playback_queue=%u/%d", 
+                 (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
+        
         auto task = std::move(audio_playback_queue_.front());
         audio_playback_queue_.pop_front();
         audio_queue_cv_.notify_all();
@@ -713,8 +717,19 @@ void AudioService::OpusCodecTask() {
         if (!audio_decode_queue_.empty() && audio_playback_queue_.size() < MAX_PLAYBACK_TASKS_IN_QUEUE) {
             auto packet = std::move(audio_decode_queue_.front());
             audio_decode_queue_.pop_front();
+            // Log queue status before decoding
+            ESP_LOGI(TAG, "Decode: decode_queue=%u, playback_queue=%u/%d", 
+                     (unsigned int)audio_decode_queue_.size(), (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
             audio_queue_cv_.notify_all();
             lock.unlock();
+
+            // 检查 start_to_speak 标志位，如果为 true 则延迟 300ms
+            if (start_to_speak_) {
+                ESP_LOGI(TAG, "Start to speak detected, delaying decode by 300ms");
+                vTaskDelay(pdMS_TO_TICKS(300));
+                start_to_speak_ = false;  // 重置标志位
+                ESP_LOGI(TAG, "Decode delay completed, flag reset");
+            }
 
             auto task = std::make_unique<AudioTask>();
             task->type = kAudioTaskTypeDecodeToPlaybackQueue;
@@ -722,6 +737,9 @@ void AudioService::OpusCodecTask() {
 
             SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
             if (opus_decoder_->Decode(std::move(packet->payload), task->pcm)) {
+                ESP_LOGI(TAG, "Decoded audio frame - Input samples: %zu, Sample rate: %dHz, Frame duration: %dms", 
+                         task->pcm.size(), opus_decoder_->sample_rate(), opus_decoder_->duration_ms());
+                
                 // Resample if the sample rate is different
                 int output_sample_rate = codec_->output_sample_rate();
                 if (opus_decoder_->sample_rate() != output_sample_rate) {
@@ -730,8 +748,9 @@ void AudioService::OpusCodecTask() {
                         std::vector<int16_t> resampled(target_size);
                         output_resampler_.Process(task->pcm.data(), task->pcm.size(), resampled.data());
                         task->pcm = std::move(resampled);
-                        ESP_LOGD(TAG, "Resampled audio from %dHz to %dHz",
-                                 opus_decoder_->sample_rate(), output_sample_rate);
+                        ESP_LOGI(TAG, "Resampled audio from %dHz to %dHz, samples: %d -> %d",
+                                 opus_decoder_->sample_rate(), output_sample_rate, 
+                                 task->pcm.size() - (target_size - task->pcm.size()), target_size);
                     } else if (output_sample_rate == 0) {
                         ESP_LOGW(TAG, "Output sample rate is 0, using decoder sample rate: %dHz",
                                  opus_decoder_->sample_rate());
@@ -741,6 +760,9 @@ void AudioService::OpusCodecTask() {
 
                 lock.lock();
                 audio_playback_queue_.push_back(std::move(task));
+                // Log queue status after adding to playback queue
+                ESP_LOGI(TAG, "Added to playback: decode_queue=%u, playback_queue=%u/%d", 
+                         (unsigned int)audio_decode_queue_.size(), (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
                 audio_queue_cv_.notify_all();
             } else {
                 ESP_LOGE(TAG, "Failed to decode audio");
@@ -875,10 +897,16 @@ bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> pa
         if (wait) {
             audio_queue_cv_.wait(lock, [this]() { return audio_decode_queue_.size() < MAX_DECODE_PACKETS_IN_QUEUE; });
         } else {
+            ESP_LOGI(TAG, "Decode queue full (%u/%d), dropping packet", 
+                     (unsigned int)audio_decode_queue_.size(), MAX_DECODE_PACKETS_IN_QUEUE);
             return false;
         }
     }
     audio_decode_queue_.push_back(std::move(packet));
+    // Log network receive status
+    ESP_LOGI(TAG, "Network received: decode_queue=%u/%d, playback_queue=%u/%d", 
+             (unsigned int)audio_decode_queue_.size(), MAX_DECODE_PACKETS_IN_QUEUE,
+             (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
     audio_queue_cv_.notify_all();
     return true;
 }
@@ -990,6 +1018,7 @@ void AudioService::PlaySound(const std::string_view& sound) {
 
         auto payload_size = ntohs(p3->payload_size);
         auto packet = std::make_unique<AudioStreamPacket>();
+        // 保持原有的16000Hz假设，因为提示音文件确实是16000Hz编码的
         packet->sample_rate = 16000;
         packet->frame_duration = 60;
         packet->payload.resize(payload_size);
