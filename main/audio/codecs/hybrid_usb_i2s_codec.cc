@@ -356,6 +356,8 @@ int HybridUsbI2sCodec::Write(const int16_t* data, int samples) {
         return 0;
     }
 
+    ESP_LOGD(TAG, "Writing %d samples to I2S at %dHz", samples, output_sample_rate_);
+
     std::vector<int32_t> buffer(samples);
     int32_t volume_factor = static_cast<int32_t>(pow(double(output_volume_) / 100.0, 2) * 65536);
     for (int i = 0; i < samples; ++i) {
@@ -372,7 +374,9 @@ int HybridUsbI2sCodec::Write(const int16_t* data, int samples) {
     size_t bytes_written = 0;
     esp_err_t ret = i2s_channel_write(i2s_tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, pdMS_TO_TICKS(100));
     if (ret == ESP_OK && bytes_written > 0) {
-        return bytes_written / sizeof(int32_t);
+        int samples_written = bytes_written / sizeof(int32_t);
+        ESP_LOGD(TAG, "Successfully wrote %d samples to I2S", samples_written);
+        return samples_written;
     } else if (ret == ESP_ERR_TIMEOUT) {
         ESP_LOGD(TAG, "I2S write timeout, samples: %d", samples);
         return 0;
@@ -410,22 +414,23 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
 
     switch (event) {
         case UAC_HOST_DEVICE_EVENT_RX_DONE:
-            ESP_LOGD(TAG, "RX_DONE event triggered - Device ready: %s, Input enabled: %s",
+            ESP_LOGD(TAG, "RX_DONE event triggered - Device ready: %s, Input enabled: %s, Bit depth: %d",
                     codec->usb_microphone_ready_ ? "YES" : "NO",
-                    codec->input_enabled_ ? "YES" : "NO");
+                    codec->input_enabled_ ? "YES" : "NO",
+                    codec->device_bit_depth_);
 
             // 修复：直接在回调中读取USB数据（参考官方示例）
             // 避免通过队列延迟导致的读取失败问题
             if (codec->uac_rx_device_ != nullptr && codec->input_enabled_) {
                 ESP_LOGD(TAG, "Starting USB data read in callback...");
 
-                // 使用动态分配的缓冲区（避免栈溢出，与官方示例一致）
-                const size_t temp_read_size = 4096*2;
-                uint8_t* temp_buffer = (uint8_t*)malloc(temp_read_size);
-                if (temp_buffer == nullptr) {
-                    ESP_LOGE(TAG, "Failed to allocate temp buffer in callback");
+                // 使用成员持有的 scratch，避免每次回调 malloc/free（OpenUsbMicrophone 已预分配）
+                if (codec->rx_scratch_.empty()) {
+                    ESP_LOGE(TAG, "rx_scratch_ not initialized, skipping callback read");
                     return;
                 }
+                uint8_t* temp_buffer = codec->rx_scratch_.data();
+                const size_t temp_read_size = codec->rx_scratch_.size();
                 uint32_t bytes_read = 0;
 
                 // 使用0超时，立即读取（与官方示例一致）
@@ -436,60 +441,157 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
                          esp_err_to_name(ret), bytes_read);
 
                 if (ret == ESP_OK && bytes_read > 0) {
-                    size_t samples_read = bytes_read / sizeof(int16_t);
-                    ESP_LOGD(TAG, "Samples read: %zu, Buffer size before: %zu",
-                            samples_read, codec->usb_audio_buffer_.size());
+                    // 根据设备位深计算实际样本数
+                    size_t samples_read = 0;
+                    if (codec->device_bit_depth_ == 16) {
+                        samples_read = bytes_read / sizeof(int16_t);
+                    } else if (codec->device_bit_depth_ == 24) {
+                        samples_read = bytes_read / 3; // 24-bit = 3 bytes per sample
+                    } else {
+                        // 未知位深，按16-bit处理
+                        samples_read = bytes_read / sizeof(int16_t);
+                        ESP_LOGW(TAG, "Unknown bit depth %d, processing as 16-bit", codec->device_bit_depth_);
+                    }
+                    
+                    ESP_LOGD(TAG, "Samples read: %zu (bit depth: %d), Buffer size before: %zu",
+                            samples_read, codec->device_bit_depth_, codec->usb_audio_buffer_.size());
 
-                    // 将数据添加到应用缓冲区
+                    // 打印原始数据以验证是否为LRLR格式（仅打印前16个样本用于调试）
+                    if (codec->device_bit_depth_ == 16 && samples_read >= 8) {
+                        const int16_t* raw_samples = reinterpret_cast<const int16_t*>(temp_buffer);
+                        ESP_LOGD(TAG, "RAW USB DATA (first 8 samples, LRLRLRLR format):");
+                        for (int i = 0; i < 8; i++) {
+                            ESP_LOGD(TAG, "  Sample[%d] = %d", i, raw_samples[i]);
+                        }
+                        // 如果是立体声，显示左右声道分离
+                        if (codec->input_channels_ > 1) {
+                            ESP_LOGD(TAG, "STEREO CHANNELS (assuming LRLR):");
+                            ESP_LOGD(TAG, "  Left:  [%d, %d, %d, %d]", 
+                                    raw_samples[0], raw_samples[2], raw_samples[4], raw_samples[6]);
+                            ESP_LOGD(TAG, "  Right: [%d, %d, %d, %d]", 
+                                    raw_samples[1], raw_samples[3], raw_samples[5], raw_samples[7]);
+                        }
+                    }
+
+                    // 将数据添加到应用缓冲区（统一转换为16-bit）
                     std::lock_guard<std::mutex> lock(codec->buffer_mutex_);
 
-                    // 检查缓冲区空间
+                    // 关键修改：如果是立体声（2通道），只保留左声道（偶数索引）的数据
+                    size_t actual_samples_to_add = samples_read;
+                    if (codec->usb_channels_ > 1) {
+                        // 立体声模式：只取左声道（每2个样本取1个）
+                        actual_samples_to_add = samples_read / 2;
+                    }
+
                     size_t free_space = codec->buffer_capacity_ - codec->usb_audio_buffer_.size();
-                    size_t samples_to_add = std::min(samples_read, free_space);
 
-                    ESP_LOGD(TAG, "Buffer capacity: %zu, Free space: %zu, Samples to add: %zu",
-                            codec->buffer_capacity_, free_space, samples_to_add);
-
-                    if (samples_to_add < samples_read) {
-                        // 缓冲区空间不足，丢弃旧数据
+                    // 缓冲区不够：先丢弃旧数据腾空间，再按当前 free_space 重新算 samples_to_add
+                    if (actual_samples_to_add > free_space) {
                         codec->buffer_overflowed_ = true;
                         codec->usb_overflow_count_++;
 
-                        ESP_LOGD(TAG, "Buffer overflow! Dropping old data, keeping %u samples",
-                                (unsigned int)(codec->buffer_capacity_ / 2));
-
                         size_t keep_size = codec->buffer_capacity_ / 2;
+                        ESP_LOGD(TAG, "Buffer overflow! Dropping old data, keeping %u samples",
+                                (unsigned int)keep_size);
+
                         while (codec->usb_audio_buffer_.size() > keep_size) {
                             codec->usb_audio_buffer_.pop_front();
                         }
+                        free_space = codec->buffer_capacity_ - codec->usb_audio_buffer_.size();
+                    }
 
-                        // 添加新数据
-                        const int16_t* samples = reinterpret_cast<const int16_t*>(temp_buffer);
+                    size_t samples_to_add = std::min(actual_samples_to_add, free_space);
+
+                    ESP_LOGD(TAG, "Buffer capacity: %zu, Free space: %zu, Samples to add: %zu (original: %zu)",
+                            codec->buffer_capacity_, free_space, samples_to_add, samples_read);
+
+                    // 转换并添加新数据（统一为16-bit），同时处理立体声到单声道的转换
+                    if (samples_to_add > 0) {
+                        std::vector<int16_t> converted_samples(samples_to_add);
+                        
+                        if (codec->device_bit_depth_ == 16) {
+                            // 16-bit设备，直接复制
+                            const int16_t* src_samples = reinterpret_cast<const int16_t*>(temp_buffer);
+                            if (codec->usb_channels_ == 1) {
+                                // 单声道：直接复制所有样本
+                                for (size_t i = 0; i < samples_to_add; i++) {
+                                    converted_samples[i] = src_samples[i];
+                                }
+                            } else {
+                                // 立体声：只取左声道（偶数索引：0, 2, 4, 6...）
+                                for (size_t i = 0; i < samples_to_add; i++) {
+                                    converted_samples[i] = src_samples[i * 2]; // 取偶数索引
+                                }
+                            }
+                        } else if (codec->device_bit_depth_ == 24) {
+                            // 24-bit设备，转换为16-bit
+                            // 24-bit音频数据通常以3字节小端序存储
+                            if (codec->usb_channels_ == 1) {
+                                // 单声道24-bit
+                                for (size_t i = 0; i < samples_to_add; i++) {
+                                    // 从3字节24-bit数据中提取值
+                                    uint32_t sample_24bit = 0;
+                                    sample_24bit |= ((uint32_t)temp_buffer[i * 3 + 0]) << 0;   // LSB
+                                    sample_24bit |= ((uint32_t)temp_buffer[i * 3 + 1]) << 8;   // Middle
+                                    sample_24bit |= ((uint32_t)temp_buffer[i * 3 + 2]) << 16;  // MSB (sign bit)
+                                    
+                                    // 处理符号位（24-bit有符号整数）
+                                    if (sample_24bit & 0x800000) { // 如果最高位是1（负数）
+                                        sample_24bit |= 0xFF000000; // 扩展符号位到32位
+                                    }
+                                    
+                                    // 转换为16-bit（右移8位，保留高16位）
+                                    int16_t sample_16bit = (int16_t)(sample_24bit >> 8);
+                                    converted_samples[i] = sample_16bit;
+                                }
+                            } else {
+                                // 立体声24-bit：只取左声道
+                                for (size_t i = 0; i < samples_to_add; i++) {
+                                    // 左声道在位置 i*2*3 = i*6
+                                    uint32_t sample_24bit = 0;
+                                    sample_24bit |= ((uint32_t)temp_buffer[i * 6 + 0]) << 0;   // LSB
+                                    sample_24bit |= ((uint32_t)temp_buffer[i * 6 + 1]) << 8;   // Middle
+                                    sample_24bit |= ((uint32_t)temp_buffer[i * 6 + 2]) << 16;  // MSB (sign bit)
+                                    
+                                    // 处理符号位（24-bit有符号整数）
+                                    if (sample_24bit & 0x800000) { // 如果最高位是1（负数）
+                                        sample_24bit |= 0xFF000000; // 扩展符号位到32位
+                                    }
+                                    
+                                    // 转换为16-bit（右移8位，保留高16位）
+                                    int16_t sample_16bit = (int16_t)(sample_24bit >> 8);
+                                    converted_samples[i] = sample_16bit;
+                                }
+                            }
+                        } else {
+                            // 未知位深，按16-bit处理
+                            const int16_t* src_samples = reinterpret_cast<const int16_t*>(temp_buffer);
+                            if (codec->usb_channels_ == 1) {
+                                for (size_t i = 0; i < samples_to_add; i++) {
+                                    converted_samples[i] = src_samples[i];
+                                }
+                            } else {
+                                for (size_t i = 0; i < samples_to_add; i++) {
+                                    converted_samples[i] = src_samples[i * 2];
+                                }
+                            }
+                        }
+                        
+                        // 添加转换后的16-bit数据到缓冲区
                         for (size_t i = 0; i < samples_to_add; i++) {
-                            codec->usb_audio_buffer_.push_back(samples[i]);
+                            codec->usb_audio_buffer_.push_back(converted_samples[i]);
                         }
 
-                        ESP_LOGD(TAG, "Added %u/%u samples after overflow, Buffer size: %u",
-                                (unsigned int)samples_to_add, (unsigned int)samples_read, (unsigned int)codec->usb_audio_buffer_.size());
-                    } else {
-                        // 有足够空间，全部添加
-                        const int16_t* samples = reinterpret_cast<const int16_t*>(temp_buffer);
-                        for (size_t i = 0; i < samples_read; i++) {
-                            codec->usb_audio_buffer_.push_back(samples[i]);
-                        }
-
-                        ESP_LOGD(TAG, "Added all %zu samples, Buffer size: %zu",
-                                samples_read, codec->usb_audio_buffer_.size());
+                        ESP_LOGD(TAG, "Added %u/%u samples after conversion and channel selection, Buffer size: %u",
+                                (unsigned int)samples_to_add, (unsigned int)actual_samples_to_add, (unsigned int)codec->usb_audio_buffer_.size());
                     }
 
                     codec->usb_read_count_++;
-                    codec->samples_processed_ += samples_read;
+                    // 更新统计信息：只统计实际添加的单声道样本数
+                    codec->samples_processed_ += samples_to_add;
                 } else if (ret != ESP_OK) {
                     ESP_LOGW(TAG, "USB read failed in callback: %s", esp_err_to_name(ret));
                 }
-
-                // 释放临时缓冲区
-                free(temp_buffer);
             } else {
                 ESP_LOGW(TAG, "RX_DONE event but cannot read - Device: %p, Input enabled: %s",
                         codec->uac_rx_device_, codec->input_enabled_ ? "YES" : "NO");
@@ -663,6 +765,27 @@ esp_err_t HybridUsbI2sCodec::OpenUsbMicrophone() {
     
     ESP_LOGI(TAG, "Device capabilities - Channels: %d, Bit Resolution: %d, Format Type: %d",
              alt_params.channels, alt_params.bit_resolution, alt_params.format);
+    
+    // 保存设备位深信息用于后续数据处理
+    device_bit_depth_ = (uint8_t)alt_params.bit_resolution;
+    if (device_bit_depth_ != 16 && device_bit_depth_ != 24) {
+        ESP_LOGW(TAG, "Unsupported bit depth: %d, falling back to 16-bit", device_bit_depth_);
+        device_bit_depth_ = 16;
+    }
+
+    // 关键：记录 USB 物理通道数到私有成员，用于回调里 stereo→mono 提取。
+    // 但 input_channels_（暴露给上层）必须保持 1，因为本 codec 已经做了
+    // stereo→mono 转换，对外吐出的就是 mono；如果改为 2，AudioService
+    // 会以为数据是 LR 交错再拆一次，把 mono 当 stereo 处理 → 时序翻倍错乱。
+    usb_channels_ = (uint8_t)alt_params.channels;
+    ESP_LOGI(TAG, "USB physical channels: %d (codec output stays mono, input_channels_=%d)",
+             usb_channels_, input_channels_);
+
+    // 预分配回调里复用的 USB 读取缓冲，避免每次回调 malloc/free
+    constexpr size_t kRxScratchBytes = 4096 * 3;  // 兼容 24-bit 最坏情况
+    if (rx_scratch_.size() != kRxScratchBytes) {
+        rx_scratch_.assign(kRxScratchBytes, 0);
+    }
     
     // 智能选择最佳采样率
     uint32_t selected_sample_rate = SelectBestSampleRate(alt_params);
@@ -1043,4 +1166,49 @@ esp_err_t HybridUsbI2sCodec::ReadUsbData(int16_t* buffer, size_t requested_sampl
     }
 
     return ret;
+}
+
+/**
+ * @brief 将不同位深的音频数据转换为16-bit格式
+ * 
+ * @param src_data 源数据指针
+ * @param src_bytes 源数据字节数
+ * @param dest 目标16-bit缓冲区
+ * @param samples 要转换的样本数
+ */
+void HybridUsbI2sCodec::ConvertAudioDataTo16Bit(const uint8_t* src_data, size_t src_bytes, int16_t* dest, size_t samples) {
+    if (src_data == nullptr || dest == nullptr || samples == 0) {
+        return;
+    }
+    
+    if (device_bit_depth_ == 16) {
+        // 16-bit设备，直接复制
+        const int16_t* src_samples = reinterpret_cast<const int16_t*>(src_data);
+        for (size_t i = 0; i < samples; i++) {
+            dest[i] = src_samples[i];
+        }
+    } else if (device_bit_depth_ == 24) {
+        // 24-bit设备，转换为16-bit
+        for (size_t i = 0; i < samples; i++) {
+            // 从3字节24-bit数据中提取值（小端序）
+            uint32_t sample_24bit = 0;
+            sample_24bit |= ((uint32_t)src_data[i * 3 + 0]) << 0;   // LSB
+            sample_24bit |= ((uint32_t)src_data[i * 3 + 1]) << 8;   // Middle  
+            sample_24bit |= ((uint32_t)src_data[i * 3 + 2]) << 16;  // MSB (sign bit)
+            
+            // 处理符号位（24-bit有符号整数）
+            if (sample_24bit & 0x800000) { // 如果最高位是1（负数）
+                sample_24bit |= 0xFF000000; // 扩展符号位到32位
+            }
+            
+            // 转换为16-bit（右移8位，保留高16位）
+            dest[i] = (int16_t)(sample_24bit >> 8);
+        }
+    } else {
+        // 未知位深，按16-bit处理
+        const int16_t* src_samples = reinterpret_cast<const int16_t*>(src_data);
+        for (size_t i = 0; i < samples && i < src_bytes / sizeof(int16_t); i++) {
+            dest[i] = src_samples[i];
+        }
+    }
 }

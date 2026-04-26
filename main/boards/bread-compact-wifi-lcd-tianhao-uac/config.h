@@ -5,7 +5,7 @@
 
 // UAC Input + I2S Output 配置
 #define AUDIO_INPUT_SAMPLE_RATE  16000  // UAC 输入采样率
-#define AUDIO_OUTPUT_SAMPLE_RATE 24000   // I2S 输出采样率
+#define AUDIO_OUTPUT_SAMPLE_RATE 16000   // I2S 输出采样率，改为16000Hz与提示音匹配
 
 // I2S 扬声器输出引脚配置
 #define AUDIO_I2S_SPK_GPIO_DOUT GPIO_NUM_7

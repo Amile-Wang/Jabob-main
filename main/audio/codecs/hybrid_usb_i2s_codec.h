@@ -5,6 +5,7 @@
 #include <usb/usb_host.h>
 #include "usb/uac_host.h"
 #include <deque>
+#include <vector>
 
 // USB音频缓冲区大小定义
 #define USB_AUDIO_BUFFER_SIZE  (16 * 1024)  // 调整为16KB，支持48kHz采样率和60ms帧长
@@ -56,6 +57,9 @@ private:
     void ProcessUsbData();
     esp_err_t ReadUsbData(int16_t* buffer, size_t requested_samples, size_t& samples_read);
 
+    // 新增：位深处理相关方法
+    void ConvertAudioDataTo16Bit(const uint8_t* src_data, size_t src_bytes, int16_t* dest, size_t samples);
+
     // I2S 扬声器相关
 
     // 成员变量
@@ -75,6 +79,18 @@ private:
     size_t buffer_capacity_;   // 缓冲区容量
     mutable std::mutex buffer_mutex_;  // 缓冲区保护互斥锁，声明为mutable
     bool buffer_overflowed_;  // 缓冲区溢出标志
+
+    // 新增：设备位深信息
+    uint8_t device_bit_depth_ = 16;  // 默认16位，从设备能力中获取
+
+    // USB 物理通道数（私有，仅用于回调里 stereo→mono 提取）。
+    // 注意：不要把这个值同步到基类 input_channels_，因为本 codec
+    // 对上层始终输出 mono；上层 AudioService 看到 input_channels()==2
+    // 会再做一次 LR 拆分，会把已经是 mono 的数据错拆成两半。
+    uint8_t usb_channels_ = 1;
+
+    // 回调内复用的 USB 读取临时缓冲（避免每次回调 malloc/free）
+    std::vector<uint8_t> rx_scratch_;
 
     // 统计信息
     uint32_t usb_read_count_;       // USB读取次数
