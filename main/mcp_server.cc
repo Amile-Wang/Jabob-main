@@ -184,19 +184,42 @@ void McpServer::AddCommonTools() {
         PropertyList(),
         [](const PropertyList& properties) -> ReturnValue {
             auto& app = Application::GetInstance();
-            
+
             // 切换到会议助手模式
             app.SetListeningModePublic(kListeningModeMeetingAssistant);
-            
+
             cJSON* root = cJSON_CreateObject();
             cJSON_AddStringToObject(root, "status", "success");
             cJSON_AddStringToObject(root, "message", "Device switched to meeting assistant mode");
-            
+
             char* json_str = cJSON_PrintUnformatted(root);
             std::string result(json_str);
             cJSON_free(json_str);
             cJSON_Delete(root);
-            
+
+            return result;
+        });
+
+    // 退出会议助手模式
+    AddTool("self.exit_meeting_assistant_mode",
+        "Exit meeting assistant mode and return to the normal conversational assistant mode. "
+        "Use this tool when the user says \"退出会议模式\", \"结束会议\", \"end meeting\", \"stop meeting\" or equivalent phrases.",
+        PropertyList(),
+        [](const PropertyList& properties) -> ReturnValue {
+            auto& app = Application::GetInstance();
+
+            // 切回 autostop 普通对话模式
+            app.SetListeningModePublic(kListeningModeAutoStop);
+
+            cJSON* root = cJSON_CreateObject();
+            cJSON_AddStringToObject(root, "status", "success");
+            cJSON_AddStringToObject(root, "message", "Device exited meeting assistant mode");
+
+            char* json_str = cJSON_PrintUnformatted(root);
+            std::string result(json_str);
+            cJSON_free(json_str);
+            cJSON_Delete(root);
+
             return result;
         });
 
