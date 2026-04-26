@@ -785,8 +785,13 @@ void Application::OnWakeWordDetected() {
     } else if (device_state_ == kDeviceStateListening) {
         // 如果当前处于会议助手模式，检测到唤醒词后暂时切换到autostop模式，等用户说完话后再切换回会议助手模式
         if (listening_mode_ == kListeningModeMeetingAssistant) {
-            SetListeningMode(kListeningModeAutoStop);
-            listening_mode_ = kListeningModeMeetingAssistant;
+            // 注意：SetListeningMode → SetDeviceState(Listening) 在 same-state 时
+            // 会直接 return（见 SetDeviceState line 822-824），导致 SendStartListening
+            // 不会重发，server 永远收不到 mode=auto。这里直接发协议帧绕开。
+            protocol_->SendStartListening(kListeningModeAutoStop);
+            // listening_mode_ 保持 meeting，等本轮 Q&A 的 tts.stop 触发
+            // SetDeviceState(Listening) 时（那时 previous_state==Speaking，
+            // not same-state），自然会用 meeting 重发 SendStartListening 恢复会议态。
             return;
         }
         
