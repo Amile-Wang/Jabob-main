@@ -52,12 +52,12 @@ void LcdDisplay::InitializeLcdThemes() {
     // light theme
     auto light_theme = new LvglTheme("light");
     light_theme->set_background_color(lv_color_hex(0xFFFFFF));
-    light_theme->set_text_color(lv_color_hex(0x000000));
+    light_theme->set_text_color(lv_color_hex(0x099FFF));
     light_theme->set_chat_background_color(lv_color_hex(0xE0E0E0));
     light_theme->set_user_bubble_color(lv_color_hex(0x00FF00));
     light_theme->set_assistant_bubble_color(lv_color_hex(0xDDDDDD));
     light_theme->set_system_bubble_color(lv_color_hex(0xFFFFFF));
-    light_theme->set_system_text_color(lv_color_hex(0x000000));
+    light_theme->set_system_text_color(lv_color_hex(0x099FFF));
     light_theme->set_border_color(lv_color_hex(0x000000));
     light_theme->set_low_battery_color(lv_color_hex(0x000000));
     light_theme->set_text_font(text_font);
@@ -67,12 +67,12 @@ void LcdDisplay::InitializeLcdThemes() {
     // dark theme
     auto dark_theme = new LvglTheme("dark");
     dark_theme->set_background_color(lv_color_hex(0x040404));
-    dark_theme->set_text_color(lv_color_hex(0xFFFFFF));
+    dark_theme->set_text_color(lv_color_hex(0x099FFF));
     dark_theme->set_chat_background_color(lv_color_hex(0x1F1F1F));
     dark_theme->set_user_bubble_color(lv_color_hex(0x00FF00));
     dark_theme->set_assistant_bubble_color(lv_color_hex(0x222222));
     dark_theme->set_system_bubble_color(lv_color_hex(0x000000));
-    dark_theme->set_system_text_color(lv_color_hex(0xFFFFFF));
+    dark_theme->set_system_text_color(lv_color_hex(0x099FFF));
     dark_theme->set_border_color(lv_color_hex(0xFFFFFF));
     dark_theme->set_low_battery_color(lv_color_hex(0xFF0000));
     dark_theme->set_text_font(text_font);
@@ -116,8 +116,8 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
     : LcdDisplay(panel_io, panel, width, height) {
 
-    // draw white
-    std::vector<uint16_t> buffer(width_, 0xFFFF);
+    // Pre-fill the panel with black so any uncovered edges match the LCD theme.
+    std::vector<uint16_t> buffer(width_, 0x0000);
     for (int y = 0; y < height_; y++) {
         esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
     }
@@ -205,8 +205,8 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
                            bool mirror_x, bool mirror_y, bool swap_xy)
     : LcdDisplay(panel_io, panel, width, height) {
 
-    // draw white
-    std::vector<uint16_t> buffer(width_, 0xFFFF);
+    // Pre-fill the panel with black so any uncovered edges match the LCD theme.
+    std::vector<uint16_t> buffer(width_, 0x0000);
     for (int y = 0; y < height_; y++) {
         esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
     }
