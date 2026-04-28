@@ -384,7 +384,7 @@ public:
         pwm_servo_ = &pwm_servo::GetInstance(); // 初始化舵机
 
         // 启动触摸监控
-        Start_touch_monitor();
+        // Start_touch_monitor();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
