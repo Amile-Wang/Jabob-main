@@ -773,7 +773,7 @@ void Application::OnWakeWordDetected() {
             }
             Schedule([this]() {
 
-                vTaskDelay(pdMS_TO_TICKS(2500));
+                vTaskDelay(pdMS_TO_TICKS(2500)); 
                 // audio_service_.ResetDecoder();
             });
             // 等待一小段时间确保中止操作完成

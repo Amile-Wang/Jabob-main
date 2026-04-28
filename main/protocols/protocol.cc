@@ -59,6 +59,10 @@ void Protocol::SendStartListening(ListeningMode mode) {
         message += ",\"mode\":\"manual\"";
     }
     message += "}";
+    
+    // 打印发送到服务器的请求
+    ESP_LOGI(TAG, "Sending to server: %s", message.c_str());
+    
     SendText(message);
 }
 

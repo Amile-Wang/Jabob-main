@@ -443,11 +443,11 @@ bool AudioService::ReadAudioData(std::vector<int16_t>& data, int sample_rate, in
 
     // 添加调试日志，输出部分音频数据以检查麦克风是否正常工作
     if (debug_statistics_.input_count % 50 == 0) { // 每50次采样输出一次调试信息
-        ESP_LOGI(TAG, "Audio input debug - first 10 samples: ");
+        ESP_LOGD(TAG, "Audio input debug - first 10 samples: ");
         // for (int i = 0; i < std::min(10, (int)data.size()); i++) {
-        //     ESP_LOGI(TAG, "  Sample[%d]: %d", i, data[i]);
+        //     ESP_LOGD(TAG, "  Sample[%d]: %d", i, data[i]);
         // }
-        ESP_LOGI(TAG, "  Total samples: %d, max value: %d, min value: %d", 
+        ESP_LOGD(TAG, "  Total samples: %d, max value: %d, min value: %d", 
                  (int)data.size(), 
                  *std::max_element(data.begin(), data.end()),
                  *std::min_element(data.begin(), data.end()));
@@ -665,7 +665,7 @@ void AudioService::AudioOutputTask() {
         }
 
         // Log queue status before playback
-        ESP_LOGI(TAG, "Playback: playback_queue=%u/%d", 
+        ESP_LOGD(TAG, "Playback: playback_queue=%u/%d", 
                  (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
         
         auto task = std::move(audio_playback_queue_.front());
@@ -718,17 +718,17 @@ void AudioService::OpusCodecTask() {
             auto packet = std::move(audio_decode_queue_.front());
             audio_decode_queue_.pop_front();
             // Log queue status before decoding
-            ESP_LOGI(TAG, "Decode: decode_queue=%u, playback_queue=%u/%d", 
+            ESP_LOGD(TAG, "Decode: decode_queue=%u, playback_queue=%u/%d", 
                      (unsigned int)audio_decode_queue_.size(), (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
             audio_queue_cv_.notify_all();
             lock.unlock();
 
             // 检查 start_to_speak 标志位，如果为 true 则延迟 300ms
             if (start_to_speak_) {
-                ESP_LOGI(TAG, "Start to speak detected, delaying decode by 300ms");
+                ESP_LOGD(TAG, "Start to speak detected, delaying decode by 300ms");
                 vTaskDelay(pdMS_TO_TICKS(300));
                 start_to_speak_ = false;  // 重置标志位
-                ESP_LOGI(TAG, "Decode delay completed, flag reset");
+                ESP_LOGD(TAG, "Decode delay completed, flag reset");
             }
 
             auto task = std::make_unique<AudioTask>();
@@ -737,7 +737,7 @@ void AudioService::OpusCodecTask() {
 
             SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
             if (opus_decoder_->Decode(std::move(packet->payload), task->pcm)) {
-                ESP_LOGI(TAG, "Decoded audio frame - Input samples: %zu, Sample rate: %dHz, Frame duration: %dms", 
+                ESP_LOGD(TAG, "Decoded audio frame - Input samples: %zu, Sample rate: %dHz, Frame duration: %dms", 
                          task->pcm.size(), opus_decoder_->sample_rate(), opus_decoder_->duration_ms());
                 
                 // Resample if the sample rate is different
@@ -761,7 +761,7 @@ void AudioService::OpusCodecTask() {
                 lock.lock();
                 audio_playback_queue_.push_back(std::move(task));
                 // Log queue status after adding to playback queue
-                ESP_LOGI(TAG, "Added to playback: decode_queue=%u, playback_queue=%u/%d", 
+                ESP_LOGD(TAG, "Added to playback: decode_queue=%u, playback_queue=%u/%d", 
                          (unsigned int)audio_decode_queue_.size(), (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
                 audio_queue_cv_.notify_all();
             } else {
@@ -904,7 +904,7 @@ bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> pa
     }
     audio_decode_queue_.push_back(std::move(packet));
     // Log network receive status
-    ESP_LOGI(TAG, "Network received: decode_queue=%u/%d, playback_queue=%u/%d", 
+    ESP_LOGD(TAG, "Network received: decode_queue=%u/%d, playback_queue=%u/%d", 
              (unsigned int)audio_decode_queue_.size(), MAX_DECODE_PACKETS_IN_QUEUE,
              (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
     audio_queue_cv_.notify_all();

@@ -39,7 +39,7 @@ static void usb_host_task(void *arg) {
         
         // 检查是否需要退出任务
         if (event_flags & USB_HOST_LIB_EVENT_FLAGS_NO_CLIENTS) {
-            ESP_LOGI("USB_HOST", "No more USB clients, exiting USB host task");
+            ESP_LOGD("USB_HOST", "No more USB clients, exiting USB host task");
             break;
         }
         
@@ -98,12 +98,12 @@ HybridUsbI2sCodec::HybridUsbI2sCodec(int output_sample_rate,
     usb_overflow_count_ = 0;
     samples_processed_ = 0;
 
-    ESP_LOGI(TAG, "HybridUsbI2sCodec created - Input: Dynamic (USB), Output: %dHz (I2S)",
+    ESP_LOGD(TAG, "HybridUsbI2sCodec created - Input: Dynamic (USB), Output: %dHz (I2S)",
              output_sample_rate_);
 }
 
 HybridUsbI2sCodec::~HybridUsbI2sCodec() {
-    ESP_LOGI(TAG, "Destroying HybridUsbI2sCodec with direct callback reading mode...");
+    ESP_LOGD(TAG, "Destroying HybridUsbI2sCodec with direct callback reading mode...");
 
     // 关闭 USB 麦克风
     CloseUsbMicrophone();
@@ -140,14 +140,14 @@ HybridUsbI2sCodec::~HybridUsbI2sCodec() {
     }
 
     // 打印统计信息
-    ESP_LOGI(TAG, "USB statistics - Reads: %" PRIu32 ", Overflows: %" PRIu32 ", Samples: %" PRIu32,
+    ESP_LOGD(TAG, "USB statistics - Reads: %" PRIu32 ", Overflows: %" PRIu32 ", Samples: %" PRIu32,
              usb_read_count_, usb_overflow_count_, samples_processed_);
 
-    ESP_LOGI(TAG, "HybridUsbI2sCodec destroyed");
+    ESP_LOGD(TAG, "HybridUsbI2sCodec destroyed");
 }
 
 void HybridUsbI2sCodec::Start() {
-    ESP_LOGI(TAG, "Starting Hybrid USB-I2S Audio codec with async event-driven mode...");
+    ESP_LOGD(TAG, "Starting Hybrid USB-I2S Audio codec with async event-driven mode...");
 
     // 创建事件组
     usb_event_group_ = xEventGroupCreate();
@@ -181,10 +181,10 @@ void HybridUsbI2sCodec::Start() {
     // 只有在USB麦克风就绪时才启用输入
     if (usb_microphone_ready_) {
         input_enabled_ = true;
-        ESP_LOGI(TAG, "USB microphone input enabled with direct callback reading mode");
+        ESP_LOGD(TAG, "USB microphone input enabled with direct callback reading mode");
 
         // 立即执行USB设备状态检查，验证初始化是否成功
-        ESP_LOGI(TAG, "Performing initial USB device status check...");
+        ESP_LOGD(TAG, "Performing initial USB device status check...");
         CheckUsbDeviceStatus();
 
         // 创建USB监控任务（统计和状态监控）
@@ -202,7 +202,7 @@ void HybridUsbI2sCodec::Start() {
             ESP_LOGW(TAG, "Failed to create USB monitor task (statistics will be limited)");
             usb_data_task_handle_ = nullptr;
         } else {
-            ESP_LOGI(TAG, "USB monitor task created for statistics and monitoring");
+            ESP_LOGD(TAG, "USB monitor task created for statistics and monitoring");
         }
 
     } else {
@@ -213,16 +213,16 @@ void HybridUsbI2sCodec::Start() {
     // 启用输出
     if (i2s_tx_handle_ != nullptr) {
         output_enabled_ = true;
-        ESP_LOGI(TAG, "I2S speaker output enabled");
+        ESP_LOGD(TAG, "I2S speaker output enabled");
         // 确保通道被启用
         i2s_channel_enable(i2s_tx_handle_);
-        ESP_LOGI(TAG, "I2S channel enabled");
+        ESP_LOGD(TAG, "I2S channel enabled");
     } else {
         output_enabled_ = false;
         ESP_LOGW(TAG, "I2S speaker not initialized, output disabled");
     }
 
-    ESP_LOGI(TAG, "Hybrid USB-I2S Audio codec started with async mode - Input: %s, Output: %s",
+    ESP_LOGD(TAG, "Hybrid USB-I2S Audio codec started with async mode - Input: %s, Output: %s",
              input_enabled_ ? "enabled" : "disabled", output_enabled_ ? "enabled" : "disabled");
 }
 
@@ -231,7 +231,7 @@ void HybridUsbI2sCodec::EnableInput(bool enable) {
     // 忽略enable参数，始终保持input_enabled_为true
     if (!input_enabled_) {
         input_enabled_ = true;
-        ESP_LOGI(TAG, "USB microphone input is always enabled (cannot be disabled)");
+        ESP_LOGD(TAG, "USB microphone input is always enabled (cannot be disabled)");
     }
     // 如果尝试禁用，记录警告但不执行
     if (!enable) {
@@ -248,17 +248,17 @@ void HybridUsbI2sCodec::EnableOutput(bool enable) {
     if (enable && i2s_tx_handle_ != nullptr) {
         // 启用I2S输出
         i2s_channel_enable(i2s_tx_handle_);
-        ESP_LOGI(TAG, "I2S speaker output enabled");
+        ESP_LOGD(TAG, "I2S speaker output enabled");
     } else if (!enable && i2s_tx_handle_ != nullptr) {
         // 禁用I2S输出
         i2s_channel_disable(i2s_tx_handle_);
-        ESP_LOGI(TAG, "I2S speaker output disabled");
+        ESP_LOGD(TAG, "I2S speaker output disabled");
     }
 }
 
 void HybridUsbI2sCodec::SetOutputVolume(int volume) {
     output_volume_ = volume;
-    ESP_LOGI(TAG, "Set hybrid output volume to %d", output_volume_);
+    ESP_LOGD(TAG, "Set hybrid output volume to %d", output_volume_);
 }
 
 int HybridUsbI2sCodec::Read(int16_t* dest, int samples) {
@@ -338,7 +338,7 @@ int HybridUsbI2sCodec::Read(int16_t* dest, int samples) {
     static int read_log_count = 0;
     if (++read_log_count >= 50) {
         read_log_count = 0;
-        ESP_LOGI(TAG, "USB_INPUT_MONITOR: Interval=%" PRIu32 "ms, Requested=%d samples, Actual=%d samples, BufferSize=%u", 
+        ESP_LOGD(TAG, "USB_INPUT_MONITOR: Interval=%" PRIu32 "ms, Requested=%d samples, Actual=%d samples, BufferSize=%u", 
                  time_diff_ms, samples, (int)samples_read, (unsigned int)usb_audio_buffer_.size());
     }
 
@@ -394,7 +394,7 @@ void HybridUsbI2sCodec::UacDriverEventCallback(uint8_t addr, uint8_t iface_num,
     
     switch (event) {
         case UAC_HOST_DRIVER_EVENT_RX_CONNECTED:
-            ESP_LOGI(TAG, "UAC RX device connected - Addr: %d, Iface: %d", addr, iface_num);
+            ESP_LOGD(TAG, "UAC RX device connected - Addr: %d, Iface: %d", addr, iface_num);
             codec->usb_device_addr_ = addr;
             codec->usb_iface_num_ = iface_num;
             if (codec->usb_event_group_ != nullptr) {
@@ -403,7 +403,7 @@ void HybridUsbI2sCodec::UacDriverEventCallback(uint8_t addr, uint8_t iface_num,
             break;
             
         case UAC_HOST_DRIVER_EVENT_TX_CONNECTED:
-            ESP_LOGI(TAG, "UAC TX device connected (ignored for microphone-only mode)");
+            ESP_LOGD(TAG, "UAC TX device connected (ignored for microphone-only mode)");
             break;
     }
 }
@@ -615,7 +615,7 @@ void HybridUsbI2sCodec::UacDeviceEventCallback(uac_host_device_handle_t uac_devi
 }
 
 esp_err_t HybridUsbI2sCodec::InitializeUsbHost() {
-    ESP_LOGI(TAG, "Initializing USB Host with enhanced debug logging...");
+    ESP_LOGD(TAG, "Initializing USB Host with enhanced debug logging...");
     
     // 设置 USB Host 日志级别为 DEBUG
     esp_log_level_set("uac-host", ESP_LOG_DEBUG);
@@ -633,7 +633,7 @@ esp_err_t HybridUsbI2sCodec::InitializeUsbHost() {
         return ret;
     }
     
-    ESP_LOGI(TAG, "USB Host installed successfully");
+    ESP_LOGD(TAG, "USB Host installed successfully");
 
     // 创建 USB Host 事件处理任务
     BaseType_t task_ret = xTaskCreatePinnedToCore(
@@ -672,7 +672,7 @@ esp_err_t HybridUsbI2sCodec::InitializeUsbHost() {
         return ret;
     }
     
-    ESP_LOGI(TAG, "USB Host and UAC driver initialized");
+    ESP_LOGD(TAG, "USB Host and UAC driver initialized");
     usb_initialized_ = true;
     return ESP_OK;
 }
@@ -721,7 +721,7 @@ esp_err_t HybridUsbI2sCodec::OpenUsbMicrophone() {
         return ESP_ERR_TIMEOUT;
     }
     
-    ESP_LOGI(TAG, "Opening USB microphone with dynamic sample rate detection...");
+    ESP_LOGD(TAG, "Opening USB microphone with dynamic sample rate detection...");
 
     // 设置 UAC 设备配置 - 参考官方示例优化API调用方式
     // 使用官方推荐的缓冲区配置和直接回调读取模式
@@ -751,19 +751,19 @@ esp_err_t HybridUsbI2sCodec::OpenUsbMicrophone() {
     }
     
     // 打印设备支持的所有采样率
-    ESP_LOGI(TAG, "USB device supports the following sample rates:");
+    ESP_LOGD(TAG, "USB device supports the following sample rates:");
     if (alt_params.sample_freq_type > 0) {
         // 离散采样率列表
         for (int i = 0; i < alt_params.sample_freq_type && i < UAC_FREQ_NUM_MAX; i++) {
-            ESP_LOGI(TAG, "  - %" PRIu32 " Hz", alt_params.sample_freq[i]);
+            ESP_LOGD(TAG, "  - %" PRIu32 " Hz", alt_params.sample_freq[i]);
         }
     } else {
         // 连续采样率范围
-        ESP_LOGI(TAG, "  - Continuous range: %" PRIu32 " - %" PRIu32 " Hz", 
+        ESP_LOGD(TAG, "  - Continuous range: %" PRIu32 " - %" PRIu32 " Hz", 
                  alt_params.sample_freq_lower, alt_params.sample_freq_upper);
     }
     
-    ESP_LOGI(TAG, "Device capabilities - Channels: %d, Bit Resolution: %d, Format Type: %d",
+    ESP_LOGD(TAG, "Device capabilities - Channels: %d, Bit Resolution: %d, Format Type: %d",
              alt_params.channels, alt_params.bit_resolution, alt_params.format);
     
     // 保存设备位深信息用于后续数据处理
@@ -778,7 +778,7 @@ esp_err_t HybridUsbI2sCodec::OpenUsbMicrophone() {
     // stereo→mono 转换，对外吐出的就是 mono；如果改为 2，AudioService
     // 会以为数据是 LR 交错再拆一次，把 mono 当 stereo 处理 → 时序翻倍错乱。
     usb_channels_ = (uint8_t)alt_params.channels;
-    ESP_LOGI(TAG, "USB physical channels: %d (codec output stays mono, input_channels_=%d)",
+    ESP_LOGD(TAG, "USB physical channels: %d (codec output stays mono, input_channels_=%d)",
              usb_channels_, input_channels_);
 
     // 预分配回调里复用的 USB 读取缓冲，避免每次回调 malloc/free
@@ -789,7 +789,7 @@ esp_err_t HybridUsbI2sCodec::OpenUsbMicrophone() {
     
     // 智能选择最佳采样率
     uint32_t selected_sample_rate = SelectBestSampleRate(alt_params);
-    ESP_LOGI(TAG, "Selected optimal sample rate: %" PRIu32 " Hz", selected_sample_rate);
+    ESP_LOGD(TAG, "Selected optimal sample rate: %" PRIu32 " Hz", selected_sample_rate);
     
     // 配置流参数
     const uac_host_stream_config_t stream_config = {
@@ -812,7 +812,7 @@ esp_err_t HybridUsbI2sCodec::OpenUsbMicrophone() {
     input_sample_rate_ = selected_sample_rate;
     
     usb_microphone_ready_ = true;
-    ESP_LOGI(TAG, "USB microphone opened and started successfully at %" PRIu32 "Hz!", selected_sample_rate);
+    ESP_LOGD(TAG, "USB microphone opened and started successfully at %" PRIu32 "Hz!", selected_sample_rate);
     return ESP_OK;
 }
 
@@ -822,7 +822,7 @@ esp_err_t HybridUsbI2sCodec::CloseUsbMicrophone() {
         uac_host_device_close(uac_rx_device_);
         uac_rx_device_ = nullptr;
         usb_microphone_ready_ = false;
-        ESP_LOGI(TAG, "USB microphone closed");
+        ESP_LOGD(TAG, "USB microphone closed");
     }
     
     return ESP_OK;
@@ -844,7 +844,7 @@ esp_err_t HybridUsbI2sCodec::InitializeI2sSpeaker() {
     }
     
     // 配置 I2S 标准模式
-    ESP_LOGI(TAG, "Configuring I2S with sample rate: %dHz", output_sample_rate_);
+    ESP_LOGD(TAG, "Configuring I2S with sample rate: %dHz", output_sample_rate_);
 
     i2s_std_config_t tx_std_cfg = {
         .clk_cfg = {
@@ -874,7 +874,7 @@ esp_err_t HybridUsbI2sCodec::InitializeI2sSpeaker() {
         return ret;
     }
     
-    ESP_LOGI(TAG, "I2S speaker initialized successfully - Sample Rate: %dHz", output_sample_rate_);
+    ESP_LOGD(TAG, "I2S speaker initialized successfully - Sample Rate: %dHz", output_sample_rate_);
     return ESP_OK;
 }
 
@@ -884,7 +884,7 @@ esp_err_t HybridUsbI2sCodec::CloseI2sSpeaker() {
         i2s_del_channel(i2s_tx_handle_);
         i2s_tx_handle_ = nullptr;
         i2s_initialized_ = false;
-        ESP_LOGI(TAG, "I2S speaker closed");
+        ESP_LOGD(TAG, "I2S speaker closed");
     }
 
     return ESP_OK;
@@ -896,13 +896,13 @@ esp_err_t HybridUsbI2sCodec::CloseI2sSpeaker() {
  * 这个函数用于诊断USB音频设备的状态，帮助识别USB数据流问题
  */
 void HybridUsbI2sCodec::CheckUsbDeviceStatus() {
-    ESP_LOGI(TAG, "=== USB Device Status Check ===");
+    ESP_LOGD(TAG, "=== USB Device Status Check ===");
 
     // 检查USB设备状态（UAC 驱动内部已管理USB客户端）
     if (uac_rx_device_ == nullptr) {
         ESP_LOGW(TAG, "UAC RX Device: NULL (USB device not opened)");
     } else {
-        ESP_LOGI(TAG, "UAC RX Device: OK (Addr: %d, Iface: %d)",
+        ESP_LOGD(TAG, "UAC RX Device: OK (Addr: %d, Iface: %d)",
                 usb_device_addr_, usb_iface_num_);
 
         // 检查USB设备列表
@@ -911,9 +911,9 @@ void HybridUsbI2sCodec::CheckUsbDeviceStatus() {
         esp_err_t ret = usb_host_device_addr_list_fill(8, dev_addr_list, &num_devices);
 
         if (ret == ESP_OK) {
-            ESP_LOGI(TAG, "USB Devices found: %d", num_devices);
+            ESP_LOGD(TAG, "USB Devices found: %d", num_devices);
             for (int i = 0; i < num_devices; i++) {
-                ESP_LOGI(TAG, "  Device %d: Address %d", i, dev_addr_list[i]);
+                ESP_LOGD(TAG, "  Device %d: Address %d", i, dev_addr_list[i]);
             }
         } else {
             ESP_LOGW(TAG, "Failed to get USB device list: %s", esp_err_to_name(ret));
@@ -927,15 +927,15 @@ void HybridUsbI2sCodec::CheckUsbDeviceStatus() {
         buffer_usage = usb_audio_buffer_.size();
     }
 
-    ESP_LOGI(TAG, "Audio Buffer: %u/%u samples (%.1f%%)",
+    ESP_LOGD(TAG, "Audio Buffer: %u/%u samples (%.1f%%)",
             (unsigned int)buffer_usage, (unsigned int)buffer_capacity_,
             (buffer_usage * 100.0) / buffer_capacity_);
 
     // 检查统计信息
-    ESP_LOGI(TAG, "Statistics - USB reads: %" PRIu32 ", Overflows: %" PRIu32 ", Processed: %" PRIu32,
+    ESP_LOGD(TAG, "Statistics - USB reads: %" PRIu32 ", Overflows: %" PRIu32 ", Processed: %" PRIu32,
             usb_read_count_, usb_overflow_count_, samples_processed_);
 
-    ESP_LOGI(TAG, "=== End USB Device Status Check ===");
+    ESP_LOGD(TAG, "=== End USB Device Status Check ===");
 }
 
 bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
@@ -944,15 +944,15 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
         return false;
     }
 
-    ESP_LOGI(TAG, "Waiting for USB audio device connection (%d seconds timeout)...", timeout_ms / 1000);
-    ESP_LOGI(TAG, "Troubleshooting:");
-    ESP_LOGI(TAG, "  1. Ensure USB microphone is properly connected");
-    ESP_LOGI(TAG, "  2. Check USB cable supports data transfer (not power-only)");
-    ESP_LOGI(TAG, "  3. Try a different USB port if available");
-    ESP_LOGI(TAG, "  4. Ensure adequate power supply to the device");
+    ESP_LOGD(TAG, "Waiting for USB audio device connection (%d seconds timeout)...", timeout_ms / 1000);
+    ESP_LOGD(TAG, "Troubleshooting:");
+    ESP_LOGD(TAG, "  1. Ensure USB microphone is properly connected");
+    ESP_LOGD(TAG, "  2. Check USB cable supports data transfer (not power-only)");
+    ESP_LOGD(TAG, "  3. Try a different USB port if available");
+    ESP_LOGD(TAG, "  4. Ensure adequate power supply to the device");
 
     // 添加USB设备枚举前的预检查
-    ESP_LOGI(TAG, "Performing USB pre-enumeration check...");
+    ESP_LOGD(TAG, "Performing USB pre-enumeration check...");
     
     // 检查是否有任何USB设备被检测到
     uint8_t dev_addr_list[8];
@@ -960,9 +960,9 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
     esp_err_t ret = usb_host_device_addr_list_fill(8, dev_addr_list, &num_devices);
     
     if (ret == ESP_OK && num_devices > 0) {
-        ESP_LOGI(TAG, "Found %d USB device(s) before waiting:", num_devices);
+        ESP_LOGD(TAG, "Found %d USB device(s) before waiting:", num_devices);
         for (int i = 0; i < num_devices; i++) {
-            ESP_LOGI(TAG, "  Device %d: Address %d", i, dev_addr_list[i]);
+            ESP_LOGD(TAG, "  Device %d: Address %d", i, dev_addr_list[i]);
         }
     } else {
         ESP_LOGD(TAG, "No USB devices detected initially (this is normal for fresh connection)");
@@ -978,7 +978,7 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
     );
 
     if (bits & USB_EVENT_CONNECTED) {
-        ESP_LOGI(TAG, "USB microphone connected (Addr: %d, Iface: %d)",
+        ESP_LOGD(TAG, "USB microphone connected (Addr: %d, Iface: %d)",
                 usb_device_addr_, usb_iface_num_);
         return true;
     }
@@ -1020,7 +1020,7 @@ bool HybridUsbI2sCodec::WaitForUsbDevice(int timeout_ms) {
  */
 void HybridUsbI2sCodec::UsbDataProcessingTask(void* arg) {
     auto codec = static_cast<HybridUsbI2sCodec*>(arg);
-    ESP_LOGI(TAG, "USB monitor task started (direct callback reading mode enabled)");
+    ESP_LOGD(TAG, "USB monitor task started (direct callback reading mode enabled)");
 
     uint32_t last_stats_time = xTaskGetTickCount();
     uint32_t last_warning_time = xTaskGetTickCount();
@@ -1030,7 +1030,7 @@ void HybridUsbI2sCodec::UsbDataProcessingTask(void* arg) {
     uint32_t idle_count = 0;       // 空闲等待的次数
     uint32_t last_read_count = 0;  // 上次统计时的读取次数
 
-    ESP_LOGI(TAG, "USB Task Initial State - Device ready: %s, Input enabled: %s, UAC device: %p",
+    ESP_LOGD(TAG, "USB Task Initial State - Device ready: %s, Input enabled: %s, UAC device: %p",
             codec->usb_microphone_ready_ ? "YES" : "NO",
             codec->input_enabled_ ? "YES" : "NO",
             codec->uac_rx_device_);
@@ -1121,7 +1121,7 @@ void HybridUsbI2sCodec::UsbDataProcessingTask(void* arg) {
         vTaskDelay(pdMS_TO_TICKS(100));  // 100ms检查一次
     }
 
-    ESP_LOGI(TAG, "USB monitor task exiting");
+    ESP_LOGD(TAG, "USB monitor task exiting");
     vTaskDelete(NULL);
 }
 
