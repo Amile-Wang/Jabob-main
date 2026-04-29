@@ -36,6 +36,7 @@ protected:
     lv_obj_t* emotion_gif_= nullptr;
     std::unique_ptr<LvglGif> emotion_gif_controller_ = nullptr;
     lv_obj_t* chat_message_label_ = nullptr;
+    lv_obj_t* meeting_mode_label_ = nullptr;
     esp_timer_handle_t preview_timer_ = nullptr;
     std::unique_ptr<LvglImage> preview_image_cached_ = nullptr;
     bool hide_subtitle_ = false;  // Control whether to hide chat messages/subtitles
@@ -52,8 +53,9 @@ protected:
 public:
     ~LcdDisplay();
     virtual void SetEmotion(const char* emotion) override;
-    virtual void SetChatMessage(const char* role, const char* content) override; 
+    virtual void SetChatMessage(const char* role, const char* content) override;
     virtual void SetPreviewImage(std::unique_ptr<LvglImage> image) override;
+    virtual void SetMeetingMode(bool enabled) override;
 
     // Add theme switching function
     virtual void SetTheme(Theme* theme) override;

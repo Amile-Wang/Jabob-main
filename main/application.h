@@ -66,6 +66,7 @@ public:
 
     // 添加公共方法用于MCP调用设置listening mode
     void SetListeningModePublic(ListeningMode mode);
+    ListeningMode GetListeningMode() const { return listening_mode_; }
 
 private:
     Application();

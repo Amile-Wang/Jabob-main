@@ -338,6 +338,9 @@ LcdDisplay::~LcdDisplay() {
     if (chat_message_label_ != nullptr) {
         lv_obj_del(chat_message_label_);
     }
+    if (meeting_mode_label_ != nullptr) {
+        lv_obj_del(meeting_mode_label_);
+    }
     if (emoji_label_ != nullptr) {
         lv_obj_del(emoji_label_);
     }
@@ -1313,7 +1316,7 @@ void LcdDisplay::SetTheme(Theme* theme) {
 void LcdDisplay::SetHideSubtitle(bool hide) {
     DisplayLockGuard lock(this);
     hide_subtitle_ = hide;
-    
+
     // Immediately update UI visibility based on the setting
     if (bottom_bar_ != nullptr) {
         if (hide) {
@@ -1322,4 +1325,39 @@ void LcdDisplay::SetHideSubtitle(bool hide) {
             lv_obj_remove_flag(bottom_bar_, LV_OBJ_FLAG_HIDDEN);
         }
     }
+}
+
+void LcdDisplay::SetMeetingMode(bool enabled) {
+    DisplayLockGuard lock(this);
+
+    if (!enabled) {
+        if (meeting_mode_label_ != nullptr) {
+            lv_obj_del(meeting_mode_label_);
+            meeting_mode_label_ = nullptr;
+        }
+        return;
+    }
+
+    if (meeting_mode_label_ == nullptr) {
+        auto screen = lv_screen_active();
+        meeting_mode_label_ = lv_label_create(screen);
+
+        auto lvgl_theme = static_cast<LvglTheme*>(current_theme_);
+        if (lvgl_theme != nullptr) {
+            auto text_font = lvgl_theme->text_font()->font();
+            lv_obj_set_style_text_font(meeting_mode_label_, text_font, 0);
+            lv_obj_set_style_text_color(meeting_mode_label_, lvgl_theme->text_color(), 0);
+        }
+        lv_obj_set_style_bg_color(meeting_mode_label_, lv_color_hex(0x000000), 0);
+        lv_obj_set_style_bg_opa(meeting_mode_label_, LV_OPA_70, 0);
+        lv_obj_set_style_radius(meeting_mode_label_, 4, 0);
+        lv_obj_set_style_pad_hor(meeting_mode_label_, 6, 0);
+        lv_obj_set_style_pad_ver(meeting_mode_label_, 2, 0);
+        lv_obj_set_style_text_color(meeting_mode_label_, lv_color_hex(0xFFFFFF), 0);
+    }
+
+    lv_label_set_text(meeting_mode_label_, "会议模式");
+    lv_obj_align(meeting_mode_label_, LV_ALIGN_BOTTOM_MID, 0, -4);
+    lv_obj_move_foreground(meeting_mode_label_);
+    lv_obj_remove_flag(meeting_mode_label_, LV_OBJ_FLAG_HIDDEN);
 }

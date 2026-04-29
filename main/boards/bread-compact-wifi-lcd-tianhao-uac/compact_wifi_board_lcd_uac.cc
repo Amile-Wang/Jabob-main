@@ -123,12 +123,30 @@ private:
             }
         });
         
-        board->boot_button_.OnPressDown([board]() {
-            ESP_LOGI(TAG, "Boot button pressed");
-            board->GetDisplay()->ShowNotification("Boot button pressed");
+        board->boot_button_.OnClick([board]() {
+            ESP_LOGI(TAG, "Boot button clicked (short press)");
+            Application::GetInstance().ToggleChatState();
+        });
+
+        board->boot_button_.OnLongPress([board]() {
+            ESP_LOGI(TAG, "Boot button long pressed");
             auto& app = Application::GetInstance();
-            
-            app.ToggleChatState();
+            auto display = board->GetDisplay();
+
+            bool entering_meeting = app.GetListeningMode() != kListeningModeMeetingAssistant;
+            if (entering_meeting) {
+                app.SetListeningModePublic(kListeningModeMeetingAssistant);
+                if (display) {
+                    display->SetMeetingMode(true);
+                    display->ShowNotification("进入会议模式");
+                }
+            } else {
+                app.SetListeningModePublic(kListeningModeAutoStop);
+                if (display) {
+                    display->SetMeetingMode(false);
+                    display->ShowNotification("退出会议模式");
+                }
+            }
         });
 
         board->touch_button_.OnTouch([board]() {
@@ -236,8 +254,8 @@ private:
 
 public:
     CompactWifiBoardLCDUAC() :
-        boot_button_(BOOT_BUTTON_GPIO),
-        touch_button_(TOUCH_BUTTON_GPIO, TOUCH_BUTTON_THRESHOLD), 
+        boot_button_(BOOT_BUTTON_GPIO, BOOT_BUTTON_ACTIVE_HIGH),
+        touch_button_(TOUCH_BUTTON_GPIO, TOUCH_BUTTON_THRESHOLD),
         volume_up_button_(VOLUME_UP_BUTTON_GPIO),
         volume_down_button_(VOLUME_DOWN_BUTTON_GPIO)
         {
