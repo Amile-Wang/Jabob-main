@@ -171,7 +171,15 @@ private:
 
         board->boot_button_.OnClick([board]() {
             ESP_LOGI(TAG, "Boot button clicked (short press)");
-            Application::GetInstance().ToggleChatState();
+            auto& app = Application::GetInstance();
+            // 启动阶段且 Wi-Fi 未连接时，按一下进配网（与原 tianhao 板触摸键行为一致）
+            if (app.GetDeviceState() == kDeviceStateStarting &&
+                !WifiStation::GetInstance().IsConnected()) {
+                ESP_LOGW(TAG, "Boot button at startup w/o Wi-Fi -> ResetWifiConfiguration");
+                board->ResetWifiConfiguration();
+                return;
+            }
+            app.ToggleChatState();
         });
 
         board->boot_button_.OnLongPress([board]() {
