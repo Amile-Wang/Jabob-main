@@ -183,21 +183,21 @@ private:
             }
         });
 
-        board->touch_button_.OnTouch([board]() {
-            // 在中断回调中只记录日志，不执行复杂操作
-            ESP_DRAM_LOGI("TouchButton", "callback");
-            
-            printf("触摸事件被触发了！\n");
-            ESP_LOGI(TAG, "Touch button pressed");
-            
-            // 在安全的上下文中执行复杂操作
-            board->GetDisplay()->ShowNotification("Touch button pressed");
-            auto& app = Application::GetInstance();
-            if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
-                board->ResetWifiConfiguration();
-            }
-            app.ToggleChatState();
-        });
+        // 触摸按键回调已禁用：当前 TOUCH_BUTTON_GPIO=GPIO_NUM_0，但 ESP32-S3 的 touch_pad
+        // 只支持 GPIO1~14，GPIO0 不支持，触摸初始化必然失败、ISR 还会误触发，
+        // 不注册 OnTouch 后 touch_event_task 收到事件会因 on_touch_==nullptr 直接 short-circuit。
+        // 如以后把触摸焊盘换到合法引脚，再放开下方注释即可。
+        // board->touch_button_.OnTouch([board]() {
+        //     ESP_DRAM_LOGI("TouchButton", "callback");
+        //     printf("触摸事件被触发了！\n");
+        //     ESP_LOGI(TAG, "Touch button pressed");
+        //     board->GetDisplay()->ShowNotification("Touch button pressed");
+        //     auto& app = Application::GetInstance();
+        //     if (app.GetDeviceState() == kDeviceStateStarting && !WifiStation::GetInstance().IsConnected()) {
+        //         board->ResetWifiConfiguration();
+        //     }
+        //     app.ToggleChatState();
+        // });
 
         board->volume_up_button_.OnClick([board]() {
             auto codec = board->GetAudioCodec();
