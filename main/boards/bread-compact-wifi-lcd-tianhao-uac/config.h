@@ -23,9 +23,7 @@
 // LED 和按钮配置
 #define BUILTIN_LED_GPIO        GPIO_NUM_48
 #define BOOT_BUTTON_GPIO        GPIO_NUM_14
-// GPIO14 上的 boot 按钮：硬件按到 VCC（高电平有效），需启用内部下拉
-// 如果实测发现按下时是拉低，改回 false 即可（默认 active_high=false 走内部上拉）
-#define BOOT_BUTTON_ACTIVE_HIGH true
+#define BOOT_BUTTON_ACTIVE_HIGH false
 #define TOUCH_BUTTON_GPIO       GPIO_NUM_0
 #define TOUCH_BUTTON_THRESHOLD  1500
 #define VOLUME_UP_BUTTON_GPIO   GPIO_NUM_38
