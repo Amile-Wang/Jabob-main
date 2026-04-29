@@ -87,7 +87,7 @@ private:
         // 创建一个监控任务
         xTaskCreate([](void* param) {
             auto* board = static_cast<CompactWifiBoardLCDUAC*>(param);
-            
+
             while(1) {
                 uint32_t raw_value = board->touch_button_.read_raw_value();
 
@@ -97,6 +97,32 @@ private:
                 vTaskDelay(pdMS_TO_TICKS(3500)); // 每 500ms 检查一次
             }
         }, "TouchMonitor", 2048, this, 5, NULL);
+    }
+
+    void Start_boot_button_monitor() {
+        // 周期性打印 BOOT_BUTTON_GPIO 当前电平，方便排查按键是否有边沿
+        // - active_high=true 时：空闲应为 0（内部下拉），按下应为 1
+        // - active_high=false 时：空闲应为 1（内部上拉），按下应为 0
+        // 采样 50ms 一次，电平变化立即打印；无变化每 2s 打一次心跳
+        xTaskCreate([](void* param) {
+            (void)param;
+            int last_level = -1;
+            int idle_ticks = 0;
+            while (1) {
+                int level = gpio_get_level(BOOT_BUTTON_GPIO);
+                if (level != last_level) {
+                    ESP_LOGI(TAG, "BOOT GPIO%d edge: %d -> %d",
+                             (int)BOOT_BUTTON_GPIO, last_level, level);
+                    last_level = level;
+                    idle_ticks = 0;
+                } else if (++idle_ticks >= 40) {
+                    ESP_LOGI(TAG, "BOOT GPIO%d idle level=%d",
+                             (int)BOOT_BUTTON_GPIO, level);
+                    idle_ticks = 0;
+                }
+                vTaskDelay(pdMS_TO_TICKS(50));
+            }
+        }, "BootBtnMon", 2048, nullptr, 5, NULL);
     }
 
     static void InitializeButtonsTask(void* param) {
@@ -123,6 +149,14 @@ private:
             }
         });
         
+        board->boot_button_.OnPressDown([]() {
+            ESP_LOGI(TAG, "Boot button press_down (debug, edge detected)");
+        });
+
+        board->boot_button_.OnPressUp([]() {
+            ESP_LOGI(TAG, "Boot button press_up (debug)");
+        });
+
         board->boot_button_.OnClick([board]() {
             ESP_LOGI(TAG, "Boot button clicked (short press)");
             Application::GetInstance().ToggleChatState();
@@ -403,6 +437,9 @@ public:
 
         // 启动触摸监控
         // Start_touch_monitor();
+
+        // 启动 BOOT 按键电平监控（诊断用）
+        Start_boot_button_monitor();
     }
 
     virtual AudioCodec* GetAudioCodec() override {
