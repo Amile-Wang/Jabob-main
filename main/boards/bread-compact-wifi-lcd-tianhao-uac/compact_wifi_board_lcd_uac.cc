@@ -100,29 +100,41 @@ private:
     }
 
     void Start_boot_button_monitor() {
+        // 进入函数立刻打一条，证明 constructor 真的跑到了这里
+        ESP_LOGW(TAG, "Start_boot_button_monitor() called, BOOT_BUTTON_GPIO=%d",
+                 (int)BOOT_BUTTON_GPIO);
+
+        // 进 task 之前先在主线程读一次电平，绕开 task 创建/栈不够的可能性
+        ESP_LOGW(TAG, "BOOT GPIO%d initial level=%d",
+                 (int)BOOT_BUTTON_GPIO, gpio_get_level(BOOT_BUTTON_GPIO));
+
         // 周期性打印 BOOT_BUTTON_GPIO 当前电平，方便排查按键是否有边沿
         // - active_high=true 时：空闲应为 0（内部下拉），按下应为 1
         // - active_high=false 时：空闲应为 1（内部上拉），按下应为 0
         // 采样 50ms 一次，电平变化立即打印；无变化每 2s 打一次心跳
-        xTaskCreate([](void* param) {
+        BaseType_t ok = xTaskCreate([](void* param) {
             (void)param;
+            // task 入口立刻打一条，证明 task 真的被调度到了
+            ESP_LOGW(TAG, "BootBtnMon task started, polling GPIO%d",
+                     (int)BOOT_BUTTON_GPIO);
             int last_level = -1;
             int idle_ticks = 0;
             while (1) {
                 int level = gpio_get_level(BOOT_BUTTON_GPIO);
                 if (level != last_level) {
-                    ESP_LOGI(TAG, "BOOT GPIO%d edge: %d -> %d",
+                    ESP_LOGW(TAG, "BOOT GPIO%d edge: %d -> %d",
                              (int)BOOT_BUTTON_GPIO, last_level, level);
                     last_level = level;
                     idle_ticks = 0;
                 } else if (++idle_ticks >= 40) {
-                    ESP_LOGI(TAG, "BOOT GPIO%d idle level=%d",
+                    ESP_LOGW(TAG, "BOOT GPIO%d idle level=%d",
                              (int)BOOT_BUTTON_GPIO, level);
                     idle_ticks = 0;
                 }
                 vTaskDelay(pdMS_TO_TICKS(50));
             }
-        }, "BootBtnMon", 2048, nullptr, 5, NULL);
+        }, "BootBtnMon", 4096, nullptr, 5, NULL);
+        ESP_LOGW(TAG, "BootBtnMon xTaskCreate returned %d", (int)ok);
     }
 
     static void InitializeButtonsTask(void* param) {
