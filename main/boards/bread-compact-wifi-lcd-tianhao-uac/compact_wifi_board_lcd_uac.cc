@@ -175,23 +175,22 @@ private:
         });
 
         board->boot_button_.OnLongPress([board]() {
-            ESP_LOGI(TAG, "Boot button long pressed");
             auto& app = Application::GetInstance();
             auto display = board->GetDisplay();
 
-            bool entering_meeting = app.GetListeningMode() != kListeningModeMeetingAssistant;
-            if (entering_meeting) {
-                app.SetListeningModePublic(kListeningModeMeetingAssistant);
-                if (display) {
-                    display->SetMeetingMode(true);
-                    display->ShowNotification("进入会议模式");
-                }
-            } else {
-                app.SetListeningModePublic(kListeningModeAutoStop);
-                if (display) {
-                    display->SetMeetingMode(false);
-                    display->ShowNotification("退出会议模式");
-                }
+            ListeningMode prev = app.GetListeningMode();
+            bool entering_meeting = prev != kListeningModeMeetingAssistant;
+            ListeningMode target = entering_meeting ? kListeningModeMeetingAssistant
+                                                    : kListeningModeAutoStop;
+            ESP_LOGW(TAG, "Boot long press: device_state=%d, mode %d -> %d (%s)",
+                     (int)app.GetDeviceState(), (int)prev, (int)target,
+                     entering_meeting ? "ENTER meeting" : "EXIT meeting");
+
+            app.SetListeningModePublic(target);
+
+            if (display) {
+                display->SetMeetingMode(entering_meeting);
+                display->ShowNotification(entering_meeting ? "进入会议模式" : "退出会议模式");
             }
         });
 

@@ -815,6 +815,23 @@ void Application::AbortSpeaking(AbortReason reason) {
 
 void Application::SetListeningMode(ListeningMode mode) {
     listening_mode_ = mode;
+
+    // 当设备已经处于 Listening 时，SetDeviceState(Listening) 会被 same-state
+    // 守卫直接 return（参见本文件 OnWakeWordDetected 中相同的注释），
+    // 导致 SendStartListening 不会重发、服务端不知道模式变化。
+    // 这里手动绕开：直接发协议帧 + 更新表情，让会议模式能在任何时机切入/切出。
+    if (device_state_ == kDeviceStateListening) {
+        ESP_LOGI(TAG, "SetListeningMode while already listening, resending mode=%d", mode);
+        if (protocol_ && protocol_->IsAudioChannelOpened()) {
+            protocol_->SendStartListening(mode);
+        }
+        auto display = Board::GetInstance().GetDisplay();
+        if (display) {
+            display->SetEmotion(mode == kListeningModeMeetingAssistant ? "sad" : "confused");
+        }
+        return;
+    }
+
     SetDeviceState(kDeviceStateListening);
 }
 
