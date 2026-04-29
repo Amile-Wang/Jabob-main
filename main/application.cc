@@ -832,6 +832,22 @@ void Application::SetListeningMode(ListeningMode mode) {
         return;
     }
 
+    // 从 Idle/其它状态切到 Listening 之前，先确保音频通道打开。
+    // 否则 SetDeviceState(Listening) 内的 SendStartListening 会因为通道未建立而无效，
+    // 服务端永远收不到 mode=meeting。这条路径与 ToggleChatState 中的处理一致。
+    if (!protocol_) {
+        ESP_LOGW(TAG, "SetListeningMode: protocol_ is null, abort");
+        return;
+    }
+    if (!protocol_->IsAudioChannelOpened()) {
+        ESP_LOGI(TAG, "SetListeningMode: audio channel not open, opening first");
+        SetDeviceState(kDeviceStateConnecting);
+        if (!protocol_->OpenAudioChannel()) {
+            ESP_LOGE(TAG, "SetListeningMode: OpenAudioChannel failed");
+            return;
+        }
+    }
+
     SetDeviceState(kDeviceStateListening);
 }
 

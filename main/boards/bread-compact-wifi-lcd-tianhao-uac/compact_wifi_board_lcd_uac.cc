@@ -186,7 +186,11 @@ private:
                      (int)app.GetDeviceState(), (int)prev, (int)target,
                      entering_meeting ? "ENTER meeting" : "EXIT meeting");
 
-            app.SetListeningModePublic(target);
+            // 协议 IO（OpenAudioChannel / SendStartListening）必须在主线程跑，
+            // 与 ToggleChatState 中的 Schedule 调度一致。
+            app.Schedule([target]() {
+                Application::GetInstance().SetListeningModePublic(target);
+            });
 
             if (display) {
                 display->SetMeetingMode(entering_meeting);
