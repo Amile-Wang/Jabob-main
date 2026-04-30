@@ -89,5 +89,9 @@
       "WebSearch"
     ]
   },
-  "defaultShell": "powershell"
+  "enabledMcpjsonServers": [
+    "playwright"
+  ],
+  "defaultShell": "powershell",
+  "enableAllProjectMcpServers": true
 }
