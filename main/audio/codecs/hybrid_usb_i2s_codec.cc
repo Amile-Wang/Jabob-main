@@ -371,20 +371,18 @@ int HybridUsbI2sCodec::Write(const int16_t* data, int samples) {
         }
     }
 
+    // 必须使用 portMAX_DELAY 阻塞写：上层 AudioCodec::OutputData 只调用一次 Write 且
+    // 不检查返回值，丢弃的样本不会重传。100ms 超时会在 DMA 满时把整块 PCM 丢掉，
+    // 表现为长提示音后半段被"压缩/截断"。其它 I2S codec 也都用 portMAX_DELAY。
     size_t bytes_written = 0;
-    esp_err_t ret = i2s_channel_write(i2s_tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, pdMS_TO_TICKS(100));
-    if (ret == ESP_OK && bytes_written > 0) {
-        int samples_written = bytes_written / sizeof(int32_t);
-        ESP_LOGD(TAG, "Successfully wrote %d samples to I2S", samples_written);
-        return samples_written;
-    } else if (ret == ESP_ERR_TIMEOUT) {
-        ESP_LOGD(TAG, "I2S write timeout, samples: %d", samples);
-        return 0;
-    } else if (ret != ESP_OK) {
+    esp_err_t ret = i2s_channel_write(i2s_tx_handle_, buffer.data(), samples * sizeof(int32_t), &bytes_written, portMAX_DELAY);
+    if (ret != ESP_OK) {
         ESP_LOGE(TAG, "I2S write error: %s, bytes_written: %zu", esp_err_to_name(ret), bytes_written);
         return 0;
     }
-    return 0;
+    int samples_written = bytes_written / sizeof(int32_t);
+    ESP_LOGD(TAG, "Successfully wrote %d samples to I2S", samples_written);
+    return samples_written;
 }
 
 // USB 相关实现
