@@ -1,0 +1,198 @@
+/* sim_client — 朴素布局，只为可用 */
+* { box-sizing: border-box; }
+body {
+  font-family: 'PingFang SC', 'Microsoft YaHei', system-ui, sans-serif;
+  margin: 0;
+  padding: 16px;
+  background: #f3f4f6;
+  color: #222;
+}
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.card {
+  background: #fff;
+  border: 1px solid #e1e4e8;
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.card.banner {
+  background: #fff5e6;
+  border-color: #f0c060;
+  color: #6b3a00;
+  font-size: 13px;
+}
+.card.banner code {
+  background: #faecc4;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-size: 12px;
+}
+.card.banner details summary { cursor: pointer; }
+
+.card h3 {
+  margin: 0 0 10px 0;
+  font-size: 14px;
+  color: #555;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* 顶 status bar */
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+#statePill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 600;
+  background: #888;
+  font-size: 13px;
+}
+#sessionChip, #wsStatus {
+  font-family: monospace;
+  font-size: 12px;
+  color: #666;
+  background: #f1f3f5;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+#modeSelect {
+  padding: 4px 8px;
+  font-size: 13px;
+  border: 1px solid #ccd;
+  border-radius: 4px;
+  background: #fff;
+}
+
+/* 配置面板 */
+.config-grid {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  gap: 6px 10px;
+  font-size: 13px;
+}
+.config-grid label { color: #555; align-self: center; }
+.config-grid input {
+  padding: 5px 8px;
+  font-family: monospace;
+  border: 1px solid #ccd;
+  border-radius: 4px;
+  font-size: 12px;
+}
+
+/* 按钮 */
+button {
+  padding: 6px 14px;
+  border: none;
+  border-radius: 5px;
+  background: #4285f4;
+  color: #fff;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background .12s;
+}
+button:hover:not(:disabled) { background: #3367d6; }
+button:disabled { background: #c0c4c8; cursor: not-allowed; }
+button.danger { background: #d44; }
+button.danger:hover:not(:disabled) { background: #b32; }
+button.secondary { background: #6c7780; }
+button.secondary:hover:not(:disabled) { background: #555f66; }
+
+.row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.row > * + * { margin-left: 0; }
+
+input[type=text] {
+  flex: 1;
+  padding: 6px 10px;
+  border: 1px solid #ccd;
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+select {
+  padding: 5px 8px;
+  border: 1px solid #ccd;
+  border-radius: 4px;
+  font-size: 13px;
+  background: #fff;
+}
+
+/* 工具 inspector */
+#toolInspector {
+  font-family: monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  background: #f8f9fa;
+  padding: 8px 10px;
+  border-radius: 4px;
+  border: 1px solid #eaecef;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 4px 16px;
+}
+#toolInspector b { color: #555; }
+
+/* 对话流 */
+#conversation {
+  max-height: 280px;
+  overflow-y: auto;
+  border: 1px solid #e1e4e8;
+  border-radius: 4px;
+  padding: 8px;
+  background: #fafbfc;
+}
+.msg {
+  margin: 4px 0;
+  padding: 6px 10px;
+  border-radius: 6px;
+  max-width: 85%;
+  word-wrap: break-word;
+  font-size: 14px;
+  line-height: 1.4;
+}
+.msg-user {
+  background: #dceeff;
+  margin-left: auto;
+  text-align: right;
+}
+.msg-server {
+  background: #f0f0f0;
+  margin-right: auto;
+}
+
+/* 日志 */
+#logPanel {
+  max-height: 320px;
+  overflow-y: auto;
+  background: #1e1e1e;
+  color: #ddd;
+  padding: 8px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+}
+#logPanel div { color: inherit; }
+.log-toolbar {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 6px;
+  align-items: center;
+}
+.log-toolbar .hint {
+  font-size: 11px;
+  color: #888;
+}

@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Jabobo sim_client — ESP32 行为对齐测试页</title>
+  <link rel="stylesheet" href="styles.css">
+  <!-- libopus.js 是 classic 脚本，必须在 type=module 之前加载，
+       且不能用 type=module（它直接挂 window.Module） -->
+  <script src="libopus.js"></script>
+  <script>
+    // 让 audioUplink/Downlink 拿到 ModuleInstance（test_page.html 的惯例）
+    window.addEventListener('DOMContentLoaded', () => {
+      if (typeof Module !== 'undefined' && !window.ModuleInstance) {
+        window.ModuleInstance = Module.instance || Module;
+      }
+    });
+  </script>
+</head>
+<body>
+  <div class="wrap">
+
+    <!-- ============== Secure context 警示（仅 http 非 localhost 显示） ============== -->
+    <div id="secureCtxBanner" class="card banner" style="display:none">
+      <strong>⚠️ 当前页面非 secure context</strong> —
+      浏览器在 <code id="banner-origin"></code> 上禁止 <code>navigator.mediaDevices</code>，麦克风用不了。
+      <details style="margin-top:6px">
+        <summary>三个绕开方式</summary>
+        <ol style="margin:6px 0 0 18px;padding:0;font-size:12px">
+          <li><b>SSH tunnel（推荐）</b>：本机执行
+            <code>ssh -L 8888:51.107.185.69:80 &lt;vm&gt;</code>，然后访问
+            <code>http://localhost:8888/test/sim_client/</code>。localhost 算 secure，麦克风可用。</li>
+          <li><b>Chrome flag</b>：关掉所有 Chrome，重启时加
+            <code>--unsafely-treat-insecure-origin-as-secure="<span id="banner-origin-flag"></span>" --user-data-dir=/tmp/chrome-insecure</code></li>
+          <li><b>nginx 加 https 自签证书</b>，访问 <code>https://51.107.185.69/test/sim_client/</code></li>
+        </ol>
+        <p style="margin:6px 0 0 0;font-size:12px;color:#666">
+          仅验证服务端 LLM/TTS 链路时无需麦克风：用「注入 wake / detect 文字」面板发一句即可。
+        </p>
+      </details>
+    </div>
+
+    <!-- ============== 顶部状态栏 ============== -->
+    <div class="card statusbar">
+      <span id="statePill">idle</span>
+      <span id="sessionChip">session: —</span>
+      <label>Mode:
+        <select id="modeSelect">
+          <option value="auto">auto</option>
+          <option value="manual">manual</option>
+          <option value="realtime">realtime</option>
+          <option value="meeting">meeting</option>
+        </select>
+      </label>
+      <span id="wsStatus">disconnected</span>
+      <span style="flex:1"></span>
+      <small style="color:#888">v0.1 · 对齐 jabobo-main 固件</small>
+    </div>
+
+    <!-- ============== 配置 ============== -->
+    <div class="card">
+      <h3>WS 配置</h3>
+      <div class="config-grid">
+        <label>WS URL</label>
+        <input type="text" id="wsUrl" placeholder="ws://host:port/path">
+        <label>Device-Id</label>
+        <input type="text" id="deviceId" placeholder="MAC 或 UUID">
+        <label>Client-Id</label>
+        <input type="text" id="clientId" placeholder="UUID">
+        <label>Token</label>
+        <input type="text" id="token" placeholder="(可空 — 浏览器无法设 Authorization header)">
+      </div>
+      <div class="row" style="margin-top:10px">
+        <button id="connectBtn">Connect</button>
+        <button id="disconnectBtn" class="secondary">Disconnect</button>
+      </div>
+    </div>
+
+    <!-- ============== 录音 / 打断 ============== -->
+    <div class="card">
+      <h3>录音 / 打断</h3>
+      <div class="row">
+        <button id="recordBtn">● Record</button>
+        <button id="stopBtn" class="secondary">Stop (manual)</button>
+        <span style="flex:1"></span>
+        <label>abort reason:
+          <select id="abortReason">
+            <option value="">(none)</option>
+            <option value="wake_word_detected">wake_word_detected</option>
+          </select>
+        </label>
+        <button id="abortBtn" class="danger" disabled>Abort</button>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:6px;">
+        说明：选 mode=auto/realtime/meeting 时按一次 Record 就持续上传，由服务端 VAD 切句；
+        manual 模式下需要手动 Stop。Speaking 态默认停止上传 opus，realtime 模式例外（CONFIG_USE_SERVER_AEC）。
+      </div>
+    </div>
+
+    <!-- ============== 唤醒词 / detect 文字注入 ============== -->
+    <div class="card">
+      <h3>注入 wake / detect 文字（模拟 SendWakeWordDetected）</h3>
+      <div class="row">
+        <input type="text" id="detectText" placeholder="例如：你好  /  进入会议模式  /  刚才说了什么">
+        <button id="detectBtn">Send detect</button>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:6px;">
+        发出 <code>{type:'listen', state:'detect', text}</code>；服务端会先匹配 wakeup_words，
+        命中且开 enable_greeting 则回欢迎语，否则直接 startToChat(text)。
+      </div>
+    </div>
+
+    <!-- ============== 设备主动行为（mirrors MCP tools） ============== -->
+    <div class="card">
+      <h3>设备侧主动行为（模拟设备本地 MCP 工具自我触发）</h3>
+      <div class="row">
+        <button id="enterMeetingBtn" class="secondary">Enter meeting</button>
+        <button id="exitMeetingBtn" class="secondary">Exit meeting</button>
+        <button id="silenceBtn" class="secondary">Silence now</button>
+      </div>
+      <div style="font-size:11px;color:#888;margin-top:6px;">
+        镜像固件 <code>self.set_meeting_assistant_mode</code> / <code>exit</code> / <code>silence_now</code> 工具的本地副作用。
+        正常情况下是服务端通过 MCP 调用过来；这些按钮让你不用经过 LLM 也能直接触发。
+      </div>
+    </div>
+
+    <!-- ============== 工具状态 inspector ============== -->
+    <div class="card">
+      <h3>设备状态（服务端 MCP 调用会改这些）</h3>
+      <div id="toolInspector"></div>
+    </div>
+
+    <!-- ============== 对话流 ============== -->
+    <div class="card">
+      <h3>对话</h3>
+      <div id="conversation"></div>
+    </div>
+
+    <!-- ============== 日志 ============== -->
+    <div class="card">
+      <h3>日志</h3>
+      <div class="log-toolbar">
+        <button id="clearLogBtn" class="secondary">Clear</button>
+        <span class="hint">[ws=>] / [ws&lt;=] / [mcp] / [trace] —— Network 面板看完整 WS 帧</span>
+      </div>
+      <div id="logPanel"></div>
+    </div>
+
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
