@@ -932,9 +932,11 @@ void Application::SetDeviceState(DeviceState state) {
                 audio_service_.EnableDeviceAec(true);
             }
 
-            // 播放提示音，表示设备即将开始说话
-            {
-                // 定义可用的音效数组
+            // 从聆听切换到说话时播放 popup 提示音，让用户得知刚才说的话已被听进去、即将进入说话模式
+            if (previous_state == kDeviceStateListening) {
+                audio_service_.PlaySound(Lang::Sounds::P3_POPUP);
+            } else {
+                // 其他路径（Idle/Connecting → Speaking）保留原有的随机口语提示音
                 static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
                     // std::ref(Lang::Sounds::P3_0),
                     // std::ref(Lang::Sounds::P3_1),//等等哦
@@ -945,8 +947,6 @@ void Application::SetDeviceState(DeviceState state) {
                     // std::ref(Lang::Sounds::P3_6),//我听着呢
                     // std::ref(Lang::Sounds::P3_7)
                 };
-                
-                // 生成随机索引并播放随机音效
                 int random_index = esp_random() % sound_effects.size();
                 audio_service_.PlaySound(sound_effects[random_index]);
             }
