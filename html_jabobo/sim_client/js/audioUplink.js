@@ -6,6 +6,7 @@ import { deviceState } from './deviceState.js';
 import { sendBinary, isOpen } from './ws.js';
 import { sendStartListening, sendStopListening } from './protocol.js';
 import { log } from './ui.js';
+import { markUplinkFrameSent } from './metrics.js';
 
 const SAMPLE_RATE = 16000;
 const CHANNELS = 1;
@@ -210,6 +211,8 @@ function encodeAndSend(int16Frame) {
   }
   if (!opusBytes || opusBytes.length === 0) return;
   sendBinary(opusBytes.buffer);
+  // 给 metrics 一个"用户最后说话"的代理时间戳 —— turn T0 由此推断
+  markUplinkFrameSent();
   framesSent++;
   if (framesSent % 50 === 0) {
     log(`[uplink] sent=${framesSent} gated=${framesGated} mode=${deviceState.listeningMode}`, 'debug');

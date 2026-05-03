@@ -11,7 +11,24 @@ import {
   flush as flushDownlink,
   primeForPlayback,
 } from './audioDownlink.js';
-import { onStateChange, log, appendConvo, setWsStatus, refreshToolInspector } from './ui.js';
+import {
+  onStateChange,
+  log,
+  appendConvo,
+  appendTurnSummary,
+  setWsStatus,
+  refreshToolInspector,
+} from './ui.js';
+import {
+  markDetectInjected,
+  markStt,
+  markFirstTtsText,
+  markTtsAudioFrame,
+  markTtsStop,
+  setOnTurnFinalize,
+  summarize,
+  fmtMs,
+} from './metrics.js';
 
 // ---------- 配置持久化 ----------
 const LS = {
@@ -79,12 +96,15 @@ function routeText(_raw, msg) {
       flushDownlink();
       log('[tts] start', 'info');
     } else if (msg.state === 'sentence_start') {
-      if (msg.text) appendConvo('server', msg.text);
+      const dms = markFirstTtsText(msg.text || '');
+      const meta = dms != null ? `LLM 首字 +${fmtMs(dms)}` : null;
+      if (msg.text) appendConvo('server', msg.text, meta);
       log(`[tts] sentence_start: ${msg.text || ''}`, 'debug');
     } else if (msg.state === 'sentence_end') {
       log(`[tts] sentence_end: ${msg.text || ''}`, 'debug');
     } else if (msg.state === 'stop') {
       log('[tts] stop', 'info');
+      markTtsStop();
       // 标记 EOS：让 pcmQueue 里残余的 <200ms 样本播完，而不是清掉
       signalEndOfStream();
       // 镜像 application.cc:910：tts.stop 后回 listening
@@ -100,7 +120,9 @@ function routeText(_raw, msg) {
     return;
   }
   if (t === 'stt') {
-    if (msg.text) appendConvo('user', `[stt] ${msg.text}`);
+    const dms = markStt(msg.text || '');
+    const meta = dms != null ? `ASR +${fmtMs(dms)}` : null;
+    if (msg.text) appendConvo('user', `[stt] ${msg.text}`, meta);
     log(`[stt] ${msg.text}`, 'info');
     return;
   }
@@ -136,6 +158,8 @@ function routeBinary(buf) {
     signalEndOfStream();
     return;
   }
+  // 标记 turn 内首个 TTS 音频帧到达
+  markTtsAudioFrame();
   enqueueBinaryFrame(buf);
 }
 
@@ -181,6 +205,7 @@ function bindEvents() {
   document.getElementById('detectBtn').addEventListener('click', () => {
     const text = document.getElementById('detectText').value.trim();
     if (!text) return;
+    markDetectInjected();
     sendDetect(text);
     appendConvo('user', `[detect] ${text}`);
     document.getElementById('detectText').value = '';
@@ -243,6 +268,20 @@ function init() {
   refreshToolInspector();
   onStateChange();
   showSecureContextBannerIfNeeded();
+  // turn 结束时把分段 latency 渲染成汇总条
+  setOnTurnFinalize((turn) => {
+    const s = summarize(turn);
+    const parts = [
+      `ASR ${fmtMs(s.asr)}`,
+      `LLM ${fmtMs(s.llm)}`,
+      `TTS 首音 ${fmtMs(s.tts_first)}`,
+      `TTS 播放 ${fmtMs(s.tts_total)}`,
+      `首音端到端 ${fmtMs(s.end_to_first_audio)}`,
+      `总 ${fmtMs(s.end_to_end)}`,
+    ];
+    appendTurnSummary(`⏱ ${parts.join(' · ')}`);
+    log(`[turn] ${parts.join(' | ')}`, 'success');
+  });
   log(`sim_client ready (secureContext=${window.isSecureContext}, mediaDevices=${!!navigator.mediaDevices})`, 'success');
 }
 

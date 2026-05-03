@@ -100,11 +100,28 @@ export function log(message, level = 'info') {
   r.logPanel.scrollTop = r.logPanel.scrollHeight;
 }
 
-export function appendConvo(role, text) {
+export function appendConvo(role, text, meta) {
   const r = getRefs();
   if (!r.convo) return;
   const div = document.createElement('div');
   div.className = `msg msg-${role}`;
+  div.textContent = text;
+  if (meta) {
+    const tag = document.createElement('span');
+    tag.className = 'msg-meta';
+    tag.textContent = ` ⏱ ${meta}`;
+    div.appendChild(tag);
+  }
+  r.convo.appendChild(div);
+  r.convo.scrollTop = r.convo.scrollHeight;
+}
+
+// turn 结束（tts.stop）时插入的灰底汇总条
+export function appendTurnSummary(text) {
+  const r = getRefs();
+  if (!r.convo) return;
+  const div = document.createElement('div');
+  div.className = 'msg msg-summary';
   div.textContent = text;
   r.convo.appendChild(div);
   r.convo.scrollTop = r.convo.scrollHeight;
