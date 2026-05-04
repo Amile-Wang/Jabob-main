@@ -69,6 +69,7 @@ struct AudioTask {
     AudioTaskType type;
     std::vector<int16_t> pcm;
     uint32_t timestamp;
+    bool is_sound_effect = false;  // 解码自本地提示音的 PCM；ResetDecoder 时保留不清
 };
 
 struct DebugStatistics {
@@ -152,7 +153,9 @@ private:
     TaskHandle_t backup_consumer_task_handle_ = nullptr;
     std::mutex audio_queue_mutex_;
     std::condition_variable audio_queue_cv_;
-    std::deque<std::unique_ptr<AudioStreamPacket>> audio_decode_queue_;
+    std::deque<std::unique_ptr<AudioStreamPacket>> audio_decode_queue_;          // 网络流入（TTS 等），可被 OpusCodecTask 直接消费
+    std::deque<std::unique_ptr<AudioStreamPacket>> audio_decode_pending_queue_;  // 网络流入的暂存：当 pipeline 里还有 sound 在跑时，TTS 帧先来这里待命；sound 全部播完那一刻整体 splice 到 audio_decode_queue_
+    std::deque<std::unique_ptr<AudioStreamPacket>> audio_sound_decode_queue_;    // 本地提示音（PlaySound 注入）；OpusCodecTask 优先消费此队列；ResetDecoder 不清此队列
     std::deque<std::unique_ptr<AudioStreamPacket>> audio_send_queue_;
     std::deque<std::unique_ptr<AudioStreamPacket>> audio_testing_queue_;
     std::deque<std::unique_ptr<AudioTask>> audio_encode_queue_;

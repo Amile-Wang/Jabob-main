@@ -914,12 +914,23 @@ void Application::SetDeviceState(DeviceState state) {
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
+            // 屏幕显示 SPEAKING 之后再播 popup——满足"显示进入说话状态后才出声"的视觉同步。
+            // race 安全由 PlaySound 内部保证：入帧前会把已到的 TTS 帧 splice 到 pending，
+            // 等 popup 全部播完再放回主 decode queue。
+            audio_service_.PlaySound(Lang::Sounds::P3_POPUP);
             // if (!audio_service_.IsAudioProcessorRunning()) {
                 // Send the start listening command
                 // protocol_->SendStartListening(listening_mode_);
                 ESP_LOGI(TAG, "Speaking state: keep processed audio for wake word detection");
                 #if CONFIG_USE_DSPOTTER_WAKE_WORD
-                audio_service_.EnableVoiceProcessing(true);
+                // 这里必须加 IsAudioProcessorRunning 防护，对齐 Listening case 的写法。
+                // EnableVoiceProcessing(true) 内部会无条件 ResetDecoder() 清空整个
+                // decode + playback queue —— Listening→Speaking 路径下 audio_processor
+                // 本来就在 running，不需要重新 Start，但若无防护就会把刚入队的 popup
+                // 提示音连同 TTS buffer 一起清光，提示音永远播不出来。
+                if (!audio_service_.IsAudioProcessorRunning()) {
+                    audio_service_.EnableVoiceProcessing(true);
+                }
                 #else
                 audio_service_.EnableVoiceProcessing(false);
                 #endif
@@ -931,26 +942,6 @@ void Application::SetDeviceState(DeviceState state) {
             if (aec_mode_ == kAecOnDeviceSide) {
                 audio_service_.EnableDeviceAec(true);
             }
-
-            // 从聆听切换到说话时播放 popup 提示音，让用户得知刚才说的话已被听进去、即将进入说话模式
-            if (previous_state == kDeviceStateListening) {
-                audio_service_.PlaySound(Lang::Sounds::P3_POPUP);
-            } else {
-                // 其他路径（Idle/Connecting → Speaking）保留原有的随机口语提示音
-                static const std::vector<std::reference_wrapper<const std::string_view>> sound_effects = {
-                    // std::ref(Lang::Sounds::P3_0),
-                    // std::ref(Lang::Sounds::P3_1),//等等哦
-                    // std::ref(Lang::Sounds::P3_2), //在呢在呢
-                    std::ref(Lang::Sounds::P3_3), //嗯嗯
-                    // std::ref(Lang::Sounds::P3_4),//让我想想
-                    // std::ref(Lang::Sounds::P3_5),稍等哈
-                    // std::ref(Lang::Sounds::P3_6),//我听着呢
-                    // std::ref(Lang::Sounds::P3_7)
-                };
-                int random_index = esp_random() % sound_effects.size();
-                audio_service_.PlaySound(sound_effects[random_index]);
-            }
-
 
             if (listening_mode_ != kListeningModeRealtime) {
                 #if CONFIG_USE_DSPOTTER_WAKE_WORD
@@ -967,7 +958,6 @@ void Application::SetDeviceState(DeviceState state) {
             }
 
             Schedule([this]() {
-
                 vTaskDelay(pdMS_TO_TICKS(2500));
                 audio_service_.ResetDecoder();
             });

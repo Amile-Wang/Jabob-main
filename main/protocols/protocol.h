@@ -12,6 +12,10 @@ struct AudioStreamPacket {
     int frame_duration = 0;
     uint32_t timestamp = 0;
     std::vector<uint8_t> payload;
+    // 本地预渲染提示音（PlaySound 注入）打 true。OpusCodecTask 看到此 flag
+    // 跳过 start_to_speak_ 的 300ms 延迟检查——否则 popup（多帧）中间会被
+    // tts.start 触发的延迟腰斩，听感残废。
+    bool is_sound_effect = false;
 };
 
 struct BinaryProtocol2 {

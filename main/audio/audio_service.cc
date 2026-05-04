@@ -670,6 +670,22 @@ void AudioService::AudioOutputTask() {
         
         auto task = std::move(audio_playback_queue_.front());
         audio_playback_queue_.pop_front();
+        // 当我们刚取出的是一个 sound effect 任务，且 pipeline 已彻底没有 sound 在跑了
+        // (sound queue 空 AND playback queue 不再含 sound task) —— 把暂存的 TTS 帧整体
+        // splice 到主 decode queue，让 OpusCodecTask 接着消费。这是 pending → main 的唯一释放点。
+        if (task && task->is_sound_effect &&
+            audio_sound_decode_queue_.empty() &&
+            std::none_of(audio_playback_queue_.begin(), audio_playback_queue_.end(),
+                         [](const std::unique_ptr<AudioTask>& t) { return t && t->is_sound_effect; })) {
+            if (!audio_decode_pending_queue_.empty()) {
+                ESP_LOGI(TAG, "Sound effect playback drained, releasing %u pending TTS packets",
+                         (unsigned int)audio_decode_pending_queue_.size());
+                while (!audio_decode_pending_queue_.empty()) {
+                    audio_decode_queue_.push_back(std::move(audio_decode_pending_queue_.front()));
+                    audio_decode_pending_queue_.pop_front();
+                }
+            }
+        }
         audio_queue_cv_.notify_all();
         lock.unlock();
 
@@ -707,24 +723,35 @@ void AudioService::OpusCodecTask() {
         audio_queue_cv_.wait(lock, [this]() {
             return service_stopped_ ||
                 (!audio_encode_queue_.empty() && audio_send_queue_.size() < MAX_SEND_PACKETS_IN_QUEUE) ||
-                (!audio_decode_queue_.empty() && audio_playback_queue_.size() < MAX_PLAYBACK_TASKS_IN_QUEUE);
+                ((!audio_sound_decode_queue_.empty() || !audio_decode_queue_.empty()) && audio_playback_queue_.size() < MAX_PLAYBACK_TASKS_IN_QUEUE);
         });
         if (service_stopped_) {
             break;
         }
 
-        /* Decode the audio from decode queue */
-        if (!audio_decode_queue_.empty() && audio_playback_queue_.size() < MAX_PLAYBACK_TASKS_IN_QUEUE) {
-            auto packet = std::move(audio_decode_queue_.front());
-            audio_decode_queue_.pop_front();
-            // Log queue status before decoding
-            ESP_LOGD(TAG, "Decode: decode_queue=%u, playback_queue=%u/%d", 
-                     (unsigned int)audio_decode_queue_.size(), (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
+        /* Decode the audio from decode queue —— sound 队列优先于 audio 队列。
+           保证本地提示音永远先解码、先入 playback queue、先送 codec，
+           不论网络 TTS 帧何时到达。 */
+        bool has_decode_work =
+            (!audio_sound_decode_queue_.empty() || !audio_decode_queue_.empty()) &&
+            audio_playback_queue_.size() < MAX_PLAYBACK_TASKS_IN_QUEUE;
+        if (has_decode_work) {
+            std::deque<std::unique_ptr<AudioStreamPacket>>& source_queue =
+                !audio_sound_decode_queue_.empty() ? audio_sound_decode_queue_ : audio_decode_queue_;
+            auto packet = std::move(source_queue.front());
+            source_queue.pop_front();
+            ESP_LOGD(TAG, "Decode from %s: sound=%u audio=%u playback=%u/%d",
+                     packet && packet->is_sound_effect ? "sound" : "audio",
+                     (unsigned int)audio_sound_decode_queue_.size(),
+                     (unsigned int)audio_decode_queue_.size(),
+                     (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
             audio_queue_cv_.notify_all();
             lock.unlock();
 
             // 检查 start_to_speak 标志位，如果为 true 则延迟 300ms
-            if (start_to_speak_) {
+            // 但本地提示音（PlaySound 注入的 popup 等）跳过延迟，否则多帧 sound 会被
+            // 中途插入 300ms 静音、听感断裂。flag 留给后续真正的 TTS 第一帧消费。
+            if (start_to_speak_ && !packet->is_sound_effect) {
                 ESP_LOGD(TAG, "Start to speak detected, delaying decode by 300ms");
                 vTaskDelay(pdMS_TO_TICKS(300));
                 start_to_speak_ = false;  // 重置标志位
@@ -734,6 +761,7 @@ void AudioService::OpusCodecTask() {
             auto task = std::make_unique<AudioTask>();
             task->type = kAudioTaskTypeDecodeToPlaybackQueue;
             task->timestamp = packet->timestamp;
+            task->is_sound_effect = packet->is_sound_effect;
 
             SetDecodeSampleRate(packet->sample_rate, packet->frame_duration);
             if (opus_decoder_->Decode(std::move(packet->payload), task->pcm)) {
@@ -893,19 +921,46 @@ void AudioService::PushTaskToEncodeQueue(AudioTaskType type, std::vector<int16_t
 
 bool AudioService::PushPacketToDecodeQueue(std::unique_ptr<AudioStreamPacket> packet, bool wait) {
     std::unique_lock<std::mutex> lock(audio_queue_mutex_);
-    if (audio_decode_queue_.size() >= MAX_DECODE_PACKETS_IN_QUEUE) {
+    // 路由：本地提示音走 sound 专用队列（OpusCodecTask 优先消费，ResetDecoder 不清），
+    // 网络音频（TTS 等）走主 decode 队列。两者共用同一容量限制即可——sound 队列实际很短
+    // （popup 8 帧），不会真正打满。
+    const bool is_sound = packet->is_sound_effect;
+
+    // 路由决策：
+    //  - 本地提示音 → audio_sound_decode_queue_（OpusCodecTask 优先消费）
+    //  - 网络包（TTS）：检查 pipeline 是否还有 sound 在跑：
+    //      sound queue 非空 OR playback queue 内含 sound task → 入 audio_decode_pending_queue_ 暂存
+    //      pipeline 干净 → 入 audio_decode_queue_ 主路径
+    //    pending 由 AudioOutputTask 取出最后一个 sound task 时整体 splice 到主 decode queue。
+    std::deque<std::unique_ptr<AudioStreamPacket>>* target_queue = nullptr;
+    const char* target_name = "?";
+    if (is_sound) {
+        target_queue = &audio_sound_decode_queue_;
+        target_name = "sound";
+    } else {
+        bool sound_in_pipeline =
+            !audio_sound_decode_queue_.empty() ||
+            std::any_of(audio_playback_queue_.begin(), audio_playback_queue_.end(),
+                        [](const std::unique_ptr<AudioTask>& t) { return t && t->is_sound_effect; });
+        target_queue = sound_in_pipeline ? &audio_decode_pending_queue_ : &audio_decode_queue_;
+        target_name = sound_in_pipeline ? "pending" : "audio";
+    }
+
+    if (target_queue->size() >= MAX_DECODE_PACKETS_IN_QUEUE) {
         if (wait) {
-            audio_queue_cv_.wait(lock, [this]() { return audio_decode_queue_.size() < MAX_DECODE_PACKETS_IN_QUEUE; });
+            audio_queue_cv_.wait(lock, [target_queue]() { return target_queue->size() < MAX_DECODE_PACKETS_IN_QUEUE; });
         } else {
-            ESP_LOGI(TAG, "Decode queue full (%u/%d), dropping packet", 
-                     (unsigned int)audio_decode_queue_.size(), MAX_DECODE_PACKETS_IN_QUEUE);
+            ESP_LOGI(TAG, "Decode queue full (%s, %u/%d), dropping packet",
+                     target_name, (unsigned int)target_queue->size(), MAX_DECODE_PACKETS_IN_QUEUE);
             return false;
         }
     }
-    audio_decode_queue_.push_back(std::move(packet));
-    // Log network receive status
-    ESP_LOGD(TAG, "Network received: decode_queue=%u/%d, playback_queue=%u/%d", 
-             (unsigned int)audio_decode_queue_.size(), MAX_DECODE_PACKETS_IN_QUEUE,
+    target_queue->push_back(std::move(packet));
+    ESP_LOGD(TAG, "Pushed to %s: audio=%u pending=%u sound=%u playback=%u/%d",
+             target_name,
+             (unsigned int)audio_decode_queue_.size(),
+             (unsigned int)audio_decode_pending_queue_.size(),
+             (unsigned int)audio_sound_decode_queue_.size(),
              (unsigned int)audio_playback_queue_.size(), MAX_PLAYBACK_TASKS_IN_QUEUE);
     audio_queue_cv_.notify_all();
     return true;
@@ -1010,6 +1065,22 @@ void AudioService::SetCallbacks(AudioServiceCallbacks& callbacks) {
 }
 
 void AudioService::PlaySound(const std::string_view& sound) {
+    // 入帧前先把已在 audio_decode_queue_ 的 TTS 帧 splice 到 pending，让 sound effect
+    // 真正"插队"。pending 在 sound 全部播完那一刻由 AudioOutputTask 自动 splice 回。
+    // 这样调用方可以在任意时刻调 PlaySound，包括 device_state 已是 Speaking、
+    // OnIncomingAudio 闸门已开、TTS 帧已经在 audio_decode_queue_ 的场景下，仍能
+    // 即时插入提示音、popup 头部不被 TTS 帧切开。
+    {
+        std::lock_guard<std::mutex> lock(audio_queue_mutex_);
+        if (!audio_decode_queue_.empty()) {
+            ESP_LOGI(TAG, "PlaySound preempting %u TTS packets to pending",
+                     (unsigned int)audio_decode_queue_.size());
+            while (!audio_decode_queue_.empty()) {
+                audio_decode_pending_queue_.push_back(std::move(audio_decode_queue_.front()));
+                audio_decode_queue_.pop_front();
+            }
+        }
+    }
     const char* data = sound.data();
     size_t size = sound.size();
     for (const char* p = data; p < data + size; ) {
@@ -1023,6 +1094,7 @@ void AudioService::PlaySound(const std::string_view& sound) {
         packet->frame_duration = 60;
         packet->payload.resize(payload_size);
         memcpy(packet->payload.data(), p3->payload, payload_size);
+        packet->is_sound_effect = true;
         p += payload_size;
 
         PushPacketToDecodeQueue(std::move(packet), true);
@@ -1031,15 +1103,30 @@ void AudioService::PlaySound(const std::string_view& sound) {
 
 bool AudioService::IsIdle() {
     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
-    return audio_encode_queue_.empty() && audio_decode_queue_.empty() && audio_playback_queue_.empty() && audio_testing_queue_.empty();
+    return audio_encode_queue_.empty() &&
+           audio_decode_queue_.empty() &&
+           audio_decode_pending_queue_.empty() &&
+           audio_sound_decode_queue_.empty() &&
+           audio_playback_queue_.empty() &&
+           audio_testing_queue_.empty();
 }
 
 void AudioService::ResetDecoder() {
     std::lock_guard<std::mutex> lock(audio_queue_mutex_);
     opus_decoder_->ResetState();
     timestamp_queue_.clear();
+    // 只清网络流（TTS 等）。本地提示音独占 audio_sound_decode_queue_，由 PlaySound 注入、
+    // OpusCodecTask 优先消费——ResetDecoder 不动它，确保任何状态切换路径调到这里都不
+    // 会误清提示音。pending 也是 TTS 暂存，一并清。playback queue 是混合队列（sound task
+    // 解码后也进这里），用 erase_if 保留 is_sound_effect 任务，其余清掉。
     audio_decode_queue_.clear();
-    audio_playback_queue_.clear();
+    audio_decode_pending_queue_.clear();
+    audio_playback_queue_.erase(
+        std::remove_if(audio_playback_queue_.begin(), audio_playback_queue_.end(),
+            [](const std::unique_ptr<AudioTask>& t) {
+                return t && !t->is_sound_effect;
+            }),
+        audio_playback_queue_.end());
     audio_testing_queue_.clear();
     audio_queue_cv_.notify_all();
 }
