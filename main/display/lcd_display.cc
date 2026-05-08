@@ -31,7 +31,21 @@ LV_FONT_DECLARE(BUILTIN_ICON_FONT);
 
 namespace {
 
-constexpr lv_display_rotation_t kDisplayRotation = LV_DISPLAY_ROTATION_90;
+// LVGL software rotation. Historically hardcoded to ROTATION_90 because the
+// only working board+LCD combo back then was a portrait panel that needed LVGL
+// to rotate its canvas to display in landscape. That assumption breaks for any
+// LCD config that already provides landscape dimensions (width >= height) AND
+// has applied panel-level swap_xy in board init — applying another LVGL 90°
+// rotation on top of an already-landscape panel produces garbled column-stripe
+// output (the LVGL flush coords no longer match the panel's GRAM layout).
+//
+// New rule: pick rotation from the LVGL canvas dimensions. If width >= height
+// the canvas is already landscape, no software rotation needed. Otherwise the
+// canvas is portrait and we keep the historical 90° landscape rotation so any
+// existing portrait-LCD board keeps working unchanged.
+inline lv_display_rotation_t ChooseDisplayRotation(int width, int height) {
+    return (width >= height) ? LV_DISPLAY_ROTATION_0 : LV_DISPLAY_ROTATION_90;
+}
 
 void DisableScrolling(lv_obj_t* obj) {
     if (obj == nullptr) {
@@ -204,7 +218,7 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         return;
     }
 
-    lv_display_set_rotation(display_, kDisplayRotation);
+    lv_display_set_rotation(display_, ChooseDisplayRotation(width_, height_));
 
     gif_manager_init();
     icon_manager_init();
@@ -271,7 +285,7 @@ RgbLcdDisplay::RgbLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
-    lv_display_set_rotation(display_, kDisplayRotation);
+    lv_display_set_rotation(display_, ChooseDisplayRotation(width_, height_));
 
     SetupUI();
 }
@@ -326,7 +340,7 @@ MipiLcdDisplay::MipiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel
         lv_display_set_offset(display_, offset_x, offset_y);
     }
 
-    lv_display_set_rotation(display_, kDisplayRotation);
+    lv_display_set_rotation(display_, ChooseDisplayRotation(width_, height_));
 
     SetupUI();
 }
