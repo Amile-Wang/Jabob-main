@@ -117,12 +117,6 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
                            int width, int height, int offset_x, int offset_y, bool mirror_x, bool mirror_y, bool swap_xy)
     : LcdDisplay(panel_io, panel, width, height) {
 
-    // Pre-fill the panel with black so any uncovered edges match the LCD theme.
-    std::vector<uint16_t> buffer(width_, 0x0000);
-    for (int y = 0; y < height_; y++) {
-        esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
-    }
-
     // Set the display to on
     ESP_LOGI(TAG, "Turning display on");
     {
@@ -190,10 +184,25 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         return;
     }
 
-    if (offset_x != 0 || offset_y != 0) {
-        lv_display_set_offset(display_, offset_x, offset_y);
-    }
     lv_display_set_rotation(display_, kDisplayRotation);
+
+    // Apply hardware GRAM offset on the panel controller. Required for ST7789
+    // variants whose visible window doesn't start at GRAM (0,0) (e.g. 1.69" 280x240
+    // panels need a 20/1 column/row gap). esp_lvgl_port's flush callback writes raw
+    // LVGL coordinates, so lv_display_set_offset() is not honored here — set_gap is
+    // the only path that actually shifts the panel's GRAM base.
+    // For panels with offset 0, this is a no-op (zero regression risk).
+    ESP_ERROR_CHECK(esp_lcd_panel_set_gap(panel_, offset_x, offset_y));
+
+    // Pre-fill the (now correctly offset) visible window with black so any
+    // uncovered edges match the LCD theme before the first LVGL frame arrives.
+    {
+        std::vector<uint16_t> buffer(width_, 0x0000);
+        for (int y = 0; y < height_; y++) {
+            esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
+        }
+    }
+
     gif_manager_init();
     icon_manager_init();
     SetupUI();
