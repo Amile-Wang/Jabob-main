@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<title>Thinking 预览 — Jabobo (320×240 横屏, 风格 C)</title>
+<style>
+  :root {
+    --bg: #0e1116;
+    --panel: #161a22;
+    --fg: #e6edf3;
+    --muted: #8b949e;
+    --screen-bg: #ffffff;
+  }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    background: var(--bg); color: var(--fg);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  }
+  .wrap { max-width: 1100px; margin: 0 auto; padding: 32px 24px 80px; }
+  h1 { font-size: 22px; margin: 0 0 8px; }
+  .sub { color: var(--muted); font-size: 14px; margin-bottom: 28px; line-height: 1.7; }
+  .row { display: flex; gap: 36px; flex-wrap: wrap; align-items: flex-start; }
+  .card {
+    background: var(--panel); border-radius: 12px; padding: 22px;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 24px rgba(0,0,0,0.3);
+  }
+  .card h2 { font-size: 14px; margin: 0 0 14px; color: var(--muted); font-weight: 500; letter-spacing: 0.5px; text-transform: uppercase; }
+
+  /* 320×240 landscape */
+  .lcd {
+    background: var(--screen-bg);
+    border: 2px solid #2a2f38;
+    box-shadow: 0 12px 40px -12px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    overflow: hidden;
+    position: relative;
+    border-radius: 2px;
+  }
+  .lcd.size1x { width: 320px; height: 240px; }
+  .lcd.size2x { width: 640px; height: 480px; }
+
+  /* emotion 占满整屏；PNG 原生 320×240 → 1:1 完美贴合，无裁切 */
+  .emotion { position: absolute; inset: 0; }
+  .emotion img { display: block; width: 100%; height: 100%; }
+
+  /* 底部三色点 — 风格 C */
+  .dots {
+    position: absolute;
+    left: 0; right: 0;
+    display: flex; justify-content: center;
+    z-index: 10; pointer-events: none;
+  }
+  .lcd.size1x .dots { bottom: 14px; gap: 12px; }
+  .lcd.size2x .dots { bottom: 28px; gap: 24px; }
+
+  .dot {
+    border-radius: 50%;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.18);
+    animation: bounce 1.05s ease-in-out infinite;
+  }
+  .lcd.size1x .dot { width: 12px; height: 12px; }
+  .lcd.size2x .dot { width: 24px; height: 24px; }
+
+  .dot:nth-child(1) { background: #ff6b6b; animation-delay: 0s;    }
+  .dot:nth-child(2) { background: #ffd93d; animation-delay: 0.18s; }
+  .dot:nth-child(3) { background: #6bcb77; animation-delay: 0.36s; }
+
+  @keyframes bounce {
+    0%, 60%, 100% { transform: translateY(0)     scale(1);    opacity: 0.55; }
+    30%           { transform: translateY(-10px) scale(1.15); opacity: 1;    }
+  }
+  .lcd.size2x .dot { animation-name: bounce2x; }
+  @keyframes bounce2x {
+    0%, 60%, 100% { transform: translateY(0)     scale(1);    opacity: 0.55; }
+    30%           { transform: translateY(-20px) scale(1.15); opacity: 1;    }
+  }
+
+  .ruler { color: var(--muted); font-size: 11px; margin-top: 10px; font-family: ui-monospace, Menlo, monospace; }
+  .controls { margin-top: 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+  button {
+    background: #232830; color: var(--fg); border: 1px solid #2f343d;
+    border-radius: 8px; padding: 8px 14px; font-size: 13px; cursor: pointer;
+  }
+  button:hover { background: #2c323b; }
+  .meta { font-size: 13px; color: var(--muted); line-height: 1.7; margin-top: 14px; }
+  code { background: #0d1117; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Thinking 状态 — 320×240 横屏 · 风格 C</h1>
+  <div class="sub">
+    左 <strong>1×</strong> 实际像素，右 <strong>2×</strong> 放大看动效。
+    表情图 <code>thinking_thinking.png</code> 原生 320×240，1:1 完美填满，无裁切。
+    三色点叠在画面底部最高 z 序。
+  </div>
+
+  <div class="row">
+    <div class="card">
+      <h2>1× 实际像素 (320×240)</h2>
+      <div class="lcd size1x">
+        <div class="emotion"><img src="thinking_thinking.png" alt=""></div>
+        <div class="dots">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        </div>
+      </div>
+      <div class="ruler">320 px × 240 px · ratio 4:3</div>
+    </div>
+
+    <div class="card">
+      <h2>2× 放大 (看动效)</h2>
+      <div class="lcd size2x">
+        <div class="emotion"><img src="thinking_thinking.png" alt=""></div>
+        <div class="dots">
+          <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        </div>
+      </div>
+      <div class="controls">
+        <button onclick="toggleAnim()">⏯ 暂停 / 播放</button>
+      </div>
+      <div class="meta">
+        三个 <code>lv_obj</code> 圆点 · 直径 12 px · 间距 12 px · 距底 14 px<br>
+        每点 <code>lv_anim</code> 周期 1050 ms · 相位错开 180 ms · 弹起 −10 px · 透明度 55%→100%<br>
+        颜色：<span style="color:#ff6b6b">●</span> #ff6b6b
+        &nbsp;<span style="color:#ffd93d">●</span> #ffd93d
+        &nbsp;<span style="color:#6bcb77">●</span> #6bcb77
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let paused = false;
+  function toggleAnim() {
+    paused = !paused;
+    document.querySelectorAll('.dot').forEach(d => {
+      d.style.animationPlayState = paused ? 'paused' : 'running';
+    });
+  }
+</script>
+</body>
+</html>

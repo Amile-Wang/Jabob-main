@@ -6,6 +6,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <cstdlib>
 #include "lvgl.h"
 #include <esp_log.h>
 #include <esp_err.h>
@@ -845,6 +846,55 @@ void LcdDisplay::SetupUI() {
         } else {
             ESP_LOGE(TAG, "Failed to create GIF controller");
         }
+
+    // Listening→Speaking 等待期专用静态 thinking 层。与 emotion_gif_ 同层叠放，
+    // 默认隐藏；仅 StartThinking 期间 unhide。创建失败（PSRAM 紧）就保持 nullptr，
+    // StartThinking 入口会熔断退出，绝不让远端设备走进半成品状态。
+    emotion_icon_ = icon_manager_create_image(emotion_display_, ICON_THINKING_THINKING, 0, 0);
+    if (emotion_icon_ != nullptr) {
+        lv_obj_set_size(emotion_icon_, LV_HOR_RES, LV_VER_RES);
+        lv_obj_set_style_bg_color(emotion_icon_, lvgl_theme->background_color(), 0);
+        lv_obj_align(emotion_icon_, LV_ALIGN_CENTER, 0, 0);
+        lv_image_set_inner_align(emotion_icon_, LV_IMAGE_ALIGN_CENTER);
+        lv_obj_add_flag(emotion_icon_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        ESP_LOGW(TAG, "[thinking] emotion_icon_ create failed; thinking feature disabled");
+    }
+
+    // 底部三色省略号：3 个 lv_obj 圆点 + 错相 lv_anim 弹跳。整个容器默认隐藏，
+    // 仅 StartThinking 期间显示并启动动画。颜色对应预览风格 C。
+    thinking_dots_container_ = lv_obj_create(emotion_display_);
+    if (thinking_dots_container_ != nullptr) {
+        lv_obj_remove_style_all(thinking_dots_container_);
+        lv_obj_set_size(thinking_dots_container_, 60, 24);   // 3*12 + 2*12 间距 = 60
+        lv_obj_align(thinking_dots_container_, LV_ALIGN_BOTTOM_MID, 0, -14);
+        lv_obj_set_style_bg_opa(thinking_dots_container_, LV_OPA_TRANSP, 0);
+        lv_obj_set_flex_flow(thinking_dots_container_, LV_FLEX_FLOW_ROW);
+        lv_obj_set_flex_align(thinking_dots_container_,
+                              LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+        lv_obj_set_style_pad_column(thinking_dots_container_, 12, 0);
+        lv_obj_set_style_pad_all(thinking_dots_container_, 0, 0);
+        lv_obj_set_style_border_width(thinking_dots_container_, 0, 0);
+        DisableScrolling(thinking_dots_container_);
+
+        static const uint32_t kDotColors[3] = {0xff6b6b, 0xffd93d, 0x6bcb77};
+        for (int i = 0; i < 3; ++i) {
+            thinking_dots_[i] = lv_obj_create(thinking_dots_container_);
+            lv_obj_remove_style_all(thinking_dots_[i]);
+            lv_obj_set_size(thinking_dots_[i], 12, 12);
+            lv_obj_set_style_radius(thinking_dots_[i], LV_RADIUS_CIRCLE, 0);
+            lv_obj_set_style_bg_color(thinking_dots_[i], lv_color_hex(kDotColors[i]), 0);
+            lv_obj_set_style_bg_opa(thinking_dots_[i], LV_OPA_COVER, 0);
+            lv_obj_set_style_border_width(thinking_dots_[i], 0, 0);
+            lv_obj_set_style_shadow_width(thinking_dots_[i], 4, 0);
+            lv_obj_set_style_shadow_color(thinking_dots_[i], lv_color_hex(0x000000), 0);
+            lv_obj_set_style_shadow_opa(thinking_dots_[i], LV_OPA_30, 0);
+            lv_obj_set_style_shadow_ofs_y(thinking_dots_[i], 2, 0);
+        }
+        lv_obj_add_flag(thinking_dots_container_, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        ESP_LOGW(TAG, "[thinking] dots container create failed; dots animation disabled");
+    }
 #endif
 
     /* Container */
@@ -1027,19 +1077,47 @@ void LcdDisplay::SetChatMessage(const char* role, const char* content) {
 #endif
 
 void LcdDisplay::SetEmotion(const char* emotion) {
+    if (emotion == nullptr) {
+        return;
+    }
+    // 缓存最近一次 emotion，供 StopThinking 时恢复成对应 gif
+    pending_emotion_ = emotion;
+
+    // 思考中轮播进行时，不立刻切换到 gif —— 先记下，等 StopThinking 再恢复。
+    // 否则会立刻打断静态轮播。
+    if (thinking_active_) {
+        ESP_LOGI(TAG, "[thinking] cache emotion during thinking: %s", emotion);
+        return;
+    }
+
+    ApplyEmotionGif(emotion);
+}
+
+void LcdDisplay::ApplyEmotionGif(const char* emotion) {
     // Stop any running GIF animation
     if (gif_controller_) {
         DisplayLockGuard lock(this);
         gif_controller_->Stop();
         gif_controller_.reset();
     }
-    
+
     if (emotion_display_ == nullptr) {
         return;
     }
 
-  
-    
+    // 确保 gif 可见 / 静态 icon 隐藏（StartThinking 期间反过来）
+    {
+        DisplayLockGuard lock(this);
+        if (emotion_gif_ != nullptr) {
+            lv_obj_clear_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (emotion_icon_ != nullptr) {
+            lv_obj_add_flag(emotion_icon_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+
+
+
     // 定义图标映射表 - 映射emoji名称和图标ID
     static const std::unordered_map<std::string, icon_id_t> emoji_icon_map = {
         // {"neutral", ICON_NEUTRAL},      // 假设需要添加新的icon ID
@@ -1360,4 +1438,92 @@ void LcdDisplay::SetMeetingMode(bool enabled) {
     lv_obj_align(meeting_mode_label_, LV_ALIGN_BOTTOM_MID, 0, -4);
     lv_obj_move_foreground(meeting_mode_label_);
     lv_obj_remove_flag(meeting_mode_label_, LV_OBJ_FLAG_HIDDEN);
+}
+
+// ===== Listening→Speaking 等待期的"思考中"静态表情 + 底部省略号动画 =====
+
+namespace {
+// lv_anim exec 回调：用 translate_y 实现纯 y 位移弹跳，不影响 flex 布局
+void ThinkingDotAnimY(void* obj, int32_t v) {
+    lv_obj_set_style_translate_y(static_cast<lv_obj_t*>(obj), v, 0);
+}
+}  // namespace
+
+void LcdDisplay::StartThinking() {
+    if (emotion_icon_ == nullptr || emotion_gif_ == nullptr) {
+        ESP_LOGW(TAG, "[thinking] start aborted: emotion_icon_=%p emotion_gif_=%p",
+                 emotion_icon_, emotion_gif_);
+        return;
+    }
+    // 硬熔断：先把 PNG 加载进 PSRAM，失败立即放弃，保持 GIF 可见
+    if (icon_manager_get_icon(ICON_THINKING_THINKING) == nullptr) {
+        ESP_LOGE(TAG, "[thinking] PNG preload failed; abort, gif stays");
+        return;
+    }
+    DisplayLockGuard lock(this);
+    if (thinking_active_) {
+        return;
+    }
+    thinking_active_ = true;
+    ESP_LOGI(TAG, "[thinking] start");
+
+    // 暂停 gif 控制器，避免后台继续解码占 CPU
+    if (emotion_gif_controller_) {
+        emotion_gif_controller_->Stop();
+    }
+    lv_obj_add_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+    lv_obj_clear_flag(emotion_icon_, LV_OBJ_FLAG_HIDDEN);
+
+    // 启动底部三色省略号 lv_anim：每点 300ms 上 / 300ms 下 / 450ms 间隔，
+    // 三点相位错开 180ms。重复无限。
+    if (thinking_dots_container_ != nullptr) {
+        lv_obj_clear_flag(thinking_dots_container_, LV_OBJ_FLAG_HIDDEN);
+        lv_obj_move_foreground(thinking_dots_container_);
+        for (int i = 0; i < 3; ++i) {
+            if (thinking_dots_[i] == nullptr) continue;
+            lv_anim_t a;
+            lv_anim_init(&a);
+            lv_anim_set_var(&a, thinking_dots_[i]);
+            lv_anim_set_values(&a, 0, -10);
+            lv_anim_set_time(&a, 300);
+            lv_anim_set_playback_time(&a, 300);
+            lv_anim_set_repeat_delay(&a, 450);
+            lv_anim_set_repeat_count(&a, LV_ANIM_REPEAT_INFINITE);
+            lv_anim_set_delay(&a, i * 180);
+            lv_anim_set_path_cb(&a, lv_anim_path_ease_in_out);
+            lv_anim_set_exec_cb(&a, ThinkingDotAnimY);
+            lv_anim_start(&a);
+        }
+    }
+}
+
+void LcdDisplay::StopThinking() {
+    if (!thinking_active_) {
+        return;
+    }
+    {
+        DisplayLockGuard lock(this);
+        if (!thinking_active_) {
+            return;
+        }
+        thinking_active_ = false;
+        // 关闭三点 lv_anim 并复位 translate_y
+        for (int i = 0; i < 3; ++i) {
+            if (thinking_dots_[i] != nullptr) {
+                lv_anim_delete(thinking_dots_[i], ThinkingDotAnimY);
+                lv_obj_set_style_translate_y(thinking_dots_[i], 0, 0);
+            }
+        }
+        if (thinking_dots_container_ != nullptr) {
+            lv_obj_add_flag(thinking_dots_container_, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (emotion_icon_ != nullptr) {
+            lv_obj_add_flag(emotion_icon_, LV_OBJ_FLAG_HIDDEN);
+        }
+        if (emotion_gif_ != nullptr) {
+            lv_obj_clear_flag(emotion_gif_, LV_OBJ_FLAG_HIDDEN);
+        }
+    }
+    ESP_LOGI(TAG, "[thinking] stop, restore=%s", pending_emotion_.c_str());
+    ApplyEmotionGif(pending_emotion_.c_str());
 }

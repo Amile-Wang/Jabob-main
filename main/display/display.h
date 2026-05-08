@@ -41,6 +41,10 @@ public:
     virtual void SetPowerSaveMode(bool on);
     virtual void SetMeetingMode(bool enabled) {}
 
+    // Listening→Speaking 等待期"思考中"轮播：基类 no-op，由 LcdDisplay 实现。
+    virtual void StartThinking() {}
+    virtual void StopThinking() {}
+
     inline int width() const { return width_; }
     inline int height() const { return height_; }
 

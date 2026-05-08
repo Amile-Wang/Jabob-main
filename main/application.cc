@@ -479,6 +479,19 @@ void Application::Start() {
     });
     protocol_->OnIncomingAudio([this](std::unique_ptr<AudioStreamPacket> packet) {
         if (device_state_ == kDeviceStateSpeaking && !aborted_) {
+            // 首个 TTS audio packet 到达 = "真正开始播放 TTS" 的最早可观测信号。
+            // 用 thinking_pending_ 去抖：StartThinking 派出时置 true，这里只在
+            // 第一次入队时派 StopThinking 并立刻置 false，避免每个 packet 都派
+            // 一次 closure。LVGL 操作必须在 main task，所以走 Schedule。
+            bool expected = true;
+            if (thinking_pending_.compare_exchange_strong(expected, false)) {
+                Schedule([this]() {
+                    auto display = Board::GetInstance().GetDisplay();
+                    if (display != nullptr) {
+                        display->StopThinking();
+                    }
+                });
+            }
             audio_service_.PushPacketToDecodeQueue(std::move(packet));
         }
     });
@@ -764,7 +777,7 @@ void Application::OnWakeWordDetected() {
                     // std::ref(Lang::Sounds::P3_5),稍等哈
                     // std::ref(Lang::Sounds::P3_6),//我听着呢
                     // std::ref(Lang::Sounds::P3_7)
-
+                    // std::ref(Lang::Sounds::P3_ROBOT_ACTIVITY),
                 };
                 
                 // 生成随机索引并播放随机音效
@@ -809,6 +822,14 @@ void Application::OnWakeWordDetected() {
 void Application::AbortSpeaking(AbortReason reason) {
     ESP_LOGI(TAG, "Abort speaking");
     aborted_ = true;
+    // 用户/唤醒词打断时立刻退出 thinking 轮播
+    thinking_pending_ = false;
+    Schedule([this]() {
+        auto display = Board::GetInstance().GetDisplay();
+        if (display != nullptr) {
+            display->StopThinking();
+        }
+    });
     audio_service_.ResetDecoder();
     protocol_->SendAbortSpeaking(reason);
 }
@@ -876,6 +897,9 @@ void Application::SetDeviceState(DeviceState state) {
     switch (state) {
         case kDeviceStateUnknown:
         case kDeviceStateIdle:
+            // 兜底：异常路径下若 thinking 还在跑，关掉避免残留 timer
+            thinking_pending_ = false;
+            display->StopThinking();
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
             audio_service_.EnableVoiceProcessing(true);
@@ -883,11 +907,16 @@ void Application::SetDeviceState(DeviceState state) {
             audio_service_.EnableWakeWordDetection(true);
             break;
         case kDeviceStateConnecting:
+            thinking_pending_ = false;
+            display->StopThinking();
             display->SetStatus(Lang::Strings::CONNECTING);
             display->SetEmotion("neutral");
             display->SetChatMessage("system", "");
             break;
         case kDeviceStateListening:
+            // 兜底：abort / 异常断流回 listening 时关掉 thinking
+            thinking_pending_ = false;
+            display->StopThinking();
             display->SetStatus(Lang::Strings::LISTENING);
             // 如果是会议助手模式，则显示会议助手图标
             if (listening_mode_ == kListeningModeMeetingAssistant) {
@@ -914,10 +943,15 @@ void Application::SetDeviceState(DeviceState state) {
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);
-            // 屏幕显示 SPEAKING 之后再播 popup——满足"显示进入说话状态后才出声"的视觉同步。
+            // 进入"说话中"瞬间启动思考表情轮播（每 1s 随机切静态 PNG）。
+            // OnIncomingAudio 收到首个 audio packet 时会通过 thinking_pending_
+            // 去抖派一次 StopThinking 把它停掉，恢复成对应 gif。
+            thinking_pending_ = true;
+            display->StartThinking();
+            // 屏幕显示 SPEAKING 之后再播提示音——满足"显示进入说话状态后才出声"的视觉同步。
             // race 安全由 PlaySound 内部保证：入帧前会把已到的 TTS 帧 splice 到 pending，
-            // 等 popup 全部播完再放回主 decode queue。
-            audio_service_.PlaySound(Lang::Sounds::P3_POPUP);
+            // 等提示音全部播完再放回主 decode queue。
+            audio_service_.PlaySound(Lang::Sounds::P3_ROBOT_ACTIVITY);
             // if (!audio_service_.IsAudioProcessorRunning()) {
                 // Send the start listening command
                 // protocol_->SendStartListening(listening_mode_);
@@ -957,12 +991,15 @@ void Application::SetDeviceState(DeviceState state) {
                 #endif
             }
 
-            Schedule([this]() {
-                vTaskDelay(pdMS_TO_TICKS(2500));
-                audio_service_.ResetDecoder();
-            });
-
-            // audio_service_.ResetDecoder();
+            // 删除原有 Schedule(vTaskDelay 2500; ResetDecoder())：
+            // 1) vTaskDelay(2500) 跑在 MainEventLoop main task 上,会阻塞所有 Schedule 闭包 2.5s
+            // 2) c5c75ec 后进 Speaking 必 PlaySound popup,popup 0.5s + 静默 1s + start_to_speak 300ms delay
+            //    把 OpusCodecTask 真正解 TTS 的窗口推到了 T+~1.8-2.3s,T+2.5s ResetDecoder 触发时
+            //    100% 撞上 OpusCodecTask 在 unlock 外的 Decode → 操作同一 opus_decoder_ 的 race
+            //    → 调本地 MCP(如 set_volume)路径下设备 reboot
+            // 3) ResetDecoder 的"清残留"必要性站不住脚:AbortSpeaking / 状态切换路径已经清,
+            //    Speaking 中途多余的清反而会丢刚到的 TTS 帧
+            // break;
             break;
         default:
             // Do nothing

@@ -118,6 +118,10 @@ extern const uint8_t battery_png_end[]   asm("_binary_battery_png_end");
 // extern const uint8_t settings_png_start[] asm("_binary_settings_png_start");
 // extern const uint8_t settings_png_end[]   asm("_binary_settings_png_end");
 
+// "思考中"静态表情：单张 320x240 PNG，叠加底部 lv_anim 三色点构成完整反馈。
+extern const uint8_t thinking_thinking_png_start[]    asm("_binary_thinking_thinking_png_start");
+extern const uint8_t thinking_thinking_png_end[]      asm("_binary_thinking_thinking_png_end");
+
 
 static const char *TAG = "icon_manager";
 
@@ -186,6 +190,8 @@ static icon_info_t icons[ICON_MAX] = {
     // {mic_png_start, mic_png_end, NULL, false} ,                                   // ICON_MIC_PNG
     // {bluetooth_2_png_start, bluetooth_2_png_end, NULL, false},                   // ICON_BLUETOOTH_2
     // {settings_png_start, settings_png_end, NULL, false}                            // ICON_SETTINGS
+
+    {thinking_thinking_png_start,    thinking_thinking_png_end,    NULL, false},  // ICON_THINKING_THINKING
 };
 
 

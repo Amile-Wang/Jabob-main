@@ -10,6 +10,7 @@
 
 #include <atomic>
 #include <memory>
+#include <string>
 
 #define PREVIEW_IMAGE_DURATION_MS 5000
 
@@ -41,8 +42,16 @@ protected:
     std::unique_ptr<LvglImage> preview_image_cached_ = nullptr;
     bool hide_subtitle_ = false;  // Control whether to hide chat messages/subtitles
 
+    // Listening→Speaking 等待期视觉反馈：emotion_icon_ 切到静态 thinking PNG，
+    // 同时显示底部三色省略号 lv_anim 跳动；StopThinking 恢复 pending_emotion_ 的 gif。
+    lv_obj_t* thinking_dots_container_ = nullptr;
+    lv_obj_t* thinking_dots_[3] = {nullptr, nullptr, nullptr};
+    std::string pending_emotion_ = "neutral";
+    bool thinking_active_ = false;
+
     void InitializeLcdThemes();
     void SetupUI();
+    void ApplyEmotionGif(const char* emotion);     // 抽出 SetEmotion 的 gif 分支
     virtual bool Lock(int timeout_ms = 0) override;
     virtual void Unlock() override;
 
@@ -62,6 +71,12 @@ public:
     
     // Set whether to hide chat messages/subtitles
     void SetHideSubtitle(bool hide);
+
+    // 进入 Speaking 状态时启动"思考中"静态表情轮播；首个 TTS audio packet
+    // 入队时调 StopThinking 恢复成 pending_emotion_ 对应的 gif。
+    // StopThinking 是 idempotent 的，可在任意路径兜底调用。
+    virtual void StartThinking() override;
+    virtual void StopThinking() override;
 };
 
 // SPI LCD display

@@ -11,6 +11,7 @@
 #include <deque>
 #include <vector>
 #include <memory>
+#include <atomic>
 
 #include "protocol.h"
 #include "ota.h"
@@ -87,6 +88,9 @@ private:
 
     bool has_server_time_ = false;
     bool aborted_ = false;
+    // 仅作为"是否已派 StopThinking"的去抖标志，避免每个 audio packet 都派
+    // 一次 Schedule。StartThinking 派出时置 true，StopThinking 派出后置 false。
+    std::atomic<bool> thinking_pending_ {false};
     int clock_ticks_ = 0;
     TaskHandle_t check_new_version_task_handle_ = nullptr;
 

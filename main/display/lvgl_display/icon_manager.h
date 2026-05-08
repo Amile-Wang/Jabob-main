@@ -63,6 +63,11 @@ typedef enum {
     // ICON_MIC_PNG,
     // ICON_BLUETOOTH_2,  // 新增蓝牙2图标
     // ICON_SETTINGS,
+
+    // Listening→Speaking 等待期使用的"思考中"静态表情。底部叠加省略号
+    // 跳动动画（lv_anim 三色点）作为视觉反馈——不再做随机轮播。
+    ICON_THINKING_THINKING,
+
     ICON_MAX
 } icon_id_t;
 
