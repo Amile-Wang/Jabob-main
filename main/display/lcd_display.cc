@@ -128,6 +128,26 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
         }
     }
 
+    // Apply hardware GRAM offset on the panel controller BEFORE handing the
+    // panel to esp_lvgl_port. Required for ST7789 variants whose visible window
+    // doesn't start at GRAM (0,0) (e.g. 1.69" 280x240 panels need a 20/1 column
+    // /row gap). esp_lvgl_port's flush callback writes raw LVGL coordinates, so
+    // lv_display_set_offset() is not honored — set_gap is the only path that
+    // actually shifts the panel's GRAM base. Must run before lvgl_port_add_disp
+    // because LVGL takes over panel IO afterward; concurrent direct calls would
+    // race the flush task. For panels with offset 0, this is a no-op.
+    ESP_ERROR_CHECK(esp_lcd_panel_set_gap(panel_, offset_x, offset_y));
+
+    // Pre-fill the (now correctly offset) visible window with black so any
+    // uncovered edges match the LCD theme before the first LVGL frame arrives.
+    // Also runs before lvgl_port_add_disp for the same reason.
+    {
+        std::vector<uint16_t> buffer(width_, 0x0000);
+        for (int y = 0; y < height_; y++) {
+            esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
+        }
+    }
+
     ESP_LOGI(TAG, "Initialize LVGL library");
     lv_init();
 
@@ -185,23 +205,6 @@ SpiLcdDisplay::SpiLcdDisplay(esp_lcd_panel_io_handle_t panel_io, esp_lcd_panel_h
     }
 
     lv_display_set_rotation(display_, kDisplayRotation);
-
-    // Apply hardware GRAM offset on the panel controller. Required for ST7789
-    // variants whose visible window doesn't start at GRAM (0,0) (e.g. 1.69" 280x240
-    // panels need a 20/1 column/row gap). esp_lvgl_port's flush callback writes raw
-    // LVGL coordinates, so lv_display_set_offset() is not honored here — set_gap is
-    // the only path that actually shifts the panel's GRAM base.
-    // For panels with offset 0, this is a no-op (zero regression risk).
-    ESP_ERROR_CHECK(esp_lcd_panel_set_gap(panel_, offset_x, offset_y));
-
-    // Pre-fill the (now correctly offset) visible window with black so any
-    // uncovered edges match the LCD theme before the first LVGL frame arrives.
-    {
-        std::vector<uint16_t> buffer(width_, 0x0000);
-        for (int y = 0; y < height_; y++) {
-            esp_lcd_panel_draw_bitmap(panel_, 0, y, width_, y + 1, buffer.data());
-        }
-    }
 
     gif_manager_init();
     icon_manager_init();
