@@ -8,6 +8,7 @@ class CustomWakeWord;
 class EspWakeWord;
 class AfeWakeWord;
 class DSpotterWakeWord; // 添加DSpotter唤醒词声明
+class MicroWakeWord;    // OHF Voice micro-wake-word (TFLite Micro)
 
 class WakeWord {
 public:

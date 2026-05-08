@@ -24,6 +24,8 @@
 #include "wake_words/custom_wake_word.h"
 #elif CONFIG_USE_DSPOTTER_WAKE_WORD
 #include "wake_words/dspotter_wake_word.h"
+#elif CONFIG_USE_MICRO_WAKE_WORD
+#include "wake_words/micro_wake_word.h"
 #endif
 
 #define TAG "AudioService"
@@ -148,12 +150,14 @@ void AudioService::Initialize(AudioCodec* codec) {
     wake_word_ = std::make_unique<CustomWakeWord>();
 #elif CONFIG_USE_DSPOTTER_WAKE_WORD
     wake_word_ = std::make_unique<DSpotterWakeWord>();
+#elif CONFIG_USE_MICRO_WAKE_WORD
+    wake_word_ = std::make_unique<MicroWakeWord>();
 #else
     wake_word_ = nullptr;
 #endif
 
     audio_processor_->OnOutput([this](std::vector<int16_t>&& data) {
-        #if CONFIG_USE_DSPOTTER_WAKE_WORD
+        #if CONFIG_USE_DSPOTTER_WAKE_WORD || CONFIG_USE_MICRO_WAKE_WORD
         EventBits_t bits = xEventGroupGetBits(event_group_);
         if ((bits & AS_EVENT_WAKE_WORD_RUNNING) && wake_word_) {
             FeedWakeWordWithProcessedAudio(data);

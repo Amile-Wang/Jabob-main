@@ -449,7 +449,7 @@ config USE_CUSTOM_WAKE_WORD
     depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD)
     help
         需要 ESP32 S3 与 PSRAM 支持
-        
+
 config USE_DSPOTTER_WAKE_WORD
     bool "Enable DSpotter Wake Word Detection"
     default n
@@ -476,7 +476,39 @@ config CUSTOM_WAKE_WORD_DISPLAY
     default "ni hao jie bao bao"
     depends on USE_CUSTOM_WAKE_WORD
     help
-        自定义唤醒词对应问候语 
+        自定义唤醒词对应问候语
+
+config USE_MICRO_WAKE_WORD
+    bool "Enable micro-wake-word (TFLite Micro) Wake Word Detection"
+    default n
+    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM \
+        && (!USE_AFE_WAKE_WORD) && (!USE_CUSTOM_WAKE_WORD) && (!USE_DSPOTTER_WAKE_WORD)
+    help
+        启用 OHF Voice micro-wake-word（TFLite Micro 后端），需要 PSRAM。
+        模型来自 esphome/micro-wake-word-models 仓库（Apache-2.0）。
+
+config MICRO_WAKE_WORD_DISPLAY
+    string "MWW Wake Word Display"
+    default "Hey Jarvis"
+    depends on USE_MICRO_WAKE_WORD
+    help
+        micro-wake-word 唤醒词对应显示文本（PoC 用 hey_jarvis 模型）
+
+config MICRO_WAKE_WORD_THRESHOLD_X100
+    int "MWW probability cutoff (×100, 50-99)"
+    default 90
+    range 50 99
+    depends on USE_MICRO_WAKE_WORD
+    help
+        触发阈值（百分比）。manifest 推荐值是 97。
+
+config MICRO_WAKE_WORD_WINDOW_SIZE
+    int "MWW sliding window size"
+    default 5
+    range 3 10
+    depends on USE_MICRO_WAKE_WORD
+    help
+        概率滑窗大小，连续 N 个推理的累积平均超过 cutoff 才触发。manifest 推荐 5。
                
         
 config USE_AUDIO_PROCESSOR
