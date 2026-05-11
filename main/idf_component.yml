@@ -82,3 +82,6 @@ dependencies:
   idf:
     version: '>=5.4.0'
   abobija/rc522: '*'
+
+  # TFLite Micro for microWakeWord
+  espressif/esp-tflite-micro: '~1.3.5'

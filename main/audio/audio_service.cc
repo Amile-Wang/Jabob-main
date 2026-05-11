@@ -24,6 +24,8 @@
 #include "wake_words/custom_wake_word.h"
 #elif CONFIG_USE_DSPOTTER_WAKE_WORD
 #include "wake_words/dspotter_wake_word.h"
+#elif CONFIG_USE_MICRO_WAKE_WORD
+#include "wake_words/micro_wake_word.h"
 #endif
 
 #define TAG "AudioService"
@@ -148,6 +150,8 @@ void AudioService::Initialize(AudioCodec* codec) {
     wake_word_ = std::make_unique<CustomWakeWord>();
 #elif CONFIG_USE_DSPOTTER_WAKE_WORD
     wake_word_ = std::make_unique<DSpotterWakeWord>();
+#elif CONFIG_USE_MICRO_WAKE_WORD
+    wake_word_ = std::make_unique<MicroWakeWord>();
 #else
     wake_word_ = nullptr;
 #endif
@@ -499,7 +503,7 @@ void AudioService::AudioInputTask() {
             read_samples = std::max(read_samples, OPUS_FRAME_DURATION_MS * 16000 / 1000);
         }
 
-#if CONFIG_USE_WAKE_WORD
+#if CONFIG_USE_WAKE_WORD || CONFIG_USE_MICRO_WAKE_WORD
         if ((bits & AS_EVENT_WAKE_WORD_RUNNING) && wake_word_) {
 #if CONFIG_USE_DSPOTTER_WAKE_WORD
             static uint32_t dspotter_bits_log_counter = 0;
@@ -575,7 +579,7 @@ void AudioService::AudioInputTask() {
             }
         }
 
-#if CONFIG_USE_WAKE_WORD
+#if CONFIG_USE_WAKE_WORD || CONFIG_USE_MICRO_WAKE_WORD
         /* Used for wake word detection */
         if (bits & AS_EVENT_WAKE_WORD_RUNNING) {
             if (!wake_word_) {

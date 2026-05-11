@@ -450,10 +450,32 @@ config USE_CUSTOM_WAKE_WORD
     help
         需要 ESP32 S3 与 PSRAM 支持
         
+config USE_MICRO_WAKE_WORD
+    bool "Enable microWakeWord Detection (TFLite)"
+    default n
+    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD) && (!USE_CUSTOM_WAKE_WORD)
+    help
+        TFLite wake word detection, free and customizable
+
+config MICRO_WAKE_WORD_THRESHOLD
+    int "Detection threshold (x1000, e.g. 50 = 0.050)"
+    default 50
+    depends on USE_MICRO_WAKE_WORD
+    help
+        Detection probability threshold. Lower = more sensitive but more false triggers.
+        Recommended: 50 (0.050) for Hi Jabra model
+
+config MICRO_WAKE_WORD_CONSECUTIVE_HITS
+    int "Required consecutive hits for detection"
+    default 3
+    depends on USE_MICRO_WAKE_WORD
+    help
+        Number of consecutive frames exceeding threshold to trigger detection
+
 config USE_DSPOTTER_WAKE_WORD
     bool "Enable DSpotter Wake Word Detection"
     default n
-    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD) && (!USE_CUSTOM_WAKE_WORD)
+    depends on (IDF_TARGET_ESP32S3 || IDF_TARGET_ESP32P4) && SPIRAM && (!USE_AFE_WAKE_WORD) && (!USE_CUSTOM_WAKE_WORD) && (!USE_MICRO_WAKE_WORD)
     help
         启用 DSpotter 唤醒词检测，需要 ESP32 S3 与 PSRAM 支持
 
