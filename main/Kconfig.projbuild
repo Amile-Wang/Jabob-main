@@ -489,18 +489,20 @@ config USE_MICRO_WAKE_WORD
 
 config MICRO_WAKE_WORD_DISPLAY
     string "MWW Wake Word Display"
-    default "Hey Jarvis"
+    default "Hi Jabra"
     depends on USE_MICRO_WAKE_WORD
     help
-        micro-wake-word 唤醒词对应显示文本（PoC 用 hey_jarvis 模型）
+        micro-wake-word 唤醒词对应显示文本。当前嵌入的模型是 Hi Jabra
+        (stream_state_internal_quant.tflite),换模型时同步改这里。
 
 config MICRO_WAKE_WORD_THRESHOLD_X100
     int "MWW probability cutoff (×100, 50-99)"
-    default 90
+    default 50
     range 50 99
     depends on USE_MICRO_WAKE_WORD
     help
-        触发阈值（百分比）。manifest 推荐值是 97。
+        触发阈值（百分比）。Hi Jabra 模型实测 50 比较合适；
+        hey_jarvis 等 esphome PoC 模型 manifest 推荐 97。
 
 config MICRO_WAKE_WORD_WINDOW_SIZE
     int "MWW sliding window size"

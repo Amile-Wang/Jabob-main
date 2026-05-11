@@ -277,9 +277,12 @@ if(CONFIG_USE_DSPOTTER_WAKE_WORD)
     set(DSPOTTER_MODEL_FILES "audio/wake_words/models/HeyJabra_Lv3_Enc1_pack_WithTxt.bin")
 endif()
 
+# micro-wake-word 模型作为只读 blob 嵌入到固件镜像里。
+# 当前用 Hi Jabra 模型(stream_state_internal_quant.tflite,~62KB);
+# 改文件名时记得同步 main/audio/wake_words/micro_wake_word.cc 里的 _binary_*_start/_end 符号。
 set(MWW_MODEL_FILES "")
 if(CONFIG_USE_MICRO_WAKE_WORD)
-    set(MWW_MODEL_FILES "audio/wake_words/models/hey_jarvis.tflite")
+    set(MWW_MODEL_FILES "audio/wake_words/models/stream_state_internal_quant.tflite")
 endif()
 
 # 如果目标芯片是 ESP32，则排除特定文件

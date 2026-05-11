@@ -23,11 +23,13 @@
 static const char* TAG = "MicroWakeWord";
 
 namespace {
-extern "C" const uint8_t kMwwModelStart[] asm("_binary_hey_jarvis_tflite_start");
-extern "C" const uint8_t kMwwModelEnd[] asm("_binary_hey_jarvis_tflite_end");
+// Hi Jabra micro-wake-word model — symbols come from EMBED_FILES in main/CMakeLists.txt.
+// Tip: 如果换模型文件名,这两行的 _binary_<basename>_start/_end 要跟着改。
+extern "C" const uint8_t kMwwModelStart[] asm("_binary_stream_state_internal_quant_tflite_start");
+extern "C" const uint8_t kMwwModelEnd[] asm("_binary_stream_state_internal_quant_tflite_end");
 
-// Tensor arena size from manifest (esphome/micro-wake-word-models v2 hey_jarvis.json:
-// "tensor_arena_size": 22860). Probe doubles it on demand.
+// Tensor arena size: 沿用 hey_jarvis manifest 的 22860 作为起点,AllocateTensors 失败时
+// 自动翻倍重试一次。Hi Jabra 模型结构同源,实测可放下;若以后换更大模型再调。
 constexpr size_t kBaseTensorArenaSize = 22860;
 constexpr size_t kVariableArenaSize = 1024;
 constexpr size_t kMaxResourceVariables = 20;
@@ -234,7 +236,18 @@ bool MicroWakeWord::RunFrame(const int16_t* window_pcm) {
             return false;
         }
         TfLiteTensor* output = interpreter_->output(0);
-        uint8_t prob = output->data.uint8[0];
+        // Hi Jabra stream_state_internal_quant.tflite 输出是 int8 量化,需要按
+        // scale + zero_point 反量化成 [0,1] 概率,再缩放到 0-255 跟 sliding window 对齐。
+        // hey_jarvis 老模型输出是 uint8,直接读就行 — 这里兼容两种。
+        uint8_t prob;
+        if (output->type == kTfLiteInt8) {
+            int8_t raw = output->data.int8[0];
+            float prob_float = (raw - output->params.zero_point) * output->params.scale;
+            int scaled = static_cast<int>(prob_float * 255.0f);
+            prob = static_cast<uint8_t>(std::max(0, std::min(255, scaled)));
+        } else {
+            prob = output->data.uint8[0];
+        }
 
         ++last_n_index_;
         if (last_n_index_ >= sliding_window_size_) last_n_index_ = 0;
@@ -291,6 +304,12 @@ void MicroWakeWord::Start() {
     ignore_windows_ = -kMinSlicesBeforeDetection;
     current_stride_step_ = 0;
     std::memset(history_pcm_, 0, sizeof(history_pcm_));
+    // Hi Jabra 模型是 streaming 模型,内部带 ResourceVariable 状态(CallOnce/VarHandle 那套)。
+    // 上一次 Start..Stop 期间的 hidden state 会污染本次首批推理 → 漏检/误检。
+    // 每次 Start 必须 ResetAll(),把所有 resource variables 清零。
+    if (resource_vars_) {
+        resource_vars_->ResetAll();
+    }
     ESP_LOGI(TAG, "MicroWakeWord started");
 }
 

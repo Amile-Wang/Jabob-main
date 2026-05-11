@@ -11,10 +11,14 @@ micro-wake-word 是 Open Home Foundation 维护的开源唤醒词框架（[OHF-V
 - **可自训自定义唤醒词**："嗨 Jabobo" 这种中文唤醒词长期可走 micro-wake-word 训练管线（Piper sample generator + 流式 MixConv）自训
 - **运行时不依赖外部 license** （DSPOTTER 需要 NVS license 分区做设备绑定，micro-wake-word 不需要）
 
-### PoC 现状（v2.0.13 分支）
-- 用 [esphome/micro-wake-word-models v2 hey_jarvis.tflite](https://github.com/esphome/micro-wake-word-models) 跑通固件链路
-- 中文自训留下一阶段
-- DSPOTTER 代码 / `dspotter` 分区 / `HeyJabra_Lv3_Enc1_pack_WithTxt.bin` 模型文件**都不删**，作为回退路径
+### 当前状态（Hi Jabra 模型，2.0.6 分支）
+- 使用自训 **Hi Jabra** 流式模型 `stream_state_internal_quant.tflite`（约 62 KB，INT8 量化）
+- 模型与 esphome/micro-wake-word v2 框架同源 —— 前端 `audio_preprocessor_int8.tflite` / op resolver 清单全部复用，**只换最末端的 wake-word 模型本身**
+- **模型输出量化为 int8**（不同于 hey_jarvis 老 PoC 模型的 uint8），运行时按 `scale + zero_point` 反量化到 [0,1] 概率再缩放到 0-255 跟滑窗对齐；详见 [micro_wake_word.cc](../main/audio/wake_words/micro_wake_word.cc) `RunFrame()` 中对 `kTfLiteInt8` 的分支
+- **`Start()` 必须 `resource_vars_->ResetAll()`**：streaming 模型靠 TF Resource Variables 持久化 hidden state，上一次会话残留会污染本次首批推理 → 漏检 / 误检
+- 中文自训（"嗨 Jabobo"）留下一阶段
+- DSPOTTER 代码 / `dspotter` 分区 / `HeyJabra_Lv3_Enc1_pack_WithTxt.bin` 模型文件**都不删**，作为回退路径（切换方法见 §5）
+- 此前的 PoC 模型 `hey_jarvis.tflite` / `hey_jarvis.json` 已移除（v2 模型生态内回切方法见 §7.1）
 
 ## 2. 文件结构
 
@@ -28,9 +32,9 @@ main/audio/wake_words/
 │   ├── micro_features_generator.cc           # GenerateFeature 实现
 │   └── micro_model_settings.h                # 16 kHz / 30 ms 窗 / 10 ms stride / 40 维
 └── models/
-    ├── hey_jarvis.tflite                     # wake-word 流式模型 v2（52 KB）
-    ├── hey_jarvis.json                       # manifest（probability_cutoff=0.97 等）
-    └── LICENSE.micro-wake-word-models.txt    # 模型仓库 Apache-2.0 license 副本
+    ├── stream_state_internal_quant.tflite    # Hi Jabra wake-word 流式模型（约 62 KB，INT8）
+    ├── HeyJabra_Lv3_Enc1_pack_WithTxt.bin    # DSpotter 回退用模型，CONFIG_USE_DSPOTTER_WAKE_WORD=y 时才嵌入
+    └── LICENSE.micro-wake-word-models.txt    # 模型框架 Apache-2.0 license 副本（同源）
 ```
 
 `audio_preprocessor_int8_model_data.h` 与 `micro_features_generator.{h,cc}` 改编自 `managed_components/espressif__esp-tflite-micro/examples/micro_speech/main/`，license header 保留 Apache-2.0，stride 从 20 ms 改回 10 ms 对齐 micro-wake-word 训练参数。
@@ -85,8 +89,9 @@ espressif/esp-tflite-micro: ^1.3.5
 │ 4. 每帧累积进 wake-word interp 输入  │
 │    ([1, S, 40, 1]，S 由模型决定)，   │
 │    满 S 帧调一次 invoke：            │
-│    hey_jarvis.tflite                 │
-│      → 1 个 uint8 概率（0-255）     │
+│    stream_state_internal_quant.tflite│
+│      → 1 个 int8 量化值 → 反量化     │
+│        到 0-255 概率                 │
 │                                      │
 │ 5. 滑窗聚合（window_size=5）：       │
 │    sum(recent_probs) > cutoff*N      │
@@ -102,15 +107,15 @@ espressif/esp-tflite-micro: ^1.3.5
        │   状态机：Idle → Connecting → Listening
        │
        ▼ protocol_->SendWakeWordDetected(text)
-            JSON: {"type":"listen","state":"detect","text":"Hey Jarvis",...}
+            JSON: {"type":"listen","state":"detect","text":"Hi Jabra",...}
 ```
 
 阈值参数全部可调（`menuconfig` 入口在 `Component config → Audio & Hardware`）：
 
 | Kconfig | 默认 | 用途 |
 |---|---|---|
-| `MICRO_WAKE_WORD_DISPLAY` | `"Hey Jarvis"` | 触发时回调里携带的文本 + 服务端 JSON 字段 |
-| `MICRO_WAKE_WORD_THRESHOLD_X100` | `90` | 概率阈值（0-99 表示百分比；mww 模型 manifest 推荐 97）|
+| `MICRO_WAKE_WORD_DISPLAY` | `"Hi Jabra"` | 触发时回调里携带的文本 + 服务端 JSON 字段。换模型时**必须**同步改 |
+| `MICRO_WAKE_WORD_THRESHOLD_X100` | `50` | 概率阈值（百分比）。Hi Jabra 实测 50 适合；hey_jarvis 等 esphome PoC 模型 manifest 推荐 97 |
 | `MICRO_WAKE_WORD_WINDOW_SIZE` | `5` | 滑窗大小，连续 N 帧加和超过 cutoff×N 才触发 |
 
 ## 5. 编译开关 / 切换流程
@@ -138,8 +143,8 @@ idf.py menuconfig
 # 选项 B：直接改 sdkconfig
 sed -i 's/^CONFIG_USE_DSPOTTER_WAKE_WORD=y/# CONFIG_USE_DSPOTTER_WAKE_WORD is not set/' sdkconfig
 echo 'CONFIG_USE_MICRO_WAKE_WORD=y' >> sdkconfig
-echo 'CONFIG_MICRO_WAKE_WORD_DISPLAY="Hey Jarvis"' >> sdkconfig
-echo 'CONFIG_MICRO_WAKE_WORD_THRESHOLD_X100=90' >> sdkconfig
+echo 'CONFIG_MICRO_WAKE_WORD_DISPLAY="Hi Jabra"' >> sdkconfig
+echo 'CONFIG_MICRO_WAKE_WORD_THRESHOLD_X100=50' >> sdkconfig
 echo 'CONFIG_MICRO_WAKE_WORD_WINDOW_SIZE=5' >> sdkconfig
 
 # 触发 reconfigure（EMBED_FILES 改变 / Ninja 不会自动重 configure）
@@ -157,7 +162,7 @@ idf.py build
 |---|---|
 | 容器格式 | FlatBuffer（`.tflite`） |
 | Schema 版本 | 等于 `TFLITE_SCHEMA_VERSION`（esp-tflite-micro 1.3.5 → 3） |
-| 量化 | 全 INT8（`tf.lite.OpsSet.TFLITE_BUILTINS_INT8`），输入 int16，输出 uint8 |
+| 量化 | 全 INT8（`tf.lite.OpsSet.TFLITE_BUILTINS_INT8`），输入 int16；**输出 int8 或 uint8 都行** —— `RunFrame()` 看 `output->type` 自动选反量化路径 |
 | 架构 | **流式**（用 TF Resource Variables 持久化 state；输入 shape `[1, stride, 40, 1]`，输出 `[1, 1]`）|
 | Op 集合 | 只能用 `MicroWakeWord::RegisterStreamingOps` 注册的 20 个（详见 `micro_wake_word.cc:RegisterStreamingOps`）|
 | 输入特征维度 | 40（与前端 `audio_preprocessor_int8.tflite` 输出对齐）|
@@ -195,15 +200,16 @@ idf.py build
 
 ```
 tensor_arena (PSRAM):
-   manifest 写多少:        以 hey_jarvis 为例 = 22860 bytes
-   probe 序列:             [22860 → 45720]，16 字节对齐
+   起点常量 kBaseTensorArenaSize: 22860 bytes（沿用 hey_jarvis manifest 值，Hi Jabra 模型同源够用）
+   probe 序列:             [22860 → 45720]，16 字节对齐，AllocateTensors 失败自动翻倍重试一次
    实际占用:               启动日志 "arena=XX used=YY"
 
-variable_arena (PSRAM):    1024 bytes 固定（STREAMING_MODEL_VARIABLE_ARENA_SIZE）
+variable_arena (PSRAM):    1024 bytes 固定（kVariableArenaSize）
 最多 resource variables:   20（kMaxResourceVariables）
 preprocessor_arena (内存): 16 KB 静态分配（micro_features_generator.cc）
 
-模型本体 .tflite:           hey_jarvis ≈ 52 KB / preprocessor ≈ 54 KB
+模型本体 .tflite:           Hi Jabra (stream_state_internal_quant) ≈ 62 KB
+                            preprocessor (audio_preprocessor_int8) ≈ 54 KB
                             两者都通过 EMBED_FILES 嵌入 binary，不占运行时内存
 ```
 
@@ -211,32 +217,35 @@ preprocessor_arena (内存): 16 KB 静态分配（micro_features_generator.cc）
 
 ### 7.1 ESPHome v2 模型生态内换（最简单）
 
-[esphome/micro-wake-word-models v2](https://github.com/esphome/micro-wake-word-models/tree/main/models/v2) 里所有模型用同一套前端参数，**直接换文件就行**：
+[esphome/micro-wake-word-models v2](https://github.com/esphome/micro-wake-word-models/tree/main/models/v2) 里所有模型用同一套前端参数，**直接换文件就行**（下面以从当前 `stream_state_internal_quant.tflite` 换回 `hey_jarvis.tflite` 为例，反向同理）：
 
 ```bash
 # 1. 拷新模型
-cp /tmp/mww-models/models/v2/okay_nabu.tflite \
+cp /tmp/mww-models/models/v2/hey_jarvis.tflite \
    main/audio/wake_words/models/
 
 # 2. 改三处源码
-# (a) micro_wake_word.cc 里的 asm symbol 名（按文件名生成）
-sed -i 's/_binary_hey_jarvis_tflite/_binary_okay_nabu_tflite/g' \
+# (a) micro_wake_word.cc 里的 asm symbol 名（_binary_<basename>_start/_end）
+sed -i 's/_binary_stream_state_internal_quant_tflite/_binary_hey_jarvis_tflite/g' \
     main/audio/wake_words/micro_wake_word.cc
 
 # (b) main/CMakeLists.txt 里的 MWW_MODEL_FILES
-sed -i 's|hey_jarvis.tflite|okay_nabu.tflite|' main/CMakeLists.txt
+sed -i 's|stream_state_internal_quant.tflite|hey_jarvis.tflite|' main/CMakeLists.txt
 
-# (c) Kconfig 里的 display 文本（或运行时 menuconfig 改）
-# CONFIG_MICRO_WAKE_WORD_DISPLAY="Okay Nabu"
+# (c) Kconfig 默认 + sdkconfig 当前值
+# Kconfig: MICRO_WAKE_WORD_DISPLAY default 改成 "Hey Jarvis"
+# sdkconfig: CONFIG_MICRO_WAKE_WORD_DISPLAY="Hey Jarvis"
+#            CONFIG_MICRO_WAKE_WORD_THRESHOLD_X100=90  （hey_jarvis manifest 推荐 97）
 
-# 3. 看新模型 manifest，对应改 Kconfig
-cat main/audio/wake_words/models/okay_nabu.json
-# 看 probability_cutoff / sliding_window_size / tensor_arena_size 是否变
-# 必要时改 MICRO_WAKE_WORD_THRESHOLD_X100 / WINDOW_SIZE，或改代码 kBaseTensorArenaSize
+# 3. 看新模型 manifest（若有），对应改 Kconfig 阈值
+#   probability_cutoff / sliding_window_size / tensor_arena_size 各模型不同
+#   必要时改 MICRO_WAKE_WORD_THRESHOLD_X100 / WINDOW_SIZE，或改代码 kBaseTensorArenaSize
 
 # 4. 强制 reconfigure（EMBED_FILES 变了，Ninja 不会自动 re-configure）
 touch main/CMakeLists.txt && idf.py reconfigure && idf.py build
 ```
+
+> **注意输出量化兼容性**：如果新模型输出是 int8（如 Hi Jabra）vs uint8（如 hey_jarvis），代码已经在 `RunFrame()` 里 `if (output->type == kTfLiteInt8) ... else ...` 兼容，不用改源码。
 
 ### 7.2 自训中文 "嗨 Jabobo"
 
@@ -299,11 +308,11 @@ grep "Jabob.bin binary size" build/log/*.log
 strings build/Jabob.bin | grep -E "^2\.[0-9]+\.[0-9]+$" | head
 
 # 模型嵌入符号 + 长度（length 应等于 .tflite 文件大小）
-nm build/esp-idf/main/libmain.a | grep "_binary_hey_jarvis_tflite\|hey_jarvis_tflite_length"
-# 期望：
-#   0000cc30 R _binary_hey_jarvis_tflite_end
-#   00000000 R _binary_hey_jarvis_tflite_start
-#   0000cc30 R hey_jarvis_tflite_length      ← 0xCC30 = 52272 bytes ✓
+nm build/esp-idf/main/libmain.a | grep "_binary_stream_state_internal_quant_tflite\|stream_state_internal_quant_tflite_length"
+# 期望（Hi Jabra 模型）：
+#   0000f360 R _binary_stream_state_internal_quant_tflite_end
+#   00000000 R _binary_stream_state_internal_quant_tflite_start
+#   0000f360 R stream_state_internal_quant_tflite_length    ← 0xF360 = 62304 bytes ✓
 
 # sdkconfig 板子型号没漂（reconfigure 偶发会重置 board_type）
 grep "CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO" sdkconfig
@@ -312,37 +321,42 @@ grep "CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO" sdkconfig
 ### 9.2 烧录后串口期望日志
 
 ```
-I (xxx) MicroWakeWord: MicroWakeWord initialized: model=52272 bytes, arena=22864 bytes (PSRAM), wake_word="Hey Jarvis", cutoff=229/255, window=5
+I (xxx) MicroWakeWord: MicroWakeWord initialized: model=62304 bytes, arena=22864 bytes (PSRAM), wake_word="Hi Jabra", cutoff=127/255, window=5
 I (xxx) MicroWakeWord: Wake word interpreter allocated, arena=22864 used=YYYYY
 I (xxx) MicroWakeWord: Wake word model input stride=S dims=4D
 I (xxx) MicroWakeWord: MicroWakeWord started
 
-# 对设备说 "Hey Jarvis"：
-I (xxx) MicroWakeWord: Wake word DETECTED: prob=247/255 avg=235/255 cutoff=229 window=5
+# 对设备说 "Hi Jabra"：
+I (xxx) MicroWakeWord: Wake word DETECTED: prob=180/255 avg=155/255 cutoff=127 window=5
 I (xxx) MicroWakeWord: MicroWakeWord stopped
-I (xxx) Application: OnWakeWordDetected: Hey Jarvis
+I (xxx) Application: OnWakeWordDetected: Hi Jabra
 ```
+
+> `cutoff=127/255` 来自默认 `MICRO_WAKE_WORD_THRESHOLD_X100=50` → `50 * 255 / 100 = 127`。
 
 ### 9.3 服务端验证
 
 ```bash
 pm2 logs jabobo-server --lines 100 | grep -i wake
 # 期望：收到 listen detect 帧
-#   {"type":"listen","state":"detect","text":"Hey Jarvis", ...}
+#   {"type":"listen","state":"detect","text":"Hi Jabra", ...}
 ```
 
 ## 10. 风险点 / 排障
 
-### 10.1 烧录后说 Hey Jarvis 完全无反应
+### 10.1 烧录后说 Hi Jabra 完全无反应
 
-最大可能：**前端 spectrogram 跟训练侧 `pymicro_features.MicroFrontend` 输出不完全对齐**——量化误差或 stride 错位让模型接收的输入不正确。
+最大可能（按概率排序）：
+1. **没 ResetAll**：streaming 模型 hidden state 残留 → 首次 Start 后头几秒漏检。检查 `Start()` 里有没有 `resource_vars_->ResetAll()`（[micro_wake_word.cc](../main/audio/wake_words/micro_wake_word.cc)）
+2. **输出量化分支没走对**：Hi Jabra 输出是 int8，如果 `RunFrame()` 还是直接读 `output->data.uint8[0]`，得到的概率全错 → 几乎永远不会触发。检查 `if (output->type == kTfLiteInt8)` 那段
+3. **前端 spectrogram 跟训练侧 `pymicro_features.MicroFrontend` 输出不完全对齐** —— 量化误差或 stride 错位
 
 排查顺序：
 
 1. 串口看 `Wake word interpreter allocated, arena=...` —— 没看到 → 模型加载失败，看上面的 ERROR
-2. 看 `prob=` 输出（在阈值高的地方加临时 INFO log 打印每帧 prob，正常情况安静时 prob ≈ 0-50）—— 如果说话时 prob 始终在低位，几乎可以确认前端不对齐
-3. 暂时把 `MICRO_WAKE_WORD_THRESHOLD_X100` 调低到 50 + window 调到 3 看是否触发
-4. 跟 ESPHome 那边相同 hey_jarvis 模型对比能不能触发——如果 ESPHome 触发但我们不触发，就是前端问题
+2. 看 `prob=` 输出（在 `RunFrame` invoke 后临时加 `ESP_LOGI(TAG, "prob=%u float=%.3f", prob, prob_float)`，正常情况安静时 prob ≈ 0-30，说唤醒词时短暂冲到 150+）—— 如果说话时 prob 始终在低位，再考虑前端不对齐
+3. 暂时把 `MICRO_WAKE_WORD_THRESHOLD_X100` 调低到 30 + window 调到 3 看是否触发
+4. 跟训练侧 evaluate 脚本对比相同 wav 文件输出概率 —— 如果训练侧能触发但设备不能，就是前端 / 量化路径问题
 
 ### 10.2 编译报 `_binary_hey_jarvis_tflite_start undefined`
 
