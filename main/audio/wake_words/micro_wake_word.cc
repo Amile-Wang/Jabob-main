@@ -5,6 +5,7 @@
 
 #include "esp_heap_caps.h"
 #include "esp_log.h"
+#include "esp_timer.h"  // esp_timer_get_time() — 给概率 log 打时间戳用
 
 #include "tensorflow/lite/core/c/common.h"
 #include "tensorflow/lite/micro/micro_allocator.h"
@@ -21,6 +22,18 @@
 #include "opus_encoder.h"
 
 static const char* TAG = "MicroWakeWord";
+
+// ============================ 调试开关 =====================================
+// 唤醒不工作时打开下面两个 macro,可以看每帧概率 / spectrogram 摘要 / 模型 tensor 细节,
+// 用来定位"前端是否在出数 / 概率到底高不高 / 模型是否按 int8 输出 / 是否落在阈值上方"。
+//
+// 警告:打开后串口会非常吵 — 每秒约 100 行(概率) + 每 0.5s 一行(feature),
+//      定位完务必把两个 macro 改回 0 再发布。
+//
+// 关闭后这部分代码会被预处理器整段干掉,零运行时开销。
+#define MWW_VERBOSE_PROB_LOG    1   // 每次 Invoke 后打 prob/cutoff/时间戳/state
+#define MWW_VERBOSE_FEATURE_LOG 1   // 每 50 次 RunFrame 打 spectrogram 摘要 (前端健康检查)
+// ===========================================================================
 
 namespace {
 // Hi Jabra micro-wake-word model — symbols come from EMBED_FILES in main/CMakeLists.txt.
@@ -183,6 +196,24 @@ bool MicroWakeWord::LoadWakeWordModel() {
         input_stride_ = 1;
     }
     ESP_LOGI(TAG, "Wake word model input stride=%u dims=%dD", (unsigned)input_stride_, in->dims->size);
+
+    // 把 input/output tensor 的量化参数和形状全打出来 — 加载阶段只打 1 次,信息密度高。
+    // 排障时优先看 OUT tensor 的 type:
+    //   type=9 (kTfLiteInt8)  → 走 (raw - zp) * scale 反量化,Hi Jabra 走这条
+    //   type=3 (kTfLiteUInt8) → 直接读 data.uint8[0],hey_jarvis 走这条
+    // 如果两条都不是,RunFrame 里的概率会全是 0 或乱码 — 模型量化方案不对要重训。
+    TfLiteTensor* out = interpreter_->output(0);
+    auto dim_or = [](TfLiteIntArray* d, int i) {
+        return (d && i < d->size) ? (int)d->data[i] : -1;
+    };
+    ESP_LOGI(TAG, "Wake word IN  tensor: type=%d scale=%.6f zp=%d dims=[%d,%d,%d,%d]",
+             (int)in->type, in->params.scale, (int)in->params.zero_point,
+             dim_or(in->dims, 0), dim_or(in->dims, 1),
+             dim_or(in->dims, 2), dim_or(in->dims, 3));
+    ESP_LOGI(TAG, "Wake word OUT tensor: type=%d scale=%.6f zp=%d dims=[%d,%d,%d,%d]",
+             (int)out->type, out->params.scale, (int)out->params.zero_point,
+             dim_or(out->dims, 0), dim_or(out->dims, 1),
+             dim_or(out->dims, 2), dim_or(out->dims, 3));
     return true;
 }
 
@@ -224,6 +255,29 @@ bool MicroWakeWord::RunFrame(const int16_t* window_pcm) {
         return false;
     }
 
+#if MWW_VERBOSE_FEATURE_LOG
+    // ---- Spectrogram 健康检查 ----
+    // 排障问题:"前端到底有没有在出数?" 如果 abs_sum 长期 = 0 → 麦克风没声 / 前端挂了;
+    //          如果 abs_sum 不随说话变化 → 前端可能算错了 stride / scale。
+    // 正常情况:安静时 abs_sum ≈ 几十到几百;说话时 abs_sum 跳到 1000+。
+    {
+        static uint16_t dbg_feat_count = 0;
+        if (++dbg_feat_count >= 50) {  // 每 50 帧打一次 ≈ 每 500 ms
+            dbg_feat_count = 0;
+            int feat_abs_sum = 0;
+            int feat_min = 127, feat_max = -128;
+            for (int i = 0; i < kFeatureSize; i++) {
+                feat_abs_sum += abs(feature[i]);
+                if (feature[i] < feat_min) feat_min = feature[i];
+                if (feature[i] > feat_max) feat_max = feature[i];
+            }
+            ESP_LOGI(TAG, "Feature health: abs_sum=%d min=%d max=%d head=[%d,%d,%d,%d,%d]",
+                     feat_abs_sum, feat_min, feat_max,
+                     feature[0], feature[1], feature[2], feature[3], feature[4]);
+        }
+    }
+#endif
+
     TfLiteTensor* input = interpreter_->input(0);
     int8_t* in_data = tflite::GetTensorData<int8_t>(input);
     std::memcpy(in_data + kFeatureSize * current_stride_step_, feature, kFeatureSize);
@@ -239,15 +293,35 @@ bool MicroWakeWord::RunFrame(const int16_t* window_pcm) {
         // Hi Jabra stream_state_internal_quant.tflite 输出是 int8 量化,需要按
         // scale + zero_point 反量化成 [0,1] 概率,再缩放到 0-255 跟 sliding window 对齐。
         // hey_jarvis 老模型输出是 uint8,直接读就行 — 这里兼容两种。
+        // prob_float 存原始 [0,1] 概率,verbose log 用;prob 是 0-255 量化值用于滑窗。
         uint8_t prob;
+        float prob_float;
         if (output->type == kTfLiteInt8) {
             int8_t raw = output->data.int8[0];
-            float prob_float = (raw - output->params.zero_point) * output->params.scale;
+            prob_float = (raw - output->params.zero_point) * output->params.scale;
             int scaled = static_cast<int>(prob_float * 255.0f);
             prob = static_cast<uint8_t>(std::max(0, std::min(255, scaled)));
         } else {
-            prob = output->data.uint8[0];
+            uint8_t raw = output->data.uint8[0];
+            // 即使 uint8 也按 scale + zp 反量化算 prob_float — 跨模型一致。
+            prob_float = (raw - output->params.zero_point) * output->params.scale;
+            prob = raw;
         }
+
+#if MWW_VERBOSE_PROB_LOG
+        // ---- 每帧概率 log ----
+        // 排障:把这一行往串口里翻 — 安静时 prob 应该接近 0;
+        //       说唤醒词时,**说完之后那 100-200 ms** prob 应该冲到 cutoff 以上。
+        //   - 全程 prob ≈ 0:模型没接收到有效特征(前端坏 / 量化分支错)
+        //   - prob 慢慢漂高但永远不过阈值:阈值偏高,先把 THRESHOLD_X100 调到 30 试
+        //   - prob 跳到 200+ 但不触发:滑窗 / cool-off 问题,看 ignore=
+        // 时间戳是 esp_timer 自启动起的 ms — 拿来跟"我开始说唤醒词"对时,算有效感受野延迟。
+        ESP_LOGI(TAG, "[%llu ms] prob=%u(%.3f) cutoff=%u ignore=%d",
+                 (unsigned long long)(esp_timer_get_time() / 1000ULL),
+                 (unsigned)prob, prob_float,
+                 (unsigned)probability_cutoff_u8_,
+                 (int)ignore_windows_);
+#endif
 
         ++last_n_index_;
         if (last_n_index_ >= sliding_window_size_) last_n_index_ = 0;
@@ -307,10 +381,15 @@ void MicroWakeWord::Start() {
     // Hi Jabra 模型是 streaming 模型,内部带 ResourceVariable 状态(CallOnce/VarHandle 那套)。
     // 上一次 Start..Stop 期间的 hidden state 会污染本次首批推理 → 漏检/误检。
     // 每次 Start 必须 ResetAll(),把所有 resource variables 清零。
+    // 如果 resource_vars_ 是 NULL(LoadWakeWordModel 失败那段路径)前面已经 return,
+    // 但加防御性 check + warn log,排障时一眼能看出来。
     if (resource_vars_) {
         resource_vars_->ResetAll();
+        ESP_LOGI(TAG, "MicroWakeWord started (streaming state ResetAll done, cutoff=%u/255 window=%u)",
+                 (unsigned)probability_cutoff_u8_, (unsigned)sliding_window_size_);
+    } else {
+        ESP_LOGW(TAG, "MicroWakeWord started but resource_vars_ is NULL — streaming state NOT reset, first detection unreliable");
     }
-    ESP_LOGI(TAG, "MicroWakeWord started");
 }
 
 void MicroWakeWord::Stop() {

@@ -82,6 +82,16 @@ TfLiteStatus InitializeMicroFeatures() {
     MicroPrintf("Audio preprocessor AllocateTensors failed");
     return kTfLiteError;
   }
+
+  // 加载阶段打前端 preprocessor 的 IN/OUT tensor 详情,只打 1 次。
+  // 排障:对比 OUT.scale / OUT.zero_point 跟训练侧 pymicro_features.MicroFrontend
+  //       的输出量化参数 — 不一致会导致 spectrogram 数值范围错,wake-word 模型永远不触发。
+  TfLiteTensor* pp_in = g_interpreter->input(0);
+  TfLiteTensor* pp_out = g_interpreter->output(0);
+  MicroPrintf("Preprocessor IN : type=%d scale=%.6f zp=%d",
+              (int)pp_in->type, pp_in->params.scale, (int)pp_in->params.zero_point);
+  MicroPrintf("Preprocessor OUT: type=%d scale=%.6f zp=%d",
+              (int)pp_out->type, pp_out->params.scale, (int)pp_out->params.zero_point);
   return kTfLiteOk;
 }
 
