@@ -358,13 +358,19 @@ pm2 logs jabobo-server --lines 100 | grep -i wake
 3. 暂时把 `MICRO_WAKE_WORD_THRESHOLD_X100` 调低到 30 + window 调到 3 看是否触发
 4. 跟训练侧 evaluate 脚本对比相同 wav 文件输出概率 —— 如果训练侧能触发但设备不能，就是前端 / 量化路径问题
 
-### 10.2 编译报 `_binary_hey_jarvis_tflite_start undefined`
+### 10.2 编译报 `_binary_stream_state_internal_quant_tflite_start undefined`
 
 **症状**：链接阶段 undefined symbol `_binary_*_start`。
-**原因**：`EMBED_FILES` 加了新文件但 Ninja 没重新生成符号（CMake `file(GLOB)` 类似，是 configure 时刻 snapshot）。
+**原因**：`EMBED_FILES` 加了新文件但 Ninja 没重新生成符号（CMake `file(GLOB)` 类似，是 configure 时刻 snapshot）；或者改了 `micro_wake_word.cc` 里的 asm symbol 但 `CMakeLists.txt` 里的 `MWW_MODEL_FILES` 文件名没同步。
 **修复**：
 
 ```bash
+# 1. 确认两边文件名一致
+grep _binary_ main/audio/wake_words/micro_wake_word.cc
+grep MWW_MODEL_FILES main/CMakeLists.txt
+# 两者的 <basename> 必须完全一致 (basename 中的非字母数字字符会被替成下划线)
+
+# 2. 强制 reconfigure
 touch main/CMakeLists.txt && idf.py reconfigure && idf.py build
 ```
 
@@ -414,7 +420,7 @@ grep CONFIG_NN_OPTIMIZED sdkconfig
 | `esp-nn` 1.2.0 | Apache-2.0 | esp-tflite-micro 依赖 |
 | 抄自 `examples/micro_speech/` 的代码 | Apache-2.0 | 文件顶部保留原 header + SPDX |
 | `audio_preprocessor_int8.tflite` 数据 | Apache-2.0 | 来自 esp-tflite-micro example |
-| `hey_jarvis.tflite` (v2) | Apache-2.0 | 来自 esphome/micro-wake-word-models，副本在 `models/LICENSE.micro-wake-word-models.txt` |
+| `stream_state_internal_quant.tflite` (Hi Jabra) | 自训模型 | 与 esphome/micro-wake-word v2 框架同源，前端 / op 集合复用；模型权重为本项目自训。框架 license 副本保留在 `models/LICENSE.micro-wake-word-models.txt` |
 
 **没用 ESPHome 的 GPL 代码**——具体地，没拷 `esphome/components/micro_wake_word/{micro_wake_word.cpp, streaming_model.cpp}`（虽然 op resolver 清单参考了它，但代码独立重写）。
 
@@ -422,8 +428,9 @@ grep CONFIG_NN_OPTIMIZED sdkconfig
 
 - **删除 DSPOTTER 代码**：保留作为回退路径，等 mww 在生产稳定后再做
 - **多 wake word 同时启用**：当前每次编译只能选一个后端
-- **VAD 模型并跑**：micro-wake-word 仓库提供 `vad.tflite`，可在 wake-word 推理前作为 gating 减少误触；当前 PoC 没启用
-- **自训中文"嗨 Jabobo"模型**：走 micro-wake-word 训练管线 + Piper sample generator 中文 voice，单独立项
+- **VAD 模型并跑**：micro-wake-word 仓库提供 `vad.tflite`，可在 wake-word 推理前作为 gating 减少误触；当前没启用
+- **自训中文"嗨 Jabobo"模型**：英文 "Hi Jabra" 已自训成功（当前嵌入模型），中文版走相同管线（micro-wake-word 训练 + Piper 中文 voice）单独立项
+- **训练侧 deploy 工具回流**：从 `origin/temp-wakeword` 看模型由某个 `deploy_wakeword.py` 工具产出 + 自动生成 `wake_word_config.h`。本分支没集成这套工具（继续走 Kconfig），后续如果模型迭代频繁可考虑把 deploy 脚本迁回本仓
 - **服务端改动**：本集成完全端侧，服务端只接收 `SendWakeWordDetected` JSON 帧（路径已存在），无需改
 
 ## 13. 关键文件索引
@@ -431,11 +438,12 @@ grep CONFIG_NN_OPTIMIZED sdkconfig
 | 路径 | 作用 |
 |---|---|
 | `main/idf_component.yml` | 引入 esp-tflite-micro 依赖 |
-| `main/Kconfig.projbuild` (L481-507) | `USE_MICRO_WAKE_WORD` 等四个 config |
-| `main/CMakeLists.txt` (elseif + MWW_MODEL_FILES + EMBED_FILES) | 编译条件 + 模型嵌入 |
+| `main/Kconfig.projbuild` | `USE_MICRO_WAKE_WORD` + `MICRO_WAKE_WORD_DISPLAY/THRESHOLD_X100/WINDOW_SIZE` 四个 config |
+| `main/CMakeLists.txt` (elseif + MWW_MODEL_FILES + EMBED_FILES) | 编译条件 + 模型嵌入（当前嵌 `stream_state_internal_quant.tflite`）|
 | `main/audio/wake_word.h` | 抽象基类（共用）|
-| `main/audio/audio_service.cc` | wake_word 实例化 + Feed 入口 |
-| `main/audio/wake_words/micro_wake_word.{h,cc}` | 子类实现 |
-| `main/audio/wake_words/micro_features/` | 前端代码 + 数据 |
-| `main/audio/wake_words/models/` | 模型文件 + manifest + license |
+| `main/audio/audio_service.cc` | wake_word 实例化 + Feed 入口（micro 已是一等公民，三处 `#if` 都带 `\|\| CONFIG_USE_MICRO_WAKE_WORD`）|
+| `main/audio/wake_words/micro_wake_word.{h,cc}` | 子类实现，含 int8 输出反量化 + `Start()` ResetAll |
+| `main/audio/wake_words/micro_features/` | 前端代码 + 数据（audio_preprocessor int8 模型 + GenerateFeature）|
+| `main/audio/wake_words/models/` | 当前: `stream_state_internal_quant.tflite` (Hi Jabra) + `HeyJabra_Lv3_Enc1_pack_WithTxt.bin` (DSpotter 回退) + LICENSE |
+| `sdkconfig.defaults` | 默认开 micro_wakeword，注释里保留 DSpotter 切回方法 |
 | `partitions/v1/16m_dspotter_native.csv` | 分区表（共用，未改动）|
