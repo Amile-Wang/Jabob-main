@@ -570,7 +570,7 @@ CONFIG_PARTITION_TABLE_MD5=y
 #
 # Xiaozhi Assistant
 #
-CONFIG_OTA_URL="http://51.107.185.69/api/user/device/ota"
+CONFIG_OTA_URL="https://jabobo.com/api/user/device/ota"
 # CONFIG_LANGUAGE_ZH_CN is not set
 # CONFIG_LANGUAGE_ZH_TW is not set
 CONFIG_LANGUAGE_EN_US=y
