@@ -12,7 +12,7 @@ micro-wake-word 是 Open Home Foundation 维护的开源唤醒词框架（[OHF-V
 - **运行时不依赖外部 license** （DSPOTTER 需要 NVS license 分区做设备绑定，micro-wake-word 不需要）
 
 ### 当前状态（Hi Jabra 模型，2.0.6 分支）
-- 使用自训 **Hi Jabra** 流式模型 `stream_state_internal_quant.tflite`（约 62 KB，INT8 量化）
+- 使用自训 **Hi Jabra** 流式模型 `hi_jabra.tflite`（约 62 KB，INT8 量化）
 - 模型与 esphome/micro-wake-word v2 框架同源 —— 前端 `audio_preprocessor_int8.tflite` / op resolver 清单全部复用，**只换最末端的 wake-word 模型本身**
 - **模型输出量化为 int8**（不同于 hey_jarvis 老 PoC 模型的 uint8），运行时按 `scale + zero_point` 反量化到 [0,1] 概率再缩放到 0-255 跟滑窗对齐；详见 [micro_wake_word.cc](../main/audio/wake_words/micro_wake_word.cc) `RunFrame()` 中对 `kTfLiteInt8` 的分支
 - **`Start()` 必须 `resource_vars_->ResetAll()`**：streaming 模型靠 TF Resource Variables 持久化 hidden state，上一次会话残留会污染本次首批推理 → 漏检 / 误检
@@ -32,7 +32,7 @@ main/audio/wake_words/
 │   ├── micro_features_generator.cc           # GenerateFeature 实现
 │   └── micro_model_settings.h                # 16 kHz / 30 ms 窗 / 10 ms stride / 40 维
 └── models/
-    ├── stream_state_internal_quant.tflite    # Hi Jabra wake-word 流式模型（约 62 KB，INT8）
+    ├── hi_jabra.tflite    # Hi Jabra wake-word 流式模型（约 62 KB，INT8）
     ├── HeyJabra_Lv3_Enc1_pack_WithTxt.bin    # DSpotter 回退用模型，CONFIG_USE_DSPOTTER_WAKE_WORD=y 时才嵌入
     └── LICENSE.micro-wake-word-models.txt    # 模型框架 Apache-2.0 license 副本（同源）
 ```
@@ -89,7 +89,7 @@ espressif/esp-tflite-micro: ^1.3.5
 │ 4. 每帧累积进 wake-word interp 输入  │
 │    ([1, S, 40, 1]，S 由模型决定)，   │
 │    满 S 帧调一次 invoke：            │
-│    stream_state_internal_quant.tflite│
+│    hi_jabra.tflite│
 │      → 1 个 int8 量化值 → 反量化     │
 │        到 0-255 概率                 │
 │                                      │
@@ -208,7 +208,7 @@ variable_arena (PSRAM):    1024 bytes 固定（kVariableArenaSize）
 最多 resource variables:   20（kMaxResourceVariables）
 preprocessor_arena (内存): 16 KB 静态分配（micro_features_generator.cc）
 
-模型本体 .tflite:           Hi Jabra (stream_state_internal_quant) ≈ 62 KB
+模型本体 .tflite:           Hi Jabra (hi_jabra.tflite) ≈ 62 KB
                             preprocessor (audio_preprocessor_int8) ≈ 54 KB
                             两者都通过 EMBED_FILES 嵌入 binary，不占运行时内存
 ```
@@ -217,7 +217,7 @@ preprocessor_arena (内存): 16 KB 静态分配（micro_features_generator.cc）
 
 ### 7.1 ESPHome v2 模型生态内换（最简单）
 
-[esphome/micro-wake-word-models v2](https://github.com/esphome/micro-wake-word-models/tree/main/models/v2) 里所有模型用同一套前端参数，**直接换文件就行**（下面以从当前 `stream_state_internal_quant.tflite` 换回 `hey_jarvis.tflite` 为例，反向同理）：
+[esphome/micro-wake-word-models v2](https://github.com/esphome/micro-wake-word-models/tree/main/models/v2) 里所有模型用同一套前端参数，**直接换文件就行**（下面以从当前 `hi_jabra.tflite` 换回 `hey_jarvis.tflite` 为例，反向同理）：
 
 ```bash
 # 1. 拷新模型
@@ -226,11 +226,11 @@ cp /tmp/mww-models/models/v2/hey_jarvis.tflite \
 
 # 2. 改三处源码
 # (a) micro_wake_word.cc 里的 asm symbol 名（_binary_<basename>_start/_end）
-sed -i 's/_binary_stream_state_internal_quant_tflite/_binary_hey_jarvis_tflite/g' \
+sed -i 's/_binary_hi_jabra_tflite/_binary_hey_jarvis_tflite/g' \
     main/audio/wake_words/micro_wake_word.cc
 
 # (b) main/CMakeLists.txt 里的 MWW_MODEL_FILES
-sed -i 's|stream_state_internal_quant.tflite|hey_jarvis.tflite|' main/CMakeLists.txt
+sed -i 's|hi_jabra.tflite|hey_jarvis.tflite|' main/CMakeLists.txt
 
 # (c) Kconfig 默认 + sdkconfig 当前值
 # Kconfig: MICRO_WAKE_WORD_DISPLAY default 改成 "Hey Jarvis"
@@ -308,11 +308,11 @@ grep "Jabob.bin binary size" build/log/*.log
 strings build/Jabob.bin | grep -E "^2\.[0-9]+\.[0-9]+$" | head
 
 # 模型嵌入符号 + 长度（length 应等于 .tflite 文件大小）
-nm build/esp-idf/main/libmain.a | grep "_binary_stream_state_internal_quant_tflite\|stream_state_internal_quant_tflite_length"
+nm build/esp-idf/main/libmain.a | grep "_binary_hi_jabra_tflite\|hi_jabra_tflite_length"
 # 期望（Hi Jabra 模型）：
-#   0000f360 R _binary_stream_state_internal_quant_tflite_end
-#   00000000 R _binary_stream_state_internal_quant_tflite_start
-#   0000f360 R stream_state_internal_quant_tflite_length    ← 0xF360 = 62304 bytes ✓
+#   0000f360 R _binary_hi_jabra_tflite_end
+#   00000000 R _binary_hi_jabra_tflite_start
+#   0000f360 R hi_jabra_tflite_length    ← 0xF360 = 62304 bytes ✓
 
 # sdkconfig 板子型号没漂（reconfigure 偶发会重置 board_type）
 grep "CONFIG_BOARD_TYPE_BREAD_COMPACT_WIFI_LCD_TIANHAO" sdkconfig
@@ -358,7 +358,7 @@ pm2 logs jabobo-server --lines 100 | grep -i wake
 3. 暂时把 `MICRO_WAKE_WORD_THRESHOLD_X100` 调低到 30 + window 调到 3 看是否触发
 4. 跟训练侧 evaluate 脚本对比相同 wav 文件输出概率 —— 如果训练侧能触发但设备不能，就是前端 / 量化路径问题
 
-### 10.2 编译报 `_binary_stream_state_internal_quant_tflite_start undefined`
+### 10.2 编译报 `_binary_hi_jabra_tflite_start undefined`
 
 **症状**：链接阶段 undefined symbol `_binary_*_start`。
 **原因**：`EMBED_FILES` 加了新文件但 Ninja 没重新生成符号（CMake `file(GLOB)` 类似，是 configure 时刻 snapshot）；或者改了 `micro_wake_word.cc` 里的 asm symbol 但 `CMakeLists.txt` 里的 `MWW_MODEL_FILES` 文件名没同步。
@@ -420,7 +420,7 @@ grep CONFIG_NN_OPTIMIZED sdkconfig
 | `esp-nn` 1.2.0 | Apache-2.0 | esp-tflite-micro 依赖 |
 | 抄自 `examples/micro_speech/` 的代码 | Apache-2.0 | 文件顶部保留原 header + SPDX |
 | `audio_preprocessor_int8.tflite` 数据 | Apache-2.0 | 来自 esp-tflite-micro example |
-| `stream_state_internal_quant.tflite` (Hi Jabra) | 自训模型 | 与 esphome/micro-wake-word v2 框架同源，前端 / op 集合复用；模型权重为本项目自训。框架 license 副本保留在 `models/LICENSE.micro-wake-word-models.txt` |
+| `hi_jabra.tflite` (Hi Jabra) | 自训模型 | 与 esphome/micro-wake-word v2 框架同源，前端 / op 集合复用；模型权重为本项目自训。框架 license 副本保留在 `models/LICENSE.micro-wake-word-models.txt` |
 
 **没用 ESPHome 的 GPL 代码**——具体地，没拷 `esphome/components/micro_wake_word/{micro_wake_word.cpp, streaming_model.cpp}`（虽然 op resolver 清单参考了它，但代码独立重写）。
 
@@ -439,11 +439,11 @@ grep CONFIG_NN_OPTIMIZED sdkconfig
 |---|---|
 | `main/idf_component.yml` | 引入 esp-tflite-micro 依赖 |
 | `main/Kconfig.projbuild` | `USE_MICRO_WAKE_WORD` + `MICRO_WAKE_WORD_DISPLAY/THRESHOLD_X100/WINDOW_SIZE` 四个 config |
-| `main/CMakeLists.txt` (elseif + MWW_MODEL_FILES + EMBED_FILES) | 编译条件 + 模型嵌入（当前嵌 `stream_state_internal_quant.tflite`）|
+| `main/CMakeLists.txt` (elseif + MWW_MODEL_FILES + EMBED_FILES) | 编译条件 + 模型嵌入（当前嵌 `hi_jabra.tflite`）|
 | `main/audio/wake_word.h` | 抽象基类（共用）|
 | `main/audio/audio_service.cc` | wake_word 实例化 + Feed 入口（micro 已是一等公民，三处 `#if` 都带 `\|\| CONFIG_USE_MICRO_WAKE_WORD`）|
 | `main/audio/wake_words/micro_wake_word.{h,cc}` | 子类实现，含 int8 输出反量化 + `Start()` ResetAll |
 | `main/audio/wake_words/micro_features/` | 前端代码 + 数据（audio_preprocessor int8 模型 + GenerateFeature）|
-| `main/audio/wake_words/models/` | 当前: `stream_state_internal_quant.tflite` (Hi Jabra) + `HeyJabra_Lv3_Enc1_pack_WithTxt.bin` (DSpotter 回退) + LICENSE |
+| `main/audio/wake_words/models/` | 当前: `hi_jabra.tflite` (Hi Jabra) + `HeyJabra_Lv3_Enc1_pack_WithTxt.bin` (DSpotter 回退) + LICENSE |
 | `sdkconfig.defaults` | 默认开 micro_wakeword，注释里保留 DSpotter 切回方法 |
 | `partitions/v1/16m_dspotter_native.csv` | 分区表（共用，未改动）|
