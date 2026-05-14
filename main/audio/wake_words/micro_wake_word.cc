@@ -316,8 +316,12 @@ bool MicroWakeWord::RunFrame(const int16_t* window_pcm) {
         //   - prob 慢慢漂高但永远不过阈值:阈值偏高,先把 THRESHOLD_X100 调到 30 试
         //   - prob 跳到 200+ 但不触发:滑窗 / cool-off 问题,看 ignore=
         // 时间戳是 esp_timer 自启动起的 ms — 拿来跟"我开始说唤醒词"对时,算有效感受野延迟。
-        ESP_LOGI(TAG, "[%llu ms] prob=%u(%.3f) cutoff=%u ignore=%d",
-                 (unsigned long long)(esp_timer_get_time() / 1000ULL),
+        // 注意:不能用 %llu — sdkconfig 开了 CONFIG_NEWLIB_NANO_FORMAT=y,
+        //       nano printf 不支持 long long,会把 %llu 当字面 "lu" 打,
+        //       并且后续所有参数错位 → 整行垃圾。这里强制 32-bit ms (49 天才溢出).
+        uint32_t ts_ms = (uint32_t)(esp_timer_get_time() / 1000ULL);
+        ESP_LOGI(TAG, "[%lu ms] prob=%u(%.3f) cutoff=%u ignore=%d",
+                 (unsigned long)ts_ms,
                  (unsigned)prob, prob_float,
                  (unsigned)probability_cutoff_u8_,
                  (int)ignore_windows_);
