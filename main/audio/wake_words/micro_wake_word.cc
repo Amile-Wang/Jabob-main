@@ -38,8 +38,8 @@ static const char* TAG = "MicroWakeWord";
 namespace {
 // Hi Jabra micro-wake-word model — symbols come from EMBED_FILES in main/CMakeLists.txt.
 // Tip: 如果换模型文件名,这两行的 _binary_<basename>_start/_end 要跟着改。
-extern "C" const uint8_t kMwwModelStart[] asm("_binary_hi_jabra_tflite_start");
-extern "C" const uint8_t kMwwModelEnd[] asm("_binary_hi_jabra_tflite_end");
+extern "C" const uint8_t kMwwModelStart[] asm("_binary_stream_state_internal_quant_tflite_start");
+extern "C" const uint8_t kMwwModelEnd[] asm("_binary_stream_state_internal_quant_tflite_end");
 
 // Tensor arena size: 沿用 hey_jarvis manifest 的 22860 作为起点,AllocateTensors 失败时
 // 自动翻倍重试一次。Hi Jabra 模型结构同源,实测可放下;若以后换更大模型再调。
@@ -290,7 +290,7 @@ bool MicroWakeWord::RunFrame(const int16_t* window_pcm) {
             return false;
         }
         TfLiteTensor* output = interpreter_->output(0);
-        // Hi Jabra hi_jabra.tflite 输出是 int8 量化,需要按
+        // Hi Jabra stream_state_internal_quant.tflite 输出是 int8 量化,需要按
         // scale + zero_point 反量化成 [0,1] 概率,再缩放到 0-255 跟 sliding window 对齐。
         // hey_jarvis 老模型输出是 uint8,直接读就行 — 这里兼容两种。
         // prob_float 存原始 [0,1] 概率,verbose log 用;prob 是 0-255 量化值用于滑窗。

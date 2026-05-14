@@ -493,7 +493,7 @@ config MICRO_WAKE_WORD_DISPLAY
     depends on USE_MICRO_WAKE_WORD
     help
         micro-wake-word 唤醒词对应显示文本。当前嵌入的模型是 Hi Jabra
-        (hi_jabra.tflite),换模型时同步改这里。
+        (stream_state_internal_quant.tflite),换模型时同步改这里。
 
 config MICRO_WAKE_WORD_THRESHOLD_X100
     int "MWW probability cutoff (×100, 50-99)"
