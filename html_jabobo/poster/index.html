@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Jabobo Innovation Platform</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+/* ── CSS Custom Properties ── */
+:root {
+  --bg-page: #08090a;
+  --bg-panel: #0f1011;
+  --bg-elevated: #191a1b;
+  --text-primary: #f7f8f8;
+  --text-body: #d0d6e0;
+  --text-muted: #8a8f98;
+  --accent: #5e6ad2;
+  --accent-hover: #828fff;
+  --accent-glow: rgba(94, 106, 210, 0.18);
+  --border: rgba(255,255,255,0.08);
+  --border-subtle: rgba(255,255,255,0.05);
+  --card-bg: rgba(255,255,255,0.02);
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 12px;
+}
+
+/* ── Reset & Base ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  font-feature-settings: 'cv01', 'ss03';
+  background: var(--bg-page);
+  color: var(--text-body);
+  line-height: 1.6;
+  font-weight: 400;
+  overflow-x: hidden;
+}
+
+/* ── Ambient Glow Orbs ── */
+body::before {
+  content: '';
+  position: fixed;
+  top: -180px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 900px;
+  height: 500px;
+  background: radial-gradient(ellipse at center, var(--accent-glow) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  bottom: -200px;
+  right: -100px;
+  width: 700px;
+  height: 600px;
+  background: radial-gradient(ellipse at center, rgba(130, 143, 255, 0.08) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 0;
+}
+
+/* ── Navigation ── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  background: rgba(8, 9, 10, 0.78);
+  border-bottom: 1px solid var(--border);
+}
+
+.nav-inner {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 32px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-logo {
+  font-weight: 600;
+  font-size: 17px;
+  letter-spacing: -0.28px;
+  color: var(--text-primary);
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-logo .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--accent);
+  box-shadow: 0 0 10px var(--accent), 0 0 20px var(--accent-glow);
+}
+
+.nav-cta {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv01', 'ss03';
+  font-weight: 510;
+  font-size: 13px;
+  color: var(--text-primary);
+  background: var(--accent);
+  border: none;
+  padding: 7px 16px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background 0.2s ease, box-shadow 0.2s ease;
+  text-decoration: none;
+}
+
+.nav-cta:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 0 20px var(--accent-glow);
+}
+
+/* ── Page Container ── */
+.page {
+  position: relative;
+  z-index: 1;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 32px;
+}
+
+/* ── Hero ── */
+.hero {
+  padding: 120px 0 64px;
+  text-align: center;
+}
+
+.hero-label {
+  display: inline-block;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  color: var(--accent);
+  text-transform: uppercase;
+  border: 1px solid rgba(94, 106, 210, 0.25);
+  border-radius: 100px;
+  padding: 5px 14px;
+  margin-bottom: 28px;
+}
+
+.hero h1 {
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  font-feature-settings: 'cv01', 'ss03';
+  font-weight: 600;
+  font-size: clamp(42px, 6.5vw, 72px);
+  line-height: 1.06;
+  letter-spacing: -1.584px;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+}
+
+.hero h1 .accent {
+  color: var(--accent);
+}
+
+.hero .subtitle {
+  font-size: 18px;
+  font-weight: 400;
+  color: var(--text-muted);
+  max-width: 560px;
+  margin: 0 auto 40px;
+  line-height: 1.65;
+  letter-spacing: -0.18px;
+}
+
+.hero-buttons {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+}
+
+.btn-primary {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv01', 'ss03';
+  font-weight: 510;
+  font-size: 15px;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  padding: 12px 28px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s ease, box-shadow 0.2s ease, transform 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+  box-shadow: 0 0 28px var(--accent-glow);
+  transform: translateY(-1px);
+}
+
+.btn-ghost {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv01', 'ss03';
+  font-weight: 510;
+  font-size: 15px;
+  color: var(--text-primary);
+  background: var(--card-bg);
+  border: 1px solid var(--border);
+  padding: 12px 28px;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-ghost:hover {
+  background: rgba(255,255,255,0.04);
+  border-color: rgba(255,255,255,0.14);
+  transform: translateY(-1px);
+}
+
+/* ── Section Header ── */
+.section-header {
+  text-align: center;
+  padding: 80px 0 48px;
+}
+
+.section-header h2 {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv01', 'ss03';
+  font-weight: 600;
+  font-size: clamp(28px, 4vw, 40px);
+  letter-spacing: -0.72px;
+  color: var(--text-primary);
+  margin-bottom: 12px;
+}
+
+.section-header p {
+  font-size: 16px;
+  color: var(--text-muted);
+  font-weight: 400;
+  letter-spacing: -0.1px;
+}
+
+/* ── Product Cards Grid ── */
+.cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 16px;
+  padding-bottom: 80px;
+}
+
+.card {
+  background: var(--card-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: 28px 26px 26px;
+  transition: background 0.22s ease, border-color 0.22s ease, transform 0.2s ease, box-shadow 0.22s ease;
+  cursor: default;
+  position: relative;
+  overflow: hidden;
+}
+
+.card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(94, 106, 210, 0.35), transparent);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.card:hover {
+  background: rgba(255,255,255,0.035);
+  border-color: rgba(255,255,255,0.12);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+}
+
+.card:hover::after {
+  opacity: 1;
+}
+
+.card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-sm);
+  background: rgba(94, 106, 210, 0.10);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 20px;
+  margin-bottom: 18px;
+  transition: background 0.22s ease;
+}
+
+.card:hover .card-icon {
+  background: rgba(94, 106, 210, 0.18);
+}
+
+.card h3 {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv01', 'ss03';
+  font-weight: 590;
+  font-size: 17px;
+  letter-spacing: -0.28px;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.card p {
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  letter-spacing: -0.08px;
+}
+
+.card .card-meta {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--accent);
+  margin-top: 14px;
+  opacity: 0.65;
+  transition: opacity 0.22s ease;
+}
+
+.card:hover .card-meta {
+  opacity: 1;
+}
+
+/* ── Service Label Badges ── */
+.service-badge {
+  display: inline-block;
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 2px 8px;
+  margin-bottom: 8px;
+}
+
+/* ── Infrastructure Section ── */
+.infra {
+  padding: 64px 0 80px;
+  border-top: 1px solid var(--border-subtle);
+}
+
+.infra-inner {
+  max-width: 720px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.infra-label {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  margin-bottom: 20px;
+}
+
+.infra h2 {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-feature-settings: 'cv01', 'ss03';
+  font-weight: 600;
+  font-size: clamp(22px, 3.2vw, 32px);
+  letter-spacing: -0.48px;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.infra p {
+  font-size: 15px;
+  color: var(--text-muted);
+  line-height: 1.65;
+  letter-spacing: -0.08px;
+}
+
+.infra-stack {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: center;
+  margin-top: 32px;
+}
+
+.stack-chip {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--text-body);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 16px;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.stack-chip:hover {
+  border-color: rgba(255,255,255,0.16);
+  background: rgba(255,255,255,0.04);
+}
+
+.stack-chip.highlight {
+  color: var(--accent);
+  border-color: rgba(94, 106, 210, 0.30);
+  background: rgba(94, 106, 210, 0.08);
+}
+
+/* ── Divider ── */
+.divider {
+  height: 1px;
+  background: var(--border-subtle);
+  margin: 0 32px;
+}
+
+/* ── Footer ── */
+footer {
+  padding: 32px 32px 40px;
+  text-align: center;
+}
+
+footer p {
+  font-size: 13px;
+  color: var(--text-muted);
+  letter-spacing: -0.06px;
+}
+
+footer a {
+  color: var(--accent);
+  text-decoration: none;
+  transition: color 0.15s ease;
+}
+
+footer a:hover {
+  color: var(--accent-hover);
+}
+
+/* ── Responsive ── */
+@media (max-width: 768px) {
+  .hero {
+    padding: 80px 0 48px;
+  }
+  .hero h1 {
+    font-size: clamp(32px, 9vw, 48px);
+    letter-spacing: -0.96px;
+  }
+  .cards-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .nav-inner,
+  .page {
+    padding-left: 20px;
+    padding-right: 20px;
+  }
+  .infra-stack {
+    gap: 8px;
+  }
+  .stack-chip {
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero-buttons {
+    flex-direction: column;
+    align-items: center;
+  }
+  .btn-primary, .btn-ghost {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* ── Animations ── */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(18px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.hero, .cards-grid .card, .infra {
+  animation: fadeInUp 0.6s ease both;
+}
+
+.cards-grid .card:nth-child(1) { animation-delay: 0.05s; }
+.cards-grid .card:nth-child(2) { animation-delay: 0.15s; }
+.cards-grid .card:nth-child(3) { animation-delay: 0.25s; }
+.cards-grid .card:nth-child(4) { animation-delay: 0.35s; }
+.cards-grid .card:nth-child(5) { animation-delay: 0.45s; }
+</style>
+</head>
+<body>
+
+<!-- Navigation -->
+<nav>
+  <div class="nav-inner">
+    <a href="/" class="nav-logo">
+      <span class="dot"></span>
+      Jabobo
+    </a>
+    <a href="https://jabobo.com" class="nav-cta">Visit Platform</a>
+  </div>
+</nav>
+
+<!-- Hero -->
+<section class="hero">
+  <div class="page">
+    <div class="hero-label">JIP &bull; v1</div>
+    <h1>Jabobo <span class="accent">Innovation</span><br>Platform</h1>
+    <p class="subtitle">AI products, one node, no Kubernetes. Five services running on a single Azure VM — connected through Hermes Agent intelligence.</p>
+    <div class="hero-buttons">
+      <a href="https://jabobo.com" class="btn-primary">
+        Explore Platform
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M6 3l5 5-5 5" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+      <a href="#services" class="btn-ghost">
+        View Services
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 6l4 4 4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </a>
+    </div>
+  </div>
+</section>
+
+<!-- Services Section -->
+<div class="page" id="services">
+  <div class="section-header">
+    <h2>Five Services, One Platform</h2>
+    <p>Each service is independently deployed, monitored, and powered by Hermes Agent.</p>
+  </div>
+
+  <div class="cards-grid">
+    <!-- Card 1: Newsletter -->
+    <div class="card">
+      <div class="card-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="M2 7l10 7 10-7"/></svg>
+      </div>
+      <span class="service-badge">/newsletter</span>
+      <h3>Newsletter AI</h3>
+      <p>AI-curated SI &amp; AI daily/weekly digests with live worker monitoring. Stay informed with machine-curated intelligence delivered to your inbox.</p>
+      <div class="card-meta">PM2 &bull; Express &bull; Cron Scheduler</div>
+    </div>
+
+    <!-- Card 2: Voice AI -->
+    <div class="card">
+      <div class="card-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/></svg>
+      </div>
+      <span class="service-badge">/voice</span>
+      <h3>Voice AI</h3>
+      <p>ESP32-powered voice assistant with voiceprint authentication, meeting transcription mode, and MCP tool integration for hands-free operation.</p>
+      <div class="card-meta">ESP32 &bull; MCP Tools &bull; Voiceprint</div>
+    </div>
+
+    <!-- Card 3: Mail AI -->
+    <div class="card">
+      <div class="card-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="2,8 12,15 22,8"/></svg>
+      </div>
+      <span class="service-badge">/mail</span>
+      <h3>Mail AI</h3>
+      <p>Email-triggered Hermes Agent for automated research, drafting, and intelligent replies. Turn your inbox into an AI-powered command center.</p>
+      <div class="card-meta">IMAP &bull; Hermes Agent &bull; Auto-reply</div>
+    </div>
+
+    <!-- Card 4: WeChat AI -->
+    <div class="card">
+      <div class="card-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 4-7 8-7s8 3 8 7"/></svg>
+      </div>
+      <span class="service-badge">/wechat</span>
+      <h3>WeChat AI</h3>
+      <p>Multi-profile AI assistants with skill configuration, MCP tools, and persona customization. One bot, infinite personalities for every context.</p>
+      <div class="card-meta">Multi-profile &bull; Skills &bull; Persona Engine</div>
+    </div>
+
+    <!-- Card 5: GitNexus -->
+    <div class="card">
+      <div class="card-icon">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="4" r="2"/><circle cx="12" cy="20" r="2"/><circle cx="4" cy="12" r="2"/><circle cx="20" cy="12" r="2"/><line x1="4" y1="12" x2="9.5" y2="12"/><line x1="14.5" y1="12" x2="20" y2="12"/><line x1="12" y1="4" x2="12" y2="9"/><line x1="12" y1="15" x2="12" y2="18"/></svg>
+      </div>
+      <span class="service-badge">/gitnexus</span>
+      <h3>GitNexus</h3>
+      <p>AI-powered requirements graph navigation and natural-language code retrieval. Ask questions about your codebase and trace execution flows instantly.</p>
+      <div class="card-meta">Graph DB &bull; NLP Retrieval &bull; Impact Analysis</div>
+    </div>
+  </div>
+</div>
+
+<!-- Infrastructure Section -->
+<div class="divider"></div>
+
+<section class="infra">
+  <div class="page">
+    <div class="infra-inner">
+      <div class="infra-label">Infrastructure</div>
+      <h2>Built on One Azure VM</h2>
+      <p>All five services run on a single node — no Kubernetes, no microservice orchestration overhead. Just nginx, PM2, and Hermes Agent powering everything at <a href="https://jabobo.com">jabobo.com</a>.</p>
+      <div class="infra-stack">
+        <span class="stack-chip highlight">Azure VM</span>
+        <span class="stack-chip">nginx</span>
+        <span class="stack-chip">PM2</span>
+        <span class="stack-chip highlight">Hermes Agent</span>
+        <span class="stack-chip">Node.js</span>
+        <span class="stack-chip">Python</span>
+        <span class="stack-chip">ESP32</span>
+        <span class="stack-chip">MCP Protocol</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- Footer -->
+<div class="divider"></div>
+
+<footer>
+  <div class="page">
+    <p>&copy; 2026 Jabobo Innovation Platform. All services live at <a href="https://jabobo.com">jabobo.com</a></p>
+  </div>
+</footer>
+
+</body>
+</html>
