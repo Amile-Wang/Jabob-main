@@ -301,17 +301,27 @@ bool Ota::CheckVersion() {
         }
 
         if (cJSON_IsString(version) && cJSON_IsString(url)) {
-            // Check if the version is newer, for example, 0.1.0 is newer than 0.0.1
+            // 正常版本号比对：服务端给的版本号是否比本地新
             has_new_version_ = IsNewVersionAvailable(current_version_, firmware_version_);
             if (has_new_version_) {
                 ESP_LOGI(TAG, "New version available: %s", firmware_version_.c_str());
             } else {
                 ESP_LOGI(TAG, "Current is the latest version");
             }
-            // If the force flag is set to 1, the given version is forced to be installed
+            // 服务端 force=1 → 不管版本号新不新都强制下载并安装。
+            // 作用范围：
+            //   (1) 让 has_new_version_ 为 true，外层 Start() 会进升级分支；
+            //   (2) 同时记录 force_upgrade_，后续 StartUpgrade 在下载流里撞到
+            //       "image header 中版本号 == 当前版本号"那道硬编码判定时也放行，
+            //       避免"服务端要求强刷 → 客户端开始下载 → 读完 header 又自己拒"
+            //       这种半截子升级（失败兜底路径不稳定，会导致设备死机）。
+            // 默认重置成 false：上一次 CheckVersion 残留的标志不能影响这次。
+            force_upgrade_ = false;
             cJSON *force = cJSON_GetObjectItem(firmware, "force");
             if (cJSON_IsNumber(force) && force->valueint == 1) {
                 has_new_version_ = true;
+                force_upgrade_ = true;
+                ESP_LOGW(TAG, "OTA force flag set: will bypass same-version skip");
             }
         }
     } else {
@@ -435,8 +445,20 @@ bool Ota::Upgrade(const std::string& firmware_url) {
 
                 auto current_version = esp_app_get_description()->version;
                 if (memcmp(new_app_info.version, current_version, sizeof(new_app_info.version)) == 0) {
-                    ESP_LOGE(TAG, "Firmware version is the same, skipping upgrade");
-                    return false;
+                    // 同版本号默认拒绝（防止"传错文件→刷成自己→白等"的事故）。
+                    // 但 force_upgrade_（来自服务端 firmware.force=1）表示运维方明确
+                    // 要在同版本号上重刷，比如：
+                    //   - 改了 wifi 配置 / TLS 根证书但没动 PROJECT_VER
+                    //   - 紧急 hotfix 一行 log，懒得 bump 版本号
+                    //   - QA 在野设备测同一版本的不同二进制
+                    // 此时放行 —— 仍走完整的 esp_ota_end 校验，安全网仍在。
+                    if (force_upgrade_) {
+                        ESP_LOGW(TAG, "Same version (%s) but force_upgrade_ set, proceeding with overwrite",
+                                 current_version);
+                    } else {
+                        ESP_LOGE(TAG, "Firmware version is the same, skipping upgrade");
+                        return false;
+                    }
                 }
 
                 if (esp_ota_begin(update_partition, OTA_WITH_SEQUENTIAL_WRITES, &update_handle)) {
