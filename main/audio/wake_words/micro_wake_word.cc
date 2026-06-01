@@ -21,6 +21,24 @@
 #include "audio_service.h"  // OPUS_FRAME_DURATION_MS
 #include "opus_encoder.h"
 
+// wake_word_config.h 由后端 deploy_wakeword.py 在 sync-config 触发训练完成后自动写入
+// (路径 main/audio/wake_words/wake_word_config.h)。
+// 里面定义三个宏:
+//   WAKE_WORD_DISPLAY_NAME / WAKE_WORD_THRESHOLD_X100 / WAKE_WORD_WINDOW_SIZE
+// 作用是让"前端配置的自训唤醒词"和"固件实际使用的显示名/阈值/窗口"保持同步 ——
+// 如果不消费这个 header, 即便 deploy 覆盖了 .tflite 模型文件, 固件念出来的字符串
+// 仍然是 Kconfig (CONFIG_MICRO_WAKE_WORD_DISPLAY) 写死的旧值。
+//
+// 用 __has_include 守卫的原因:
+//   - 该 header 不在 git 仓库里 (jabobo-main 不是 git repo, 但即便是也不入库),
+//     未跑过 deploy 的全新工作树根本没这个文件 → 编译会失败
+//   - 跑过 deploy 之后这里就走 include 分支, 在 ctor 末尾 override 三个值
+//   - 没跑过 deploy 时回落到 Kconfig 默认 ("Hi Jabra" / 50 / 5), 行为兼容
+#if __has_include("wake_word_config.h")
+#include "wake_word_config.h"
+#define MWW_HAS_DEPLOY_CONFIG_HEADER 1
+#endif
+
 static const char* TAG = "MicroWakeWord";
 
 // ============================ 调试开关 =====================================
@@ -97,6 +115,24 @@ MicroWakeWord::MicroWakeWord() {
 #ifdef CONFIG_MICRO_WAKE_WORD_WINDOW_SIZE
     sliding_window_size_ = CONFIG_MICRO_WAKE_WORD_WINDOW_SIZE;
 #endif
+
+// ── deploy header override (优先级高于 Kconfig) ──
+// 见文件顶部 #include "wake_word_config.h" 一段的注释。Kconfig 提供默认值,
+// 跑过 deploy 之后这里用 header 里的值覆盖, 保证「前端配的唤醒词文本」
+// 跟「固件实际念出来的字符串」一致。
+#ifdef MWW_HAS_DEPLOY_CONFIG_HEADER
+#  ifdef WAKE_WORD_DISPLAY_NAME
+    last_detected_wake_word_ = WAKE_WORD_DISPLAY_NAME;
+#  endif
+#  ifdef WAKE_WORD_THRESHOLD_X100
+    probability_cutoff_u8_ = static_cast<uint8_t>(
+        std::min(255, std::max(0, WAKE_WORD_THRESHOLD_X100 * 255 / 100)));
+#  endif
+#  ifdef WAKE_WORD_WINDOW_SIZE
+    sliding_window_size_ = WAKE_WORD_WINDOW_SIZE;
+#  endif
+#endif
+
     recent_probs_.assign(sliding_window_size_, 0);
     ignore_windows_ = -kMinSlicesBeforeDetection;
 }

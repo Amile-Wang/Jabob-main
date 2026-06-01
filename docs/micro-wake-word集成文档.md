@@ -11,14 +11,15 @@ micro-wake-word 是 Open Home Foundation 维护的开源唤醒词框架（[OHF-V
 - **可自训自定义唤醒词**："嗨 Jabobo" 这种中文唤醒词长期可走 micro-wake-word 训练管线（Piper sample generator + 流式 MixConv）自训
 - **运行时不依赖外部 license** （DSPOTTER 需要 NVS license 分区做设备绑定，micro-wake-word 不需要）
 
-### 当前状态（Hi Jabra 模型，2.0.6 分支）
-- 使用自训 **Hi Jabra** 流式模型 `stream_state_internal_quant.tflite`（约 62 KB，INT8 量化）
+### 当前状态（2.0.6+ 分支，前端配置自训已上线）
+- 默认模型：自训 **Hi Jabra** 流式模型 `stream_state_internal_quant.tflite`（约 62 KB，INT8 量化）
+- **前端 Dashboard 配置自训唤醒词已全链路打通**（主路径，2026-05 上线）：用户在前端输入任意中/英文唤醒词文本 → backend `sync-config` → 自动跑 `train_wakeword.py` + `deploy_wakeword.py` → 覆盖 `stream_state_internal_quant.tflite` + 生成 `wake_word_config.h` → 下一次 firmware build 即生效。详见 §7.1。
+- 中文唤醒词已支持：[`_run_wakeword_training`](../../jabobo-backend/app/routes/jabobo_config.py) 根据是否含汉字自动选 voice 集（英文 `lessac/amy/joe/alan/norman/libritts_r`、中文 `chaowen/huayan/xiao_ya`）。`wakeword train/trained_models/` 下已有 hi_jabra / hi_ryder / hi_tianhao / hi_elva 等多套自训模型沉淀
 - 模型与 esphome/micro-wake-word v2 框架同源 —— 前端 `audio_preprocessor_int8.tflite` / op resolver 清单全部复用，**只换最末端的 wake-word 模型本身**
 - **模型输出量化为 int8**（不同于 hey_jarvis 老 PoC 模型的 uint8），运行时按 `scale + zero_point` 反量化到 [0,1] 概率再缩放到 0-255 跟滑窗对齐；详见 [micro_wake_word.cc](../main/audio/wake_words/micro_wake_word.cc) `RunFrame()` 中对 `kTfLiteInt8` 的分支
 - **`Start()` 必须 `resource_vars_->ResetAll()`**：streaming 模型靠 TF Resource Variables 持久化 hidden state，上一次会话残留会污染本次首批推理 → 漏检 / 误检
-- 中文自训（"嗨 Jabobo"）留下一阶段
 - DSPOTTER 代码 / `dspotter` 分区 / `HeyJabra_Lv3_Enc1_pack_WithTxt.bin` 模型文件**都不删**，作为回退路径（切换方法见 §5）
-- 此前的 PoC 模型 `hey_jarvis.tflite` / `hey_jarvis.json` 已移除（v2 模型生态内回切方法见 §7.1）
+- 此前的 PoC 模型 `hey_jarvis.tflite` / `hey_jarvis.json` 已移除（v2 模型生态内手工换模型方法见 §7.2）
 
 ## 2. 文件结构
 
@@ -110,13 +111,28 @@ espressif/esp-tflite-micro: ^1.3.5
             JSON: {"type":"listen","state":"detect","text":"Hi Jabra",...}
 ```
 
-阈值参数全部可调（`menuconfig` 入口在 `Component config → Audio & Hardware`）：
+阈值参数有**两个来源**，优先级：deploy header > Kconfig。
+
+**Kconfig**（默认值兜底，`menuconfig` 入口在 `Component config → Audio & Hardware`）：
 
 | Kconfig | 默认 | 用途 |
 |---|---|---|
-| `MICRO_WAKE_WORD_DISPLAY` | `"Hi Jabra"` | 触发时回调里携带的文本 + 服务端 JSON 字段。换模型时**必须**同步改 |
+| `MICRO_WAKE_WORD_DISPLAY` | `"Hi Jabra"` | 触发时回调里携带的文本 + 服务端 JSON 字段。**只在没跑过 deploy 时生效** |
 | `MICRO_WAKE_WORD_THRESHOLD_X100` | `50` | 概率阈值（百分比）。Hi Jabra 实测 50 适合；hey_jarvis 等 esphome PoC 模型 manifest 推荐 97 |
 | `MICRO_WAKE_WORD_WINDOW_SIZE` | `5` | 滑窗大小，连续 N 帧加和超过 cutoff×N 才触发 |
+
+**`wake_word_config.h`**（由 [`deploy_wakeword.py`](../../wakeword%20train/deploy_wakeword.py) 自动生成，位于 `main/audio/wake_words/wake_word_config.h`，**不入库**）：
+
+| 宏 | 来源字段 | 行为 |
+|---|---|---|
+| `WAKE_WORD_DISPLAY_NAME` | `wake_word_config.json` 的 `display_name` | 覆盖 `CONFIG_MICRO_WAKE_WORD_DISPLAY` |
+| `WAKE_WORD_THRESHOLD_X100` | `wake_word_config.json` 的 `threshold_x100`（默认 50） | 覆盖 `CONFIG_MICRO_WAKE_WORD_THRESHOLD_X100` |
+| `WAKE_WORD_WINDOW_SIZE` | `wake_word_config.json` 的 `window_size`（默认 5） | 覆盖 `CONFIG_MICRO_WAKE_WORD_WINDOW_SIZE` |
+
+[micro_wake_word.cc](../main/audio/wake_words/micro_wake_word.cc) 用 `__has_include("wake_word_config.h")` 条件 include；header 存在则在 ctor 末尾 override 三个值，不存在则保留 Kconfig 默认。所以：
+
+- **手工换 .tflite（§7.2 路径）**：menuconfig 改 Kconfig，rebuild。
+- **前端配置自训（§7.1 主路径）**：用户输入 → deploy 自动写 header + 覆盖 .tflite，rebuild。不用动 Kconfig，但**必须** rebuild 否则新 header 编不进 binary。
 
 ## 5. 编译开关 / 切换流程
 
@@ -215,16 +231,80 @@ preprocessor_arena (内存): 16 KB 静态分配（micro_features_generator.cc）
 
 ## 7. 替换 / 升级模型流程
 
-### 7.1 ESPHome v2 模型生态内换（最简单）
+两条并行路径，按场景挑：
 
-[esphome/micro-wake-word-models v2](https://github.com/esphome/micro-wake-word-models/tree/main/models/v2) 里所有模型用同一套前端参数，**直接换文件就行**（下面以从当前 `stream_state_internal_quant.tflite` 换回 `hey_jarvis.tflite` 为例，反向同理）：
+| 路径 | 何时用 | 是否动 Kconfig/CMakeLists |
+|---|---|---|
+| **§7.1 前端配置自训（主路径）** | 用户/产品要换唤醒词文本，做任意中/英文自训 | 否，basename 永远是 `stream_state_internal_quant.tflite` |
+| **§7.2 手工换 .tflite（备用）** | 在 ESPHome v2 模型生态里换 PoC 模型，或要保留旧模型 basename 做对比 | 是，需手工改 asm symbol / CMakeLists / Kconfig |
+| **§7.3 跨训练框架（不推荐）** | openWakeWord / Speechbrain 等异构模型 | 是，且要重写前端 |
+
+### 7.1 前端配置自训（主路径）
+
+**链路总览**：
+
+```
+前端 Dashboard 输入唤醒词文本（任意中/英文，如 "嘿小捷" / "Hello Ryder"）
+  │
+  ▼ POST /api/user/sync-config（jabobo-backend, port 8007）
+  │
+  ▼ jabobo_config.py: _normalize_wake_word(raw)
+  │   "嘿小捷"        → "嘿_小捷"    （code name，仅用于目录/文件名）
+  │   "Hello Ryder"  → "hello_ryder"
+  │   raw 原文同时保存到 wake_word_raw_text，作为 train_wakeword.py 的 --text 参数
+  │   （TTS 真听到的音，保留原始语调控制）
+  │
+  ▼ DB 写 user_personas: wake_word_text=<code>, wake_word_model_status=1（training）
+  │
+  ▼ asyncio.create_task(_run_wakeword_training(code, device_id, raw))
+  │
+  ▼ 1. 检查 wakeword train/trained_models/<code>/<code>.tflite 是否存在
+  │     已存在 → 跳到 deploy
+  │     不存在 → 训练（含中英文自动选 voice）：
+  │       a. conda run -n wakeword python train_wakeword.py <code> \
+  │            --generate-samples --text "<raw>" --max-samples 250 \
+  │            --voices <ZH_VOICES 或 EN_VOICES> \
+  │            --length-scales 0.7 0.85 1.0 1.15 1.3
+  │       b. conda run -n wakeword python train_wakeword.py <code>
+  │
+  ▼ 2. conda run -n wakeword python deploy_wakeword.py <code>
+  │     ├─ 复制 trained_models/<code>/<code>.tflite
+  │     │    →   jabobo-main/main/audio/wake_words/models/stream_state_internal_quant.tflite
+  │     └─ 写 jabobo-main/main/audio/wake_words/wake_word_config.h
+  │           ├─ #define WAKE_WORD_DISPLAY_NAME  "<display from json>"
+  │           ├─ #define WAKE_WORD_THRESHOLD_X100 <int>
+  │           └─ #define WAKE_WORD_WINDOW_SIZE   <int>
+  │
+  ▼ DB 更新 wake_word_model_status：1（ready）或 2（failed）
+  │
+  ▼ ⚠️ 设备真正用上新唤醒词还需要：
+       1) 重新 build 固件（`idf.py build`，详见 §5 节硬规矩）
+       2) 走 OTA 推到在野设备（详见 jabobo-dev skill 的 OTA 章节）
+```
+
+**关键事实**：
+
+1. **basename 不变**：deploy 永远写到 `stream_state_internal_quant.tflite`，所以 [micro_wake_word.cc](../main/audio/wake_words/micro_wake_word.cc) 里的 asm symbol `_binary_stream_state_internal_quant_tflite_start/_end` 和 [main/CMakeLists.txt](../main/CMakeLists.txt) 里的 `MWW_MODEL_FILES` 都**不用动**。
+2. **`wake_word_config.h` 真生效**：[micro_wake_word.cc](../main/audio/wake_words/micro_wake_word.cc) 文件顶部用 `__has_include` 条件 include 它；ctor 末尾用 header 里的宏 override Kconfig 默认值。所以前端配的 display 名 / 阈值 / window 真会被固件念出来，不是死代码。具体见 §4 的「两个来源」表。
+3. **必须 rebuild firmware**：deploy 只到「覆盖文件 + 写 header」为止，**不动正在跑的固件**。EMBED_FILES 是编译时打包到 binary 里的，所以 deploy 完必须重新 `idf.py build` + OTA 才能让设备用上新模型。这是一个常见误解，CI/部署链路里别假设「训练成功 = 设备已升级」。
+4. **`wake_word_config.h` 不入库**：jabobo-main 不是 git repo，但即便是也不会入库；新拉的工作树没这个文件，[micro_wake_word.cc](../main/audio/wake_words/micro_wake_word.cc) 用 `__has_include` 守卫，没 header 时回落到 Kconfig 默认，编译不会失败。
+
+**前端字段**（前端 Dashboard 的 `wake_word_text` 输入框 + sync 按钮已实现，详见 jabobo-dev skill「加唤醒词自动训练 + 部署」段）。
+
+**状态查询**：`GET /api/user/wake-word-status?jabobo_id=<MAC>` 返回 `{wake_word_text, model_status, task_status, task_message, elapsed_seconds, start_time}`。`model_status` 取值：`0=未训练 / 1=训练中或已 ready / 2=失败`。
+
+**训练日志**：`wakeword train/_training_logs/<code>_<timestamp>.log`，包含 generate-samples + train + deploy 三段 stdout/stderr。失败时 grep 这个文件。
+
+### 7.2 手工换 .tflite（备用，ESPHome v2 模型生态内）
+
+不走前端自训，在 [esphome/micro-wake-word-models v2](https://github.com/esphome/micro-wake-word-models/tree/main/models/v2) 里挑现成模型（同一套前端参数，**只需换文件**）。下面以从当前 `stream_state_internal_quant.tflite` 换回 `hey_jarvis.tflite` 为例：
 
 ```bash
 # 1. 拷新模型
 cp /tmp/mww-models/models/v2/hey_jarvis.tflite \
    main/audio/wake_words/models/
 
-# 2. 改三处源码
+# 2. 改三处源码（这条路径要动 basename，所以 asm symbol / CMakeLists 都要同步）
 # (a) micro_wake_word.cc 里的 asm symbol 名（_binary_<basename>_start/_end）
 sed -i 's/_binary_stream_state_internal_quant_tflite/_binary_hey_jarvis_tflite/g' \
     main/audio/wake_words/micro_wake_word.cc
@@ -237,6 +317,10 @@ sed -i 's|stream_state_internal_quant.tflite|hey_jarvis.tflite|' main/CMakeLists
 # sdkconfig: CONFIG_MICRO_WAKE_WORD_DISPLAY="Hey Jarvis"
 #            CONFIG_MICRO_WAKE_WORD_THRESHOLD_X100=90  （hey_jarvis manifest 推荐 97）
 
+# (d) 如果之前跑过前端自训留下了 wake_word_config.h，要删掉，
+#     否则它的宏会 override 你刚改的 Kconfig（见 §4 的两来源表）
+rm -f main/audio/wake_words/wake_word_config.h
+
 # 3. 看新模型 manifest（若有），对应改 Kconfig 阈值
 #   probability_cutoff / sliding_window_size / tensor_arena_size 各模型不同
 #   必要时改 MICRO_WAKE_WORD_THRESHOLD_X100 / WINDOW_SIZE，或改代码 kBaseTensorArenaSize
@@ -246,10 +330,6 @@ touch main/CMakeLists.txt && idf.py reconfigure && idf.py build
 ```
 
 > **注意输出量化兼容性**：如果新模型输出是 int8（如 Hi Jabra）vs uint8（如 hey_jarvis），代码已经在 `RunFrame()` 里 `if (output->type == kTfLiteInt8) ... else ...` 兼容，不用改源码。
-
-### 7.2 自训中文 "嗨 Jabobo"
-
-走 micro-wake-word 仓库的训练管线（README 第 38 行 `piper-sample-generator` + 训练 notebook），训出 INT8 流式 .tflite，**前端参数全部用 micro-wake-word 默认**。然后按 7.1 流程替换。
 
 ### 7.3 跨训练框架（不推荐）
 
@@ -429,9 +509,10 @@ grep CONFIG_NN_OPTIMIZED sdkconfig
 - **删除 DSPOTTER 代码**：保留作为回退路径，等 mww 在生产稳定后再做
 - **多 wake word 同时启用**：当前每次编译只能选一个后端
 - **VAD 模型并跑**：micro-wake-word 仓库提供 `vad.tflite`，可在 wake-word 推理前作为 gating 减少误触；当前没启用
-- **自训中文"嗨 Jabobo"模型**：英文 "Hi Jabra" 已自训成功（当前嵌入模型），中文版走相同管线（micro-wake-word 训练 + Piper 中文 voice）单独立项
-- **训练侧 deploy 工具回流**：从 `origin/temp-wakeword` 看模型由某个 `deploy_wakeword.py` 工具产出 + 自动生成 `wake_word_config.h`。本分支没集成这套工具（继续走 Kconfig），后续如果模型迭代频繁可考虑把 deploy 脚本迁回本仓
-- **服务端改动**：本集成完全端侧，服务端只接收 `SendWakeWordDetected` JSON 帧（路径已存在），无需改
+- **自动 OTA 闭环**：当前前端自训完成只到「覆盖 .tflite + 写 header」，仍需人工 `idf.py build` + 手动推 OTA 才能让在野设备真用上。后续可考虑：训练成功后触发 backend CI build → 自动产出新版本 .bin → 自动 bump expected_version。目前的「手工 build + 手工 OTA」是有意保留的人工审核步骤（防止训出问题模型直接推到生产）
+- **服务端运行时改动**：本集成完全端侧，xiaozhi-esp32-server 只接收 `SendWakeWordDetected` JSON 帧（路径已存在），无需改。jabobo-backend 侧仅负责训练编排（详见 §7.1）
+
+> 历史项「训练侧 deploy 工具回流」已完成。`deploy_wakeword.py` 已在 jabobo-backend 的 `_run_wakeword_training` 链路里自动调用，并真正消费 `wake_word_config.h` 来覆盖 Kconfig 默认值。详见 §7.1 + §4。
 
 ## 13. 关键文件索引
 
@@ -444,6 +525,9 @@ grep CONFIG_NN_OPTIMIZED sdkconfig
 | `main/audio/audio_service.cc` | wake_word 实例化 + Feed 入口（micro 已是一等公民，三处 `#if` 都带 `\|\| CONFIG_USE_MICRO_WAKE_WORD`）|
 | `main/audio/wake_words/micro_wake_word.{h,cc}` | 子类实现，含 int8 输出反量化 + `Start()` ResetAll |
 | `main/audio/wake_words/micro_features/` | 前端代码 + 数据（audio_preprocessor int8 模型 + GenerateFeature）|
-| `main/audio/wake_words/models/` | 当前: `stream_state_internal_quant.tflite` (Hi Jabra) + `HeyJabra_Lv3_Enc1_pack_WithTxt.bin` (DSpotter 回退) + LICENSE |
+| `main/audio/wake_words/models/` | 当前: `stream_state_internal_quant.tflite` (Hi Jabra 默认 / 或前端自训覆盖后的同名模型) + `HeyJabra_Lv3_Enc1_pack_WithTxt.bin` (DSpotter 回退) + LICENSE |
+| `main/audio/wake_words/wake_word_config.h` | **由 `deploy_wakeword.py` 自动生成，不入库**。定义 `WAKE_WORD_DISPLAY_NAME` / `WAKE_WORD_THRESHOLD_X100` / `WAKE_WORD_WINDOW_SIZE`，在 [micro_wake_word.cc](../main/audio/wake_words/micro_wake_word.cc) 里被 `__has_include` 守卫消费，override Kconfig 默认（详见 §4） |
 | `sdkconfig.defaults` | 默认开 micro_wakeword，注释里保留 DSpotter 切回方法 |
 | `partitions/v1/16m_dspotter_native.csv` | 分区表（共用，未改动）|
+| `../jabobo-backend/app/routes/jabobo_config.py` | 训练编排：`sync_config` 接前端唤醒词 → `_normalize_wake_word` → 异步 `_run_wakeword_training` → `train_wakeword.py` + `deploy_wakeword.py`（详见 §7.1）|
+| `../wakeword train/` | 训练管线（conda env `wakeword`）：`train_wakeword.py` / `deploy_wakeword.py` / `wake_word_config.json` / `trained_models/<code>/<code>.tflite` / `_training_logs/` |
