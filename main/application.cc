@@ -513,8 +513,18 @@ void Application::Start() {
     protocol_->OnIncomingJson([this, display,pwm_servo](const cJSON* root) {
         // Parse JSON data
         auto type = cJSON_GetObjectItem(root, "type");
+        if (!cJSON_IsString(type)) {
+            ESP_LOGW(TAG, "Ignoring JSON message without a valid type");
+            return;
+        }
+
         if (strcmp(type->valuestring, "tts") == 0) {
             auto state = cJSON_GetObjectItem(root, "state");
+            if (!cJSON_IsString(state)) {
+                ESP_LOGW(TAG, "Ignoring TTS message without a valid state");
+                return;
+            }
+
             if (strcmp(state->valuestring, "start") == 0) {
                 Schedule([this]() {
                     aborted_ = false;
@@ -569,13 +579,18 @@ void Application::Start() {
             }
         } else if (strcmp(type->valuestring, "llm") == 0) {
             auto emotion = cJSON_GetObjectItem(root, "emotion");
-            ESP_LOGI(TAG, "Emotion: %s", emotion->valuestring);
             if (cJSON_IsString(emotion)) {
+                ESP_LOGI(TAG, "Emotion: %s", emotion->valuestring);
                 Schedule([this, display, pwm_servo, emotion_str = std::string(emotion->valuestring)]() {
                     display->SetEmotion(emotion_str.c_str());
-                    pwm_servo->emoact(emotion_str.c_str());
+                    // 部分 BSP 尚未暴露舵机实例，不能因情绪消息解引用空指针。
+                    if (pwm_servo != nullptr) {
+                        pwm_servo->emoact(emotion_str.c_str());
+                    }
                     printf("Emotion: %s\n", emotion_str.c_str());
                 });
+            } else {
+                ESP_LOGW(TAG, "Ignoring LLM message without a valid emotion");
             }
         } else if (strcmp(type->valuestring, "mcp") == 0) {
             auto payload = cJSON_GetObjectItem(root, "payload");
@@ -834,21 +849,70 @@ void Application::AbortSpeaking(AbortReason reason) {
     protocol_->SendAbortSpeaking(reason);
 }
 
+void Application::ConfigureListeningAudio() {
+    // 会议模式需要同时把 AFE 处理后的音频上传给服务器，并在本地继续检测
+    // 唤醒词，以便用户说唤醒词后临时进入普通问答。DSpotter 原本在所有
+    // Listening 模式下都采用这条并行路径，保持其现有行为。
+    if (!audio_service_.IsAudioProcessorRunning()) {
+        audio_service_.EnableVoiceProcessing(true);
+    }
+
+#if CONFIG_USE_DSPOTTER_WAKE_WORD
+    audio_service_.SetWakeWordAudioPassthrough(true);
+    audio_service_.EnableWakeWordDetection(true);
+#elif CONFIG_USE_MICRO_WAKE_WORD
+    bool detect_during_meeting = listening_mode_ == kListeningModeMeetingAssistant;
+    audio_service_.SetWakeWordAudioPassthrough(detect_during_meeting);
+    audio_service_.EnableWakeWordDetection(detect_during_meeting);
+#else
+    audio_service_.SetWakeWordAudioPassthrough(false);
+    audio_service_.EnableWakeWordDetection(false);
+#endif
+}
+
 void Application::SetListeningMode(ListeningMode mode) {
-    listening_mode_ = mode;
+    if (!protocol_) {
+        ESP_LOGW(TAG, "SetListeningMode: protocol_ is null, abort");
+        return;
+    }
+
+    if (device_state_ == kDeviceStateUpgrading ||
+        device_state_ == kDeviceStateFatalError ||
+        device_state_ == kDeviceStateWifiConfiguring ||
+        device_state_ == kDeviceStateAudioTesting) {
+        ESP_LOGW(TAG, "SetListeningMode: state %d does not allow mode changes", device_state_);
+        return;
+    }
+
+    ListeningMode previous_mode = listening_mode_;
 
     // 当设备已经处于 Listening 时，SetDeviceState(Listening) 会被 same-state
     // 守卫直接 return（参见本文件 OnWakeWordDetected 中相同的注释），
-    // 导致 SendStartListening 不会重发、服务端不知道模式变化。
-    // 这里手动绕开：直接发协议帧 + 更新表情，让会议模式能在任何时机切入/切出。
+    // 因此这里需要重发协议帧，并同步调整本地音频路由。
     if (device_state_ == kDeviceStateListening) {
-        ESP_LOGI(TAG, "SetListeningMode while already listening, resending mode=%d", mode);
-        if (protocol_ && protocol_->IsAudioChannelOpened()) {
-            protocol_->SendStartListening(mode);
+        if (!protocol_->IsAudioChannelOpened()) {
+            ESP_LOGW(TAG, "SetListeningMode: listening channel is no longer available, reopening");
+            SetDeviceState(kDeviceStateConnecting);
+            if (!protocol_->OpenAudioChannel()) {
+                ESP_LOGE(TAG, "SetListeningMode: failed to reopen audio channel");
+                SetDeviceState(kDeviceStateIdle);
+                return;
+            }
         }
+
+        listening_mode_ = mode;
+        ESP_LOGI(TAG, "SetListeningMode while already listening, resending mode=%d", mode);
+        ConfigureListeningAudio();
+        protocol_->SendStartListening(mode);
+
         auto display = Board::GetInstance().GetDisplay();
         if (display) {
             display->SetEmotion(mode == kListeningModeMeetingAssistant ? "sad" : "confused");
+            display->SetMeetingMode(mode == kListeningModeMeetingAssistant);
+            if (previous_mode != mode) {
+                display->ShowNotification(mode == kListeningModeMeetingAssistant
+                    ? "进入会议模式" : "退出会议模式");
+            }
         }
         return;
     }
@@ -856,25 +920,48 @@ void Application::SetListeningMode(ListeningMode mode) {
     // 从 Idle/其它状态切到 Listening 之前，先确保音频通道打开。
     // 否则 SetDeviceState(Listening) 内的 SendStartListening 会因为通道未建立而无效，
     // 服务端永远收不到 mode=meeting。这条路径与 ToggleChatState 中的处理一致。
-    if (!protocol_) {
-        ESP_LOGW(TAG, "SetListeningMode: protocol_ is null, abort");
-        return;
-    }
     if (!protocol_->IsAudioChannelOpened()) {
         ESP_LOGI(TAG, "SetListeningMode: audio channel not open, opening first");
         SetDeviceState(kDeviceStateConnecting);
         if (!protocol_->OpenAudioChannel()) {
             ESP_LOGE(TAG, "SetListeningMode: OpenAudioChannel failed");
+            SetDeviceState(kDeviceStateIdle);
             return;
         }
     }
 
+    if (device_state_ == kDeviceStateSpeaking) {
+        AbortSpeaking(kAbortReasonNone);
+    }
+
+    listening_mode_ = mode;
+    auto display = Board::GetInstance().GetDisplay();
+    if (display) {
+        display->SetMeetingMode(mode == kListeningModeMeetingAssistant);
+        if (previous_mode != mode) {
+            display->ShowNotification(mode == kListeningModeMeetingAssistant
+                ? "进入会议模式" : "退出会议模式");
+        }
+    }
     SetDeviceState(kDeviceStateListening);
 }
 
-// 添加公共方法用于MCP调用
+// MCP 回调和按键回调可能不在 MainEventLoop 上，统一排队执行协议操作。
 void Application::SetListeningModePublic(ListeningMode mode) {
-    SetListeningMode(mode);
+    Schedule([this, mode]() {
+        SetListeningMode(mode);
+    });
+}
+
+void Application::ToggleMeetingAssistantMode() {
+    Schedule([this]() {
+        ListeningMode target = listening_mode_ == kListeningModeMeetingAssistant
+            ? kListeningModeAutoStop
+            : kListeningModeMeetingAssistant;
+        ESP_LOGW(TAG, "Toggle meeting mode: state=%d, mode %d -> %d",
+                 device_state_, listening_mode_, target);
+        SetListeningMode(target);
+    });
 }
 
 void Application::SetDeviceState(DeviceState state) {
@@ -900,6 +987,11 @@ void Application::SetDeviceState(DeviceState state) {
             // 兜底：异常路径下若 thinking 还在跑，关掉避免残留 timer
             thinking_pending_ = false;
             display->StopThinking();
+            if (listening_mode_ == kListeningModeMeetingAssistant) {
+                ESP_LOGI(TAG, "Leaving meeting mode because device entered idle");
+                listening_mode_ = kListeningModeAutoStop;
+            }
+            display->SetMeetingMode(false);
             display->SetStatus(Lang::Strings::STANDBY);
             display->SetEmotion("neutral");
             audio_service_.EnableVoiceProcessing(true);
@@ -924,22 +1016,10 @@ void Application::SetDeviceState(DeviceState state) {
             } else {
                 display->SetEmotion("confused");
             }
-            // display->SetEmotion("confused");
+            display->SetMeetingMode(listening_mode_ == kListeningModeMeetingAssistant);
 
-
-            // Idle state keeps both AFE and wake word active. When entering listening,
-            // always switch the AFE output away from wake word detection and notify the server.
-            #if CONFIG_USE_DSPOTTER_WAKE_WORD
-            audio_service_.SetWakeWordAudioPassthrough(true);
-            audio_service_.EnableWakeWordDetection(true);
-            #else
-            audio_service_.SetWakeWordAudioPassthrough(false);
-            audio_service_.EnableWakeWordDetection(false);
-            #endif
+            ConfigureListeningAudio();
             protocol_->SendStartListening(listening_mode_);
-            if (!audio_service_.IsAudioProcessorRunning()) {
-                audio_service_.EnableVoiceProcessing(true);
-            }
             break;
         case kDeviceStateSpeaking:
             display->SetStatus(Lang::Strings::SPEAKING);

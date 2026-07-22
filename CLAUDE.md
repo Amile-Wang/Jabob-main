@@ -4,17 +4,19 @@
 
 **项目名称**: 捷宝宝 (Jabob) AI 聊天机器人
 **平台**: ESP32S3嵌入式设备
-**当前版本分支**: 2.0.5 **(Beta版本 - 新功能开发中，稳定性不保证)**
-**稳定版本计划**: 2.0.6
+**当前版本分支**: 2.2.0
+**当前首要目标**: 会议搭子功能稳定可用
 **主控芯片**: ESP32S3双核处理器
 **推荐开发板**: bread-compact-wifi-lcd-tianhao (定制版)
 **🆕 新增开发板**: bread-compact-wifi-lcd-tianhao-uac (USB音频输入版本)
 
-## 🚨 Beta版本重要提示
+## 2.2.0 核心目标
 
-这是一个 **Beta版本**，主要实现 **USB音频支持** 新功能，但 **不保证其他原有功能的稳定性**。生产环境请等待 **2.0.6稳定版本**。
+2.2.0 优先保障会议搭子模式：持续上传会议音频进行转录，支持通过唤醒词临时进入普通问答，并在问答结束后自动恢复会议模式。
 
-### Beta版本核心特性
+### 核心特性
+- **会议搭子**: 长按 BOOT 或 MCP 指令进入/退出会议模式
+- **会议中提问**: 会议模式继续运行本地唤醒词，触发后临时切换普通问答
 - **USB Audio Class (UAC) 支持**: 支持USB麦克风和扬声器
 - **混合音频架构**: USB输入 + I2S输出
 - **即插即用**: 自动检测和配置USB音频设备
@@ -78,12 +80,11 @@
 
 ## Recent Development Focus
 
-Current branch (2.0.5) main work:
-- USB audio codec support and improvements
-- Sample rate processing optimization
-- Buffer management improvements
-- Microphone dedicated mode implementation
-- Duplex communication support
+Current branch (2.2.0) main work:
+- Meeting assistant mode stability
+- Continuous meeting transcription with local wake-word detection
+- Reliable meeting mode entry, exit, and UI synchronization
+- USB microphone input and I2S speaker output
 
 ## Project Characteristics
 

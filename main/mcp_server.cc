@@ -180,7 +180,8 @@ void McpServer::AddCommonTools() {
     // 添加会议助手模式工具
     AddTool("self.set_meeting_assistant_mode",
         "Switch the device to meeting assistant mode. In this mode, the device will continuously transcribe audio without actively responding, "
-        "making it suitable for meeting transcription scenarios.",
+        "making it suitable for meeting transcription scenarios. Use this tool when the user says \"开启会议模式\", \"开始会议\", "
+        "\"会议搭子\", \"start meeting\" or equivalent phrases.",
         PropertyList(),
         [](const PropertyList& properties) -> ReturnValue {
             auto& app = Application::GetInstance();

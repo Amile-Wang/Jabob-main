@@ -184,26 +184,10 @@ private:
 
         board->boot_button_.OnLongPress([board]() {
             auto& app = Application::GetInstance();
-            auto display = board->GetDisplay();
-
-            ListeningMode prev = app.GetListeningMode();
-            bool entering_meeting = prev != kListeningModeMeetingAssistant;
-            ListeningMode target = entering_meeting ? kListeningModeMeetingAssistant
-                                                    : kListeningModeAutoStop;
-            ESP_LOGW(TAG, "Boot long press: device_state=%d, mode %d -> %d (%s)",
-                     (int)app.GetDeviceState(), (int)prev, (int)target,
-                     entering_meeting ? "ENTER meeting" : "EXIT meeting");
-
-            // 协议 IO（OpenAudioChannel / SendStartListening）必须在主线程跑，
-            // 与 ToggleChatState 中的 Schedule 调度一致。
-            app.Schedule([target]() {
-                Application::GetInstance().SetListeningModePublic(target);
-            });
-
-            if (display) {
-                display->SetMeetingMode(entering_meeting);
-                display->ShowNotification(entering_meeting ? "进入会议模式" : "退出会议模式");
-            }
+            ESP_LOGW(TAG, "Boot long press: request meeting mode toggle, device_state=%d",
+                     (int)app.GetDeviceState());
+            // 模式读取、协议和 UI 操作都在 MainEventLoop 中完成。
+            app.ToggleMeetingAssistantMode();
         });
 
         // 触摸按键回调已禁用：当前 TOUCH_BUTTON_GPIO=GPIO_NUM_0，但 ESP32-S3 的 touch_pad

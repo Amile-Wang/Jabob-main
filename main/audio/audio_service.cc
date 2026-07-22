@@ -585,20 +585,30 @@ void AudioService::AudioInputTask() {
             if (!wake_word_) {
                 continue;
             }
+#if CONFIG_USE_DSPOTTER_WAKE_WORD || CONFIG_USE_MICRO_WAKE_WORD
+            // DSpotter 和 Micro Wake Word 在 AFE 运行时由 OnOutput 回调接收
+            // 处理后的音频。这里不能再次喂原始音频，否则 Micro Wake Word 会
+            // 双倍推进流式状态；也不能 continue 外层循环，否则 AFE 本身收不到数据。
+            bool feed_from_audio_processor =
+                (xEventGroupGetBits(event_group_) & AS_EVENT_AUDIO_PROCESSOR_RUNNING) != 0;
+#else
+            bool feed_from_audio_processor = false;
+#endif
+
+            if (feed_from_audio_processor) {
+                wake_word_buffer.clear();
 #if CONFIG_USE_DSPOTTER_WAKE_WORD
-            EventBits_t current_bits = xEventGroupGetBits(event_group_);
-            if (current_bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) {
                 static uint32_t dspotter_bypass_log_counter = 0;
                 ++dspotter_bypass_log_counter;
                 if (dspotter_bypass_log_counter == 1 || (dspotter_bypass_log_counter % 20) == 0) {
                     ESP_LOGW(TAG,
-                        "DSpotter raw feed bypassed because audio processor is still marked running (snapshot=%d current=%d)",
+                        "DSpotter raw feed bypassed; using processed audio (snapshot=%d current=%d)",
                         (bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) != 0,
-                        (current_bits & AS_EVENT_AUDIO_PROCESSOR_RUNNING) != 0);
+                        IsAudioProcessorRunning());
                 }
-                continue;
-            }
-
+#endif
+            } else {
+#if CONFIG_USE_DSPOTTER_WAKE_WORD
             static uint32_t dspotter_raw_feed_log_counter = 0;
             ++dspotter_raw_feed_log_counter;
             if (dspotter_raw_feed_log_counter == 1 || (dspotter_raw_feed_log_counter % 50) == 0) {
@@ -609,12 +619,13 @@ void AudioService::AudioInputTask() {
                     static_cast<int>(wake_word_->GetFeedSize()));
             }
 #endif
-            int samples = wake_word_->GetFeedSize();
-            wake_word_buffer.insert(wake_word_buffer.end(), data.begin(), data.end());
-            while (wake_word_buffer.size() >= static_cast<size_t>(samples)) {
-                std::vector<int16_t> wake_word_chunk(wake_word_buffer.begin(), wake_word_buffer.begin() + samples);
-                wake_word_->Feed(wake_word_chunk);
-                wake_word_buffer.erase(wake_word_buffer.begin(), wake_word_buffer.begin() + samples);
+                int samples = wake_word_->GetFeedSize();
+                wake_word_buffer.insert(wake_word_buffer.end(), data.begin(), data.end());
+                while (wake_word_buffer.size() >= static_cast<size_t>(samples)) {
+                    std::vector<int16_t> wake_word_chunk(wake_word_buffer.begin(), wake_word_buffer.begin() + samples);
+                    wake_word_->Feed(wake_word_chunk);
+                    wake_word_buffer.erase(wake_word_buffer.begin(), wake_word_buffer.begin() + samples);
+                }
             }
         }
 #endif

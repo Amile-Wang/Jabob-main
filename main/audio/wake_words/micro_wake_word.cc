@@ -31,8 +31,8 @@ static const char* TAG = "MicroWakeWord";
 //      定位完务必把两个 macro 改回 0 再发布。
 //
 // 关闭后这部分代码会被预处理器整段干掉,零运行时开销。
-#define MWW_VERBOSE_PROB_LOG    1   // 每次 Invoke 后打 prob/cutoff/时间戳/state
-#define MWW_VERBOSE_FEATURE_LOG 1   // 每 50 次 RunFrame 打 spectrogram 摘要 (前端健康检查)
+#define MWW_VERBOSE_PROB_LOG    0   // 每次 Invoke 后打 prob/cutoff/时间戳/state
+#define MWW_VERBOSE_FEATURE_LOG 0   // 每 50 次 RunFrame 打 spectrogram 摘要 (前端健康检查)
 // ===========================================================================
 
 namespace {

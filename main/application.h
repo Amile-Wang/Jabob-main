@@ -65,9 +65,9 @@ public:
     void SetOfficeLocation(const std::string& location);
     std::string GetOfficeLocation() const;
 
-    // 添加公共方法用于MCP调用设置listening mode
+    // 线程安全地请求切换 listening mode；实际协议操作在 MainEventLoop 执行
     void SetListeningModePublic(ListeningMode mode);
-    ListeningMode GetListeningMode() const { return listening_mode_; }
+    void ToggleMeetingAssistantMode();
 
 private:
     Application();
@@ -99,6 +99,7 @@ private:
     void CheckNewVersion(Ota& ota);
     void ShowActivationCode(const std::string& code, const std::string& message);
     void OnClockTimer();
+    void ConfigureListeningAudio();
     void SetListeningMode(ListeningMode mode);
 
     std::string office_location_;
